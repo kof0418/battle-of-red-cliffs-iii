@@ -1,30 +1,155 @@
 import Phaser from 'phaser';
 import './style.css';
-import {stats,inRange,comboStep,type Kind} from './combat';
-type Fighter={kind:Kind,x:number,y:number,hp:number,max:number,face:number,z:number,vz:number,attack:number,hit:boolean,cool:number,stun:number,inv:number,step:number,last:number,body:Phaser.GameObjects.Container,shadow:Phaser.GameObjects.Ellipse};
-const touch=new Set<string>();let muted=false;let audio:AudioContext|undefined;
-function beep(freq=130,duration=.07){if(muted)return;try{audio??=new AudioContext();void audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type='square';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(45,audio.currentTime+duration);g.gain.setValueAtTime(.035,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}catch{}}
-class Battle extends Phaser.Scene {
- hero!:Fighter;enemies:Fighter[]=[];keys!:Record<string,Phaser.Input.Keyboard.Key>;art!:Phaser.GameObjects.Graphics;hud!:Phaser.GameObjects.Graphics;label!:Phaser.GameObjects.Text;notice!:Phaser.GameObjects.Text;overlay!:Phaser.GameObjects.Container;started=false;paused=false;ended=false;wave=0;score=0;clock=0;nextWave=0;lastTouch=false;lastJump=false;hitstop=0;queue=false;
- constructor(){super('Battle');}
- create(){this.enemies=[];this.started=false;this.ended=false;this.paused=false;this.wave=0;this.score=0;this.clock=0;this.nextWave=0;this.queue=false;this.hitstop=0;this.lastTouch=false;this.lastJump=false;this.cameras.main.setBounds(0,0,2800,540);this.background();this.art=this.add.graphics().setDepth(5000);this.hero=this.createFighter('hero',180,404);this.keys=this.input.keyboard!.addKeys('W,A,S,D,J,K,SPACE,P,R,ENTER,UP,DOWN,LEFT,RIGHT') as typeof this.keys;this.hud=this.add.graphics().setScrollFactor(0).setDepth(9000);this.label=this.add.text(26,22,'',{fontFamily:'monospace',fontSize:'15px',color:'#f0dfae'}).setScrollFactor(0).setDepth(9001);this.notice=this.add.text(480,111,'',{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d'}).setOrigin(.5).setScrollFactor(0).setDepth(9001);this.showOverlay('赤 旌','暮色關隘 · THE FRONTIER','按 ENTER 或點擊出陣');this.input.on('pointerdown',()=>{if(!this.started)this.begin();});this.drawHud();}
- showOverlay(title:string,sub:string,action:string){this.overlay?.destroy(true);const bg=this.add.rectangle(480,282,960,410,0x0b1416,.76);const t=this.add.text(480,205,title,{fontFamily:'serif',fontSize:'68px',color:'#e8c27e',stroke:'#161b19',strokeThickness:5}).setOrigin(.5);const s=this.add.text(480,284,sub,{fontFamily:'sans-serif',fontSize:'17px',color:'#ddd2b6'}).setOrigin(.5);const a=this.add.text(480,350,action,{fontFamily:'sans-serif',fontSize:'18px',color:'#e9bd64'}).setOrigin(.5);const hint=this.add.text(480,393,'J 連斬  /  K 跳躍  /  WASD 走位',{fontFamily:'monospace',fontSize:'13px',color:'#9eaf9b'}).setOrigin(.5);this.overlay=this.add.container(0,0,[bg,t,s,a,hint]).setScrollFactor(0).setDepth(10000);}
- begin(){this.started=true;this.overlay.destroy(true);beep(390,.12);this.spawnWave();}
- background(){const g=this.add.graphics();g.fillStyle(0x273d42).fillRect(0,0,2800,540);g.fillStyle(0x977b59).fillRect(0,160,2800,95);g.fillStyle(0xc5a674).fillCircle(700,116,45);for(let i=0;i<22;i++){const x=i*145;g.fillStyle(i%2?0x40585a:0x354c51).fillTriangle(x-90,250,x+85,60+(i%4)*27,x+240,250);}g.fillStyle(0x263b3b).fillRect(0,219,2800,100);for(let x=0;x<2800;x+=74){g.fillStyle(0x304748).fillRect(x,205,48,30);g.fillStyle(0x53605a).fillRect(x,244,69,3);g.fillStyle(0x182c30).fillRect(x+17,264,22,44);}g.fillStyle(0x645b45).fillRect(0,320,2800,220);g.fillStyle(0x9b8860).fillRect(0,326,2800,6);for(let i=0;i<400;i++){const x=(i*173)%2800,y=342+(i*37)%195;g.fillStyle(i%3?0x71654b:0x4a4b3e).fillRect(x,y,12+i%23,2);}for(let x=90;x<2800;x+=390){g.fillStyle(0x202f2d).fillRect(x,151,9,182);g.fillStyle(0x813c31).fillRect(x+9,158,62,88);g.fillStyle(0xb5864b).fillRect(x+12,160,4,83);this.add.text(x+28,176,'旌',{fontFamily:'serif',fontSize:'29px',color:'#d5ac64'});}for(let x of [930,1850,2630]){g.fillStyle(0x263330).fillRect(x,159,100,170);g.fillStyle(0x475348).fillRect(x-12,157,124,16);g.fillStyle(0x263330).fillTriangle(x-29,156,x+50,117,x+128,156);g.fillStyle(0x151e20).fillRect(x+30,261,40,67);}
- this.add.text(44,292,'暮色關隘',{fontFamily:'serif',fontSize:'18px',color:'#c8b98c'});}
- createFighter(kind:Kind,x:number,y:number){const body=this.add.container(x,y);const shadow=this.add.ellipse(x,y+3,45,12,0x101c1a,.45);const f:Fighter={kind,x,y,hp:stats[kind].hp,max:stats[kind].hp,face:kind==='hero'?1:-1,z:0,vz:0,attack:0,hit:false,cool:0,stun:0,inv:0,step:0,last:-1000,body,shadow};return f;}
- spawnWave(){this.wave++;const base=[0,390,1120,1930][this.wave]??1930;const kinds:Kind[]=this.wave===1?['soldier','soldier','raider']:this.wave===2?['soldier','heavy','raider','raider']:['boss','heavy','soldier'];kinds.forEach((k,i)=>this.enemies.push(this.createFighter(k,base+i*95,375+(i%3)*46)));this.notice.setText(this.wave===3?'守關將軍・鐵獄　現身':`第 ${this.wave} 陣 · 擊退守軍`);this.time.delayedCall(2400,()=>{if(!this.ended)this.notice.setText('');});}
- down(...names:string[]){return names.some(n=>this.keys[n]?.isDown);}
- update(_time:number,delta:number){const dt=Math.min(delta,33)/1000;if(Phaser.Input.Keyboard.JustDown(this.keys.R)){this.scene.restart();return;}if(!this.started){if(Phaser.Input.Keyboard.JustDown(this.keys.ENTER))this.begin();this.renderFighters();return;}if(this.ended){this.renderFighters();return;}if(Phaser.Input.Keyboard.JustDown(this.keys.P)){this.paused=!this.paused;if(this.paused)this.showOverlay('暫 停','戰場等你歸來','按 P 繼續');else this.overlay.destroy(true);}if(this.paused)return;if(this.hitstop>0){this.hitstop-=dt;return;}this.clock+=dt*1000;this.art.clear();const h=this.hero;let dx=Number(this.down('D','RIGHT')||touch.has('right'))-Number(this.down('A','LEFT')||touch.has('left'));let dy=Number(this.down('S','DOWN')||touch.has('down'))-Number(this.down('W','UP')||touch.has('up'));const atk=Phaser.Input.Keyboard.JustDown(this.keys.J)||(touch.has('attack')&&!this.lastTouch);const jump=Phaser.Input.Keyboard.JustDown(this.keys.K)||Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||(touch.has('jump')&&!this.lastJump);this.lastTouch=touch.has('attack');this.lastJump=touch.has('jump');if(atk&&h.stun<=0){if(h.attack>0)this.queue=true;else this.swing(h);}if(jump&&h.z===0&&h.stun<=0){h.vz=340;beep(220,.07);}if(h.stun<=0&&h.attack<=0){const norm=Math.hypot(dx,dy)||1;h.x+=dx/norm*170*dt;h.y+=dy/norm*115*dt;if(dx)h.face=dx;}h.x=Phaser.Math.Clamp(h.x,30,2770);h.y=Phaser.Math.Clamp(h.y,350,503);
- for(const f of [h,...this.enemies]){f.cool-=dt;f.stun-=dt;f.inv-=dt;if(f.z>0||f.vz>0){f.z+=f.vz*dt;f.vz-=870*dt;if(f.z<0){f.z=0;f.vz=0;}}if(f.attack>0){f.attack-=dt;const threshold=f.kind==='hero'?.16:.18;if(f.attack<threshold&&!f.hit){f.hit=true;this.resolve(f);}if(f.attack<=0&&f===h&&this.queue){this.queue=false;this.swing(h);}}}
- for(const e of this.enemies){if(e.hp<=0||e.stun>0||e.attack>0)continue;const x=h.x-e.x,y=h.y-e.y;e.face=x>=0?1:-1;const reach=e.kind==='boss'?100:58;if(Math.abs(x)<reach&&Math.abs(y)<25){if(e.cool<=0){e.attack=e.kind==='boss'?.7:.5;e.hit=false;e.cool=e.kind==='raider'?1.1:1.6;}}else{e.x+=Math.sign(x)*stats[e.kind].speed*dt*(Math.abs(x)>reach-10?1:0);e.y+=Math.sign(y)*stats[e.kind].speed*.65*dt*(Math.abs(y)>8?1:0);}}
- this.enemies=this.enemies.filter(e=>{if(e.hp>0)return true;e.body.destroy();e.shadow.destroy();return false;});if(!this.enemies.length){if(this.wave===3)this.finish(true);else if(!this.nextWave){this.nextWave=this.clock+1600;this.hero.hp=Math.min(this.hero.max,this.hero.hp+25);this.notice.setText('突破！ 氣血 +25　　向右前進 →');}else if(this.clock>this.nextWave&&h.x>(this.wave===1?750:1540)){this.nextWave=0;this.spawnWave();}}
- if(h.hp<=0)this.finish(false);this.cameras.main.scrollX=Phaser.Math.Clamp(h.x-340,0,1840);this.renderFighters();this.drawHud();}
- swing(f:Fighter){f.step=comboStep(f.step,f.last,this.clock);f.last=this.clock;f.attack=.31;f.hit=false;beep(150+f.step*55,.06);}
- resolve(f:Fighter){const targets=f===this.hero?this.enemies:[this.hero];const reach=f.kind==='boss'?115:f===this.hero?99:65;for(const t of targets){if(t.hp<=0||t.inv>0||t.z>42||!inRange(f.x,f.y,t.x,t.y,f.face,reach))continue;const damage=f===this.hero?(f.step===3?27:15):stats[f.kind].damage;t.hp=Math.max(0,t.hp-damage);t.inv=.26;t.stun=f===this.hero?.38:.25;t.x=Phaser.Math.Clamp(t.x+f.face*(f.step===3?48:18),25,2770);if(f===this.hero){this.score+=damage*10;this.hitstop=.045;this.cameras.main.shake(65,.003);}beep(f.step===3?90:180,.09);const spark=this.add.text(t.x,t.y-t.z-42,'✦',{fontSize:'35px',color:'#fff4bd'}).setDepth(8000);this.tweens.add({targets:spark,alpha:0,y:spark.y-25,duration:240,onComplete:()=>spark.destroy()});}}
- renderFighters(){for(const f of [this.hero,...this.enemies]){f.body.removeAll(true);const g=this.add.graphics();f.body.add(g);const boss=f.kind==='boss',s=boss?1.45:1;f.body.setPosition(Math.round(f.x),Math.round(f.y-f.z)).setDepth(f.y).setScale(s*f.face,s);f.shadow.setPosition(f.x,f.y+3).setDepth(f.y-1).setScale(s*(1-f.z/300));const moving=f===this.hero?(this.down('A','D','W','S','LEFT','RIGHT','UP','DOWN')||touch.size>0):f.attack<=0;const stride=moving?Math.sin(this.clock/85)*4:0;const c=f.inv>0?0xf5e5bb:f.kind==='hero'?0x579c91:f.kind==='soldier'?0x9a5648:f.kind==='raider'?0xb99854:f.kind==='heavy'?0x748592:0x944642;g.fillStyle(0x172728).fillRect(-12,-18,10,17+stride).fillRect(3,-18,10,17-stride);g.fillStyle(0x252b29).fillRect(-15,-4+stride,14,6).fillRect(2,-4-stride,16,6);g.fillStyle(0x522f2b).fillTriangle(-12,-47,-26,-13,0,-21);g.fillStyle(c).fillRect(-14,-47,29,28).fillTriangle(-14,-28,-20,-14,18,-14);g.fillStyle(0xc9b481).fillRect(-16,-47,33,5).fillRect(-13,-26,29,5);g.fillStyle(0x253e3e).fillRect(-8,-41,4,13).fillRect(2,-41,4,13);g.fillStyle(0xd3aa7a).fillRect(-7,-64,18,16);g.fillStyle(0x252d29).fillRect(-9,-68,22,8).fillRect(-9,-60,5,16);g.fillStyle(c).fillRect(-11,-66,25,5);g.fillStyle(0xd0b06b).fillRect(-1,-73,6,10);g.fillStyle(0x182323).fillRect(6,-57,3,3);const attacking=f.attack>0;g.fillStyle(c).fillRect(8,-43,attacking?24:11,9);g.fillStyle(0xd3aa7a).fillRect(attacking?29:15,-41,8,7);g.fillStyle(0x76583d).fillRect(attacking?29:19,attacking?-51:-65,4,65);g.fillStyle(0xc6d5c5).fillTriangle(attacking?33:23,attacking?-51:-65,attacking?62:35,attacking?-44:-80,attacking?35:23,attacking?-30:-45);if(attacking&&f===this.hero){g.lineStyle(f.step===3?7:4,0xffd994,.85);g.beginPath();g.arc(18,-30,50,-1.1,1.0);g.strokePath();}if(attacking&&f!==this.hero&&!f.hit){g.fillStyle(0xffbc65).fillTriangle(-4,-86,4,-86,0,-76);}if(f!==this.hero){g.fillStyle(0x1b2220).fillRect(-20,-86,40,4);g.fillStyle(0xce8058).fillRect(-20,-86,40*f.hp/f.max,4);}}}
- drawHud(){const g=this.hud;g.clear();g.fillStyle(0x0b191b,.92).fillRect(0,0,960,87);g.fillStyle(0xa88a50).fillRect(0,86,960,1);g.fillStyle(0x293a35).fillRect(26,51,240,13);g.fillStyle(0xb7c58b).fillRect(28,53,236*Math.max(0,this.hero.hp)/this.hero.max,9);g.fillStyle(0x806940).fillRect(340,61,280,3);g.fillStyle(0xe5c681).fillRect(340,61,280*this.hero.x/2800,3);this.label.setText(`沈烈  /  雲川刀客                       赤 旌                       SCORE ${String(this.score).padStart(6,'0')}\n\n${Math.ceil(this.hero.hp)} / 140                         STAGE 01 · ${this.wave || 1}/3`);const boss=this.enemies.find(e=>e.kind==='boss');if(boss){g.fillStyle(0x162322,.95).fillRect(280,500,400,27);g.fillStyle(0x9e4b3e).fillRect(288,507,384*boss.hp/boss.max,12);} }
- finish(won:boolean){if(this.ended)return;this.ended=true;this.showOverlay(won?'關 隘 已 破':'勝 敗 乃 常',won?`暮色關隘完成 · 得分 ${this.score}`:'沈烈倒下了，再整旗鼓。','按 R 重新挑戰');}
+import { Campaign, type Input, type Effect } from './combat';
+import { Actor } from './actor';
+import { drawBackground } from './background';
+
+const held = new Set<string>(), pressed = new Set<string>();
+let muted = false, audio: AudioContext | undefined;
+function tone(frequency = 130, duration = .07) {
+  if (muted) return;
+  try {
+    audio ??= new AudioContext(); void audio.resume();
+    const oscillator = audio.createOscillator(), gain = audio.createGain();
+    oscillator.type = 'triangle'; oscillator.frequency.setValueAtTime(frequency, audio.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(45, audio.currentTime + duration);
+    gain.gain.setValueAtTime(.07, audio.currentTime); gain.gain.exponentialRampToValueAtTime(.001, audio.currentTime + duration);
+    oscillator.connect(gain); gain.connect(audio.destination); oscillator.start(); oscillator.stop(audio.currentTime + duration);
+  } catch { /* Audio is optional, including when browser permission is denied. */ }
 }
-const game=new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:540,pixelArt:true,roundPixels:true,backgroundColor:'#24393d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Battle,input:{keyboard:true},banner:false});
-document.querySelector('#sound')!.addEventListener('click',e=>{muted=!muted;(e.target as HTMLElement).textContent=`音效：${muted?'關':'開'}`;});document.querySelector('#fullscreen')!.addEventListener('click',()=>{if(game.scale.isFullscreen)game.scale.stopFullscreen();else game.scale.startFullscreen();});document.querySelectorAll<HTMLElement>('[data-key]').forEach(el=>{el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);touch.add(el.dataset.key!);});for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,()=>touch.delete(el.dataset.key!));});window.addEventListener('blur',()=>{touch.clear();const scene=game.scene.getScene('Battle') as Battle;if(scene.started&&!scene.ended&&!scene.paused){scene.paused=true;scene.showOverlay('暫 停','視窗已失去焦點','按 P 繼續');}});
+function readBest() { try { return Number(localStorage.getItem('red-banner-best')) || 0; } catch { return 0; } }
+class Battle extends Phaser.Scene {
+  model = new Campaign(); actors = new Map<number, Actor>();
+  keys!: Record<string, Phaser.Input.Keyboard.Key>;
+  hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
+  label!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
+  overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
+  constructor() { super('Battle'); }
+  create() {
+    this.model = new Campaign(); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false;
+    held.clear(); pressed.clear();
+    this.cameras.main.setBounds(0, 0, 2800, 540); drawBackground(this);
+    this.danger = this.add.graphics().setDepth(349);
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,J,K,L,SPACE,P,R,ENTER,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
+    // Event buffering avoids missing a short tap between rendered frames.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      const action: Record<string, string> = { KeyJ: 'attack', KeyK: 'jump', Space: 'jump', KeyL: 'dodge', KeyP: 'pause', KeyR: 'restart', Enter: 'start' };
+      if (action[event.code]) pressed.add(action[event.code]);
+    };
+    this.input.keyboard!.on('keydown', onKey);
+    this.events.once('shutdown', () => this.input.keyboard?.off('keydown', onKey));
+    this.input.on('pointerdown', () => {
+      if (this.model.status === 'ready') this.model.start();
+      else if (this.model.paused) this.model.togglePause();
+      else if (this.model.status === 'won' || this.model.status === 'lost') this.scene.restart();
+    });
+    this.hud = this.add.graphics().setScrollFactor(0).setDepth(9000);
+    this.label = this.add.text(26, 20, '', { fontFamily: 'monospace', fontSize: '15px', color: '#f0dfae' }).setScrollFactor(0).setDepth(9001);
+    this.notice = this.add.text(480, 111, '', { fontFamily: 'sans-serif', fontSize: '17px', color: '#f4d28d', stroke: '#1d2d28', strokeThickness: 4 }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
+    this.combo = this.add.text(920, 125, '', { fontFamily: 'monospace', fontSize: '29px', color: '#f9d38a', align: 'right', stroke: '#25312b', strokeThickness: 4 }).setOrigin(1, 0).setScrollFactor(0).setDepth(9001);
+    this.bossLabel = this.add.text(480, 483, '', { fontFamily: 'sans-serif', fontSize: '13px', color: '#f9d38a' }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
+    this.draw();
+  }
+  down(...keys: string[]) { return keys.some(k => this.keys[k]?.isDown); }
+  update(_time: number, delta: number) {
+    const m = this.model;
+    if (pressed.delete('restart')) { this.scene.restart(); return; }
+    if (pressed.delete('start') && m.status === 'ready') m.start();
+    if (pressed.delete('pause')) m.togglePause();
+    const input: Input = {
+      x: Number(this.down('D', 'RIGHT') || held.has('right')) - Number(this.down('A', 'LEFT') || held.has('left')),
+      y: Number(this.down('S', 'DOWN') || held.has('down')) - Number(this.down('W', 'UP') || held.has('up')),
+      attack: pressed.delete('attack'), jump: pressed.delete('jump'), dodge: pressed.delete('dodge'),
+    };
+    m.tick(delta / 1000, input);
+    for (const event of m.events) this.effect(event);
+    if ((m.status === 'won' || m.status === 'lost') && !this.recorded) {
+      this.recorded = true; this.best = Math.max(this.best, m.score);
+      try { localStorage.setItem('red-banner-best', String(this.best)); } catch { /* Storage is optional. */ }
+    }
+    this.tweens.timeScale = m.paused ? 0 : 1;
+    this.cameras.main.scrollX = Phaser.Math.Clamp(m.hero.x - 340, 0, 1840);
+    this.draw();
+  }
+  effect(e: Effect) {
+    if (e.type === 'hit') {
+      tone(e.heavy ? 85 : 180, e.heavy ? .14 : .07);
+      this.cameras.main.shake(e.heavy ? 100 : 45, e.heavy ? .004 : .0015);
+      const damage = this.add.text(e.x, e.y - 20, String(e.value), { fontFamily: 'monospace', fontSize: e.heavy ? '24px' : '18px', color: '#ffe2a1', stroke: '#493e2c', strokeThickness: 3 }).setOrigin(.5).setDepth(8000);
+      this.tweens.add({ targets: damage, y: damage.y - 28, alpha: 0, duration: 470, onComplete: () => damage.destroy() });
+      for (let i = 0; i < 7; i++) {
+        const spark = this.add.rectangle(e.x, e.y, i % 2 ? 3 : 6, 3, i % 2 ? 0xeaa351 : 0xfff1b5).setDepth(8000);
+        this.tweens.add({ targets: spark, x: spark.x + Math.cos(i * 1.1) * 35, y: spark.y + Math.sin(i * 1.1) * 26, alpha: 0, duration: 220, onComplete: () => spark.destroy() });
+      }
+    } else if (e.type === 'death' || e.type === 'dodge') {
+      const dust = this.add.ellipse(e.x, e.y, 40, 10, 0xd5b97c, .6).setDepth(e.y);
+      this.tweens.add({ targets: dust, scaleX: 2, scaleY: 2, alpha: 0, duration: 300, onComplete: () => dust.destroy() });
+    } else if (e.type === 'swing') tone(160 + (e.value ?? 1) * 60, .07);
+    else if (e.type === 'jump') tone(300, .07);
+    else if (e.type === 'wave') tone(410, .18);
+  }
+  draw() {
+    const m = this.model, live = new Set<number>();
+    for (const f of [m.hero, ...m.enemies]) {
+      live.add(f.id);
+      let actor = this.actors.get(f.id); if (!actor) { actor = new Actor(this, f.id); this.actors.set(f.id, actor); }
+      actor.draw(f, m.time);
+    }
+    for (const [id, actor] of this.actors) if (!live.has(id)) { actor.destroy(); this.actors.delete(id); }
+    const d = this.danger; d.clear();
+    for (const e of m.enemies) {
+      const a = e.attack; if (!a || a.hit) continue;
+      const pulse = Math.floor(m.time * 10) % 2 ? .34 : .20;
+      d.fillStyle(0xe77948, pulse); d.lineStyle(2, 0xffb568, .85);
+      if (a.move === 'slam') { d.fillEllipse(a.x, a.y, 246, 176); d.strokeEllipse(a.x, a.y, 246, 176); }
+      else { const w = a.move === 'charge' ? 250 : e.kind === 'heavy' ? 88 : 73; const x = a.face > 0 ? a.x : a.x - w; d.fillRect(x, a.y - 29, w, 58); d.strokeRect(x, a.y - 29, w, 58); }
+    }
+    const g = this.hud; g.clear(); g.fillStyle(0x0b191b, .95).fillRect(0, 0, 960, 87);
+    g.fillStyle(0xa88a50).fillRect(0, 86, 960, 1); g.fillStyle(0x293a35).fillRect(26, 49, 240, 12);
+    g.fillStyle(0xb7c58b).fillRect(28, 51, 236 * m.hero.hp / m.hero.max, 8);
+    g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
+    g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
+    this.label.setText(`沈烈  /  雲川刀客                 赤 旌 · v0.2                SCORE ${String(m.score).padStart(6, '0')}\n\n${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 L               第 ${m.wave || 1} 陣 / 3                    BEST ${this.best}`);
+    this.notice.setText(m.time < m.messageUntil ? m.message : '');
+    this.combo.setText(m.hits > 1 ? `${m.hits} HITS\n${['', '壹 · 斷流', '貳 · 挑月', '叁 · 破陣'][m.hero.step]}` : '');
+    const boss = m.enemies.find(e => e.kind === 'boss');
+    this.bossLabel.setText(boss ? `鐵獄 · ${boss.hp <= boss.max / 2 ? '怒勢' : '守關將軍'}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
+    if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
+    const state = m.paused ? 'paused' : m.status;
+    if (state !== this.overlayState) {
+      this.overlayState = state; this.overlay?.destroy(true); this.overlay = undefined;
+      if (state !== 'playing') this.showOverlay(state);
+    }
+    const pause = document.querySelector<HTMLButtonElement>('#pause');
+    if (pause) { pause.textContent = m.paused ? '繼續 ▶' : '暫停 Ⅱ'; pause.disabled = m.status !== 'playing'; }
+    const status = document.querySelector('#game-status');
+    if (status) status.textContent = state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `關隘已破 · ${m.score} 分` : state === 'lost' ? '挑戰結束' : `第 ${m.wave} 陣 · ${m.enemies.length} 名敵人`;
+  }
+  showOverlay(state: string) {
+    const m = this.model;
+    const title = state === 'ready' ? '赤 旌' : state === 'paused' ? '暫 停' : state === 'won' ? '關 隘 已 破' : '勝 敗 乃 常';
+    const sub = state === 'ready' ? '暮色關隘 · 刀光再起 v0.2' : state === 'paused' ? '戰場等你歸來' : `得分 ${m.score}　／　最高連擊 ${m.bestCombo} HITS`;
+    const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? '按 P、點擊畫面或「繼續」' : '按 R、點擊畫面或「重試」';
+    const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .79);
+    const text = (y: number, value: string, size: number, color: string) => this.add.text(480, y, value, { fontFamily: 'serif', fontSize: `${size}px`, color }).setOrigin(.5);
+    this.overlay = this.add.container(0, 0, [bg, text(207, title, 64, '#e8c27e'), text(286, sub, 18, '#ddd2b6'), text(350, action, 18, '#e9bd64'), text(394, 'J 連斬　K 跳躍　L 閃身　／　離開橙色範圍躲避敵招', 14, '#9eaf9b')]).setScrollFactor(0).setDepth(10000);
+  }
+}
+const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, pixelArt: true, roundPixels: true,
+  backgroundColor: '#24393d', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: Battle, banner: false });
+document.querySelector('#sound')!.addEventListener('click', e => { muted = !muted; (e.target as HTMLElement).textContent = `音效：${muted ? '關' : '開'}`; });
+document.querySelector('#fullscreen')!.addEventListener('click', () => { if (game.scale.isFullscreen) game.scale.stopFullscreen(); else game.scale.startFullscreen(); });
+document.querySelector('#pause')!.addEventListener('click', () => pressed.add('pause'));
+document.querySelector('#restart')!.addEventListener('click', () => pressed.add('restart'));
+document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); held.add(el.dataset.key!); pressed.add(el.dataset.key!); });
+  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(event, () => held.delete(el.dataset.key!));
+});
+function suspend() {
+  held.clear(); pressed.clear();
+  const scene = game.scene.getScene('Battle') as Battle;
+  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
+}
+window.addEventListener('blur', suspend);
+document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); });
