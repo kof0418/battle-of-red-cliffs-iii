@@ -80,6 +80,9 @@ export class Campaign {
       step: 0, last: -10, attack: null, moving: false, dodge: 0, dodgeCooldown: 0,
       dashX: 0, dashY: 0, attacks: 0 };
   }
+  reseedIds() {
+    this.serial = Math.max(...[this.hero, ...this.enemies, ...this.supplies, ...this.pickups].map(entity => entity.id));
+  }
   start() { if (this.status !== 'ready') return; this.status = 'playing'; this.spawn(); }
   togglePause() { if (this.status === 'playing') this.paused = !this.paused; }
   /** Called only from the clear screen; the campaign score and credits survive. */

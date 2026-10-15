@@ -4,6 +4,7 @@ import './style.css';
 import { Campaign, isBoss, type Input, type Effect } from './combat';
 import { Actor } from './actor';
 import { drawBackground } from './background';
+import { captureSave, restoreSave, readSave, writeSave, parseSave, MAX_SAVE_BYTES, type SaveData } from './save';
 
 const held = new Set<string>(), pressed = new Set<string>();
 let muted = false, audio: AudioContext | undefined;
@@ -18,7 +19,22 @@ function tone(frequency = 130, duration = .07) {
     oscillator.connect(gain); gain.connect(audio.destination); oscillator.start(); oscillator.stop(audio.currentTime + duration);
   } catch { /* Audio is optional, including when browser permission is denied. */ }
 }
-function readBest() { try { return Number(localStorage.getItem('red-banner-best-v03')) || 0; } catch { return 0; } }
+function readBest() { try { const n = Number(localStorage.getItem('red-banner-best-v03')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+let savedRecord: SaveData | null = null;
+let saveMessage = '尚無紀錄；戰鬥中每 5 秒自動保存。';
+try { savedRecord = readSave(localStorage); if (savedRecord) saveMessage = '找到行軍紀錄，可按「載入紀錄」接續。'; }
+catch { saveMessage = '無法讀取本機紀錄；仍可遊玩或匯入有效存檔。'; }
+function saveSummary() {
+  if (!savedRecord) return '未保存';
+  const r = savedRecord.run;
+  return `第 ${r.stage + 1} 關 · 第 ${r.wave} 陣 · 氣血 ${Math.ceil(r.hero.hp)} · ${r.score} 分`;
+}
+function persist(save: SaveData) {
+  savedRecord = save;
+  try { writeSave(localStorage, save); saveMessage = `已保存 ${new Date(save.savedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`; }
+  catch { saveMessage = '瀏覽器無法寫入；紀錄暫存於本頁，請匯出備份。'; }
+}
+
 class Battle extends Phaser.Scene {
   model = new Campaign(); actors = new Map<number, Actor>();
   keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -26,14 +42,18 @@ class Battle extends Phaser.Scene {
   supplies!: Phaser.GameObjects.Graphics; backdrop?: Phaser.GameObjects.Container; drawnStage = -1;
   label!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
   overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
+  autosaveAt = 0; saveSignature = '';
   constructor() { super('Battle'); }
-  create() {
+  create(data?: { save?: SaveData }) {
     this.model = new Campaign(); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
+    if (data?.save) { this.model = restoreSave(data.save); this.best = Math.max(this.best, data.save.best); muted = data.save.muted; }
+    this.autosaveAt = this.model.time; this.saveSignature = this.signature();
+    document.querySelector('#sound')!.textContent = `音效：${muted ? '關' : '開'}`;
     held.clear(); pressed.clear();
     this.cameras.main.setBounds(0, 0, 2800, 540);
     this.supplies = this.add.graphics().setDepth(349.5);
     this.danger = this.add.graphics().setDepth(349);
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,J,K,L,SPACE,P,R,ENTER,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,J,K,L,SPACE,P,R,ENTER,UP,DOWN,LEFT,RIGHT') as Record<string, Phaser.Input.Keyboard.Key>;
     // Event buffering avoids missing a short tap between rendered frames.
     const onKey = (event: KeyboardEvent) => {
       if (event.repeat) return;
@@ -56,6 +76,12 @@ class Battle extends Phaser.Scene {
       if (preview === 'intermission') { this.model.start(); this.model.wave = 3; this.model.enemies = []; this.model.status = 'stage-clear'; }
     }
     this.draw();
+  }
+  signature() { const m = this.model; return `${m.stage}:${m.wave}:${m.status}:${m.continues}`; }
+  saveCurrent() {
+    if (this.model.status === 'ready') { saveMessage = '請先出陣，或載入已有紀錄。'; return; }
+    try { persist(captureSave(this.model, this.best, muted)); this.autosaveAt = this.model.time; this.saveSignature = this.signature(); }
+    catch (error) { saveMessage = error instanceof Error ? error.message : '保存失敗，請稍後再試。'; }
   }
   activate() {
     const m = this.model;
@@ -82,6 +108,7 @@ class Battle extends Phaser.Scene {
       this.recorded = true; this.best = Math.max(this.best, m.score);
       try { localStorage.setItem('red-banner-best-v03', String(this.best)); } catch { /* Storage is optional. */ }
     }
+    if (m.status !== 'ready' && (this.signature() !== this.saveSignature || (!m.paused && m.time - this.autosaveAt >= 5))) this.saveCurrent();
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = Phaser.Math.Clamp(m.hero.x - 340, 0, 1840);
     this.draw();
@@ -147,7 +174,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0xb7c58b).fillRect(28, 51, 236 * m.hero.hp / m.hero.max, 8);
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
-    this.label.setText(`沈烈  /  雲川刀客                 赤 旌 · v0.3                SCORE ${String(m.score).padStart(6, '0')}\n\n${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 L               關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3                    BEST ${this.best}`);
+    this.label.setText(`沈烈  /  雲川刀客                 赤 旌 · v0.4                SCORE ${String(m.score).padStart(6, '0')}\n\n${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 L               關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3                    BEST ${this.best}`);
     this.notice.setText(m.time < m.messageUntil ? m.message : '');
     this.combo.setText(m.hits > 1 ? `${m.hits} HITS\n${['', '壹 · 斷流', '貳 · 挑月', '叁 · 破陣'][m.hero.step]}` : '');
     const boss = m.enemies.find(e => isBoss(e.kind));
@@ -167,6 +194,11 @@ class Battle extends Phaser.Scene {
       action.hidden = state === 'playing' || state === 'paused';
       action.textContent = state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? '前往第二關 ▶' : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻';
     }
+    document.querySelector('#save-summary')!.textContent = saveSummary();
+    document.querySelector('#save-status')!.textContent = saveMessage;
+    document.querySelector<HTMLButtonElement>('#load-save')!.disabled = !savedRecord;
+    document.querySelector<HTMLButtonElement>('#export-save')!.disabled = !savedRecord && m.status === 'ready';
+    document.querySelector<HTMLButtonElement>('#save-now')!.disabled = m.status === 'ready';
     document.querySelector('#credits')!.textContent = `續關 ${m.continues} / 2`;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-stage]'))) {
       const index = Number(card.dataset.stage); card.dataset.state = index < m.stage || state === 'won' || (state === 'stage-clear' && index === m.stage) ? 'cleared' : index === m.stage ? 'current' : 'locked';
@@ -176,7 +208,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤 旌' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '赤 旌 凱 旋' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '雙關戰役 · 關山夜渡 v0.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　擊倒 ${m.kills}　最高連擊 ${m.bestCombo}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '雙關戰役 · 行軍有記 v0.4' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　擊倒 ${m.kills}　最高連擊 ${m.bestCombo}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? '按 P、點擊畫面或「繼續」' : state === 'stage-clear' ? '按 ENTER 或點擊前往第二關 · 氣血全回復' : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : 'J 連斬　K 跳躍　L 閃身　／　打破木箱、走近藥包補血';
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -198,7 +230,33 @@ document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
 function suspend() {
   held.clear(); pressed.clear();
   const scene = game.scene.getScene('Battle') as Battle;
-  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
+  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); scene.saveCurrent(); }
 }
 window.addEventListener('blur', suspend);
 document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); });
+
+const current = () => game.scene.getScene('Battle') as Battle;
+document.querySelector('#save-now')!.addEventListener('click', () => { suspend(); current().saveCurrent(); });
+document.querySelector('#load-save')!.addEventListener('click', () => {
+  if (savedRecord) { const requested = savedRecord; suspend(); persist(requested); saveMessage = '紀錄已載入；按繼續返回戰場。'; current().scene.restart({ save: requested }); }
+});
+document.querySelector('#export-save')!.addEventListener('click', () => {
+  suspend();
+  if (current().model.status !== 'ready') current().saveCurrent();
+  if (!savedRecord) return;
+  const blob = new Blob([JSON.stringify(savedRecord, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob), link = document.createElement('a');
+  link.href = url; link.download = `red-banner-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+});
+const picker = document.querySelector<HTMLInputElement>('#save-file')!;
+document.querySelector('#import-save')!.addEventListener('click', () => { suspend(); picker.click(); });
+picker.addEventListener('change', async () => {
+  const file = picker.files?.[0]; if (!file) return;
+  try {
+    if (file.size > MAX_SAVE_BYTES) throw new Error('存檔太大，請選擇 128 KB 以下的遊戲存檔。');
+    const save = parseSave(await file.text()); persist(save); current().scene.restart({ save });
+  } catch (error) { saveMessage = error instanceof Error ? error.message : '匯入失敗，原有紀錄未變更。'; }
+  finally { picker.value = ''; }
+});
+window.addEventListener('pagehide', () => { if (current()?.model) current().saveCurrent(); });

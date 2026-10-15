@@ -2,5 +2,5 @@ services:
   game:
     build: .
     ports:
-      - "8080:80"
+      - "${GAME_BIND:-127.0.0.1}:${GAME_PORT:-8080}:80"
     restart: unless-stopped

@@ -3,3 +3,6 @@ dist/
 .DS_Store
 src-tauri/target/
 .openai/*.tar.gz
+release/
+__pycache__/
+.env
