@@ -28,7 +28,7 @@ test('boss alternates readable slam / charge and speeds up at half health',()=>{
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
  const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,970);
  m.hero.hp=80;m.enemies=[];m.tick(1/60,idle);assert.equal(m.hero.hp,115);advance(m,.3);assert.equal(m.hero.hp,115);
- advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'won');
+ advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
 });
 test('zero health loses even if last enemy dies on the same frame',()=>{
  const m=isolated();m.wave=3;m.enemies=[];m.hero.hp=0;m.tick(1/60,idle);assert.equal(m.status,'lost');advance(m,1);assert.equal(m.status,'lost');
@@ -38,7 +38,8 @@ test('new campaign resets all combat state',()=>{
 });
 test('deterministic full campaign can be won using normal combat inputs',()=>{
  const m=new Campaign();m.start();
- for(let frame=0;frame<60*240&&m.status==='playing';frame++){
+ for(let frame=0;frame<60*480&&(m.status==='playing'||m.status==='stage-clear');frame++){
+  if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
   const h=m.hero,e=[...m.enemies].sort((a,b)=>Math.abs(a.x-h.x)+Math.abs(a.y-h.y)*3-Math.abs(b.x-h.x)-Math.abs(b.y-h.y)*3)[0];
   let input:Input={x:1,y:0};
   if(e){const dx=e.x-h.x,dy=e.y-h.y;const near=Math.abs(dx)<94&&Math.abs(dy)<25;
@@ -48,5 +49,5 @@ test('deterministic full campaign can be won using normal combat inputs',()=>{
   m.tick(1/60,input);
  }
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);
- assert.equal(m.wave,3);assert.ok(m.score>8000);
+ assert.equal(m.stage,1);assert.equal(m.wave,3);assert.ok(m.score>18000);assert.equal(m.kills,21);
 });

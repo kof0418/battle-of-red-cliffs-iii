@@ -1,11 +1,13 @@
+import { LEVELS } from './levels.ts';
 /** Pure combat rules, in seconds and world pixels. */
-export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'boss';
+export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'boss' | 'marshal';
 export const stats = {
   hero: { hp: 160, speed: 180, damage: 17 },
   soldier: { hp: 48, speed: 62, damage: 8 },
   raider: { hp: 38, speed: 104, damage: 6 },
   heavy: { hp: 90, speed: 42, damage: 13 },
   boss: { hp: 420, speed: 65, damage: 18 },
+  marshal: { hp: 510, speed: 78, damage: 20 },
 };
 export const SLASHES = [
   { duration: .28, impact: .10, damage: 17, reach: 96, push: 15 },
@@ -19,7 +21,10 @@ export function comboStep(previous: number, last: number, now: number) {
   return now - last < 650 ? previous % 3 + 1 : 1;
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-export type Move = 'slash' | 'slam' | 'charge';
+export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal';
+export type Move = 'slash' | 'slam' | 'charge' | 'sweep';
+export interface Supply { id: number; x: number; y: number; hp: number; }
+export interface Pickup { id: number; x: number; y: number; amount: number; }
 export interface Attack {
   move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
@@ -31,9 +36,10 @@ export interface Fighter {
   dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end'; x: number; y: number; value?: number; heavy?: boolean };
+export type Effect = { type: 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate'; x: number; y: number; value?: number; heavy?: boolean };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
+  if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
   if (a.move === 'slam') return Math.hypot((target.x - a.x) / 1.4, target.y - a.y) < 88;
   if (a.move === 'charge') return inRange(a.x, a.y, target.x, target.y, a.face, 250);
   return inRange(a.x, a.y, target.x, target.y, a.face, reach);
@@ -42,6 +48,16 @@ export function attackHits(a: Attack, target: Fighter, reach: number) {
 export class Campaign {
   hero: Fighter;
   enemies: Fighter[] = [];
+  supplies: Supply[] = [];
+  pickups: Pickup[] = [];
+  stage = 0;
+  continues = 2;
+  continuesUsed = 0;
+  kills = 0;
+  checkpointScore = 0;
+  checkpointKills = 0;
+  get level() { return LEVELS[this.stage]; }
+  get rank() { return this.continuesUsed === 0 && this.hero.hp >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
   time = 0;
   wave = 0;
   score = 0;
@@ -49,7 +65,7 @@ export class Campaign {
   bestCombo = 0;
   hitDeadline = 0;
   paused = false;
-  status: 'ready' | 'playing' | 'won' | 'lost' = 'ready';
+  status: 'ready' | 'playing' | 'stage-clear' | 'won' | 'lost' = 'ready';
   events: Effect[] = [];
   message = '暮色關隘';
   messageUntil = 0;
@@ -66,14 +82,34 @@ export class Campaign {
   }
   start() { if (this.status !== 'ready') return; this.status = 'playing'; this.spawn(); }
   togglePause() { if (this.status === 'playing') this.paused = !this.paused; }
+  /** Called only from the clear screen; the campaign score and credits survive. */
+  nextStage() {
+    if (this.status !== 'stage-clear' || this.stage >= LEVELS.length - 1) return false;
+    this.stage++; this.wave = 0; this.hero = this.fighter('hero', 180, 412);
+    this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
+  }
+  /** Replay the current wave, rolling back its score and kills to prevent farming. */
+  continueRun() {
+    if (this.status !== 'lost' || this.continues <= 0) return false;
+    this.continues--; this.continuesUsed++;
+    this.score = this.checkpointScore; this.kills = this.checkpointKills;
+    const x = [180, 180, 1010, 1880][this.wave];
+    this.hero = this.fighter('hero', x, 412); this.hero.inv = 1.5;
+    this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
+  }
+  private resetTransient() {
+    this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
+    this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
+  }
   spawn() {
-    this.wave++;
-    this.clearedAt = -1;
+    this.wave++; this.clearedAt = -1;
+    this.checkpointScore = this.score; this.checkpointKills = this.kills;
     const base = [0, 430, 1230, 2110][this.wave];
-    const kinds: Kind[] = this.wave === 1 ? ['soldier', 'soldier', 'raider'] :
-      this.wave === 2 ? ['heavy', 'raider', 'soldier', 'raider'] : ['boss', 'soldier', 'heavy'];
+    const kinds = this.level.waves[this.wave - 1];
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 82, 370 + i % 3 * 49));
-    this.message = this.wave === 3 ? '鐵獄・守關將軍　　留意地面蓄力範圍' : `第 ${this.wave} 陣　／　擊退守軍`;
+    this.supplies = [{ id: ++this.serial, x: base + 240, y: 479, hp: 24 }];
+    this.pickups = [];
+    this.message = this.wave === 3 ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　／　第 ${this.wave} 陣`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
   }
@@ -129,8 +165,13 @@ export class Campaign {
     this.enemies = this.enemies.filter(e => e.hp > 0);
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
+    this.pickups = this.pickups.filter(p => {
+      if (h.hp >= h.max || h.z > 8 || Math.abs(p.x - h.x) > 27 || Math.abs(p.y - h.y) > 22) return true;
+      const amount = Math.min(p.amount, h.max - h.hp); h.hp += amount;
+      this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
+    });
     if (!this.enemies.length) {
-      if (this.wave === 3) { this.status = 'won'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
+      if (this.wave === 3) { this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
       else if (this.clearedAt < 0) {
         this.clearedAt = this.time; h.hp = Math.min(h.max, h.hp + 35);
         this.message = '破陣！氣血 +35　　向右前進 →'; this.messageUntil = Infinity;
@@ -148,13 +189,13 @@ export class Campaign {
     if (e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
     e.face = dx >= 0 ? 1 : -1;
-    const boss = e.kind === 'boss', enraged = boss && e.hp <= e.max / 2;
+    const boss = isBoss(e.kind), enraged = boss && e.hp <= e.max / 2;
     const reach = boss ? 115 : e.kind === 'heavy' ? 74 : 60;
     const activeAttackers = this.enemies.filter(f => f.attack).length;
     if (e.cooldown <= 0 && activeAttackers < 2 && Math.abs(dy) < 27 && Math.abs(dx) < (boss ? 250 : reach)) {
       let move: Move = 'slash';
-      if (boss) move = e.attacks % 2 === 0 ? 'slam' : 'charge';
-      if (move === 'slam' && Math.abs(dx) > 125) move = 'charge';
+      if (boss) move = e.kind === 'marshal' ? (['sweep', 'charge', 'slam'] as Move[])[e.attacks % 3] : e.attacks % 2 === 0 ? 'slam' : 'charge';
+      if ((move === 'slam' && Math.abs(dx) > 125) || (move === 'sweep' && Math.abs(dx) > 160)) move = 'charge';
       const windup = boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
       e.attack = { move, elapsed: 0, duration: windup + (boss ? .55 : .32), impact: windup, hit: false, face: e.face, x: e.x, y: e.y };
       e.cooldown = boss ? (enraged ? 1.65 : 2.2) : 1.6 + index % 3 * .15; e.attacks++;
@@ -176,14 +217,30 @@ export class Campaign {
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
       t.inv = heroAttack ? .16 : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
-      if (t.kind !== 'boss') { t.stun = heroAttack ? .30 : .22; t.attack = null; }
+      if (!isBoss(t.kind)) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
       t.x = clamp(t.x + a.face * (heroAttack ? s.push : 23), 25, 2770);
       if (heroAttack) {
         this.score += actual * 10; this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = f.step === 3 ? .065 : .035;
       } else { this.hits = 0; this.queuedUntil = 0; }
-      this.events.push({ type: 'hit', x: t.x, y: t.y - t.z - 38, value: damage, heavy: f.step === 3 || f.kind === 'boss' });
-      if (!t.hp) { this.score += heroAttack ? 100 : 0; this.events.push({ type: 'death', x: t.x, y: t.y }); }
+      this.events.push({ type: 'hit', x: t.x, y: t.y - t.z - 38, value: damage, heavy: f.step === 3 || isBoss(f.kind) });
+      if (!t.hp) {
+        this.score += heroAttack ? 100 : 0;
+        if (heroAttack) {
+          this.kills++;
+          if (t.kind === 'heavy') this.pickups.push({ id: ++this.serial, x: t.x, y: t.y, amount: 25 });
+        }
+        this.events.push({ type: 'death', x: t.x, y: t.y });
+      }
+    }
+    if (heroAttack) {
+      for (const box of this.supplies) {
+        if (box.hp <= 0 || !inRange(a.x, a.y, box.x, box.y, a.face, s.reach)) continue;
+        box.hp = Math.max(0, box.hp - s.damage);
+        this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });
+        if (!box.hp) this.pickups.push({ id: ++this.serial, x: box.x, y: box.y, amount: 40 });
+      }
+      this.supplies = this.supplies.filter(box => box.hp > 0);
     }
     if (a.move === 'charge') f.x = clamp(a.x + a.face * 190, 25, 2770);
   }

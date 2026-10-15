@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { Fighter } from './combat';
+import { isBoss, type Fighter } from './combat';
 /** Reused graphics object with quantized 12 fps poses; no per-frame object allocation. */
 export class Actor {
   body: Phaser.GameObjects.Container;
@@ -11,7 +11,7 @@ export class Actor {
     this.shadow = scene.add.ellipse(0, 0, 43, 12, 0x101c1a, .4);
   }
   draw(f: Fighter, time: number) {
-    const frame = Math.floor(time * 12), boss = f.kind === 'boss', s = boss ? 1.5 : 1.12;
+    const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
     this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob)).setDepth(f.y).setScale(s * f.face, s);
@@ -21,7 +21,7 @@ export class Actor {
     const key = `${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
-    const color = f.kind === 'hero' ? 0x60b6a5 : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : 0xad4e43;
+    const color = f.kind === 'hero' ? 0x60b6a5 : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
     // Cape, boots, segmented armour, face and original helmet silhouette.
@@ -37,7 +37,8 @@ export class Actor {
     g.fillStyle(color).fillRect(-12, -65, 27, 5);
     g.fillStyle(0xe0bc70).fillRect(-2, -74, 6, 12);
     g.fillStyle(0x9e493d).fillTriangle(1, -75, -14 - frame % 3, -87, -6, -74);
-    if (boss) { g.fillStyle(0xe0bd74).fillTriangle(-12, -65, -22, -79, -7, -68).fillTriangle(11, -65, 19, -81, 5, -68); }
+    if (f.kind === 'marshal') { g.fillStyle(0xb7d3cc).fillTriangle(-9, -69, -18, -91, 0, -71).fillTriangle(7, -69, 15, -91, 0, -71); }
+    if (f.kind === 'boss') { g.fillStyle(0xe0bd74).fillTriangle(-12, -65, -22, -79, -7, -68).fillTriangle(11, -65, 19, -81, 5, -68); }
     // Each slash has a distinct silhouette: forward cut, rising cut, sweeping finisher.
     const attacking = !!f.attack;
     const y = attacking ? (f.step === 2 ? [-26, -31, -59, -48][step] : [-53, -38, -28, -42][step]) : -40;
