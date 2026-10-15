@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import Phaser from 'phaser';
 import './style.css';
-import { Campaign, isBoss, type Input, type Effect } from './combat';
+import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
 import { drawBackground } from './background';
 import { captureSave, restoreSave, readSave, writeSave, parseSave, MAX_SAVE_BYTES, type SaveData } from './save';
@@ -175,7 +175,8 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
     this.label.setText(`沈烈  /  雲川刀客                 赤 旌 · v0.4                SCORE ${String(m.score).padStart(6, '0')}\n\n${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 L               關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3                    BEST ${this.best}`);
-    this.notice.setText(m.time < m.messageUntil ? m.message : '');
+    const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
+    this.notice.setText(fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
     this.combo.setText(m.hits > 1 ? `${m.hits} HITS\n${['', '壹 · 斷流', '貳 · 挑月', '叁 · 破陣'][m.hero.step]}` : '');
     const boss = m.enemies.find(e => isBoss(e.kind));
     this.bossLabel.setText(boss ? `${m.level.boss}${boss.hp <= boss.max / 2 ? ' · 怒勢' : ''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');

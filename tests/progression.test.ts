@@ -45,3 +45,12 @@ test('marshal sweep threatens both sides and can be jumped',()=>{
 test('rank reflects continue usage and remaining health',()=>{
  const m=new Campaign();assert.equal(m.rank,'S');m.hero.hp=20;assert.equal(m.rank,'A');m.continuesUsed=2;assert.equal(m.rank,'B');
 });
+
+test('walking along bottom edge collects medicine from a crate broken in that lane',()=>{
+ const m=new Campaign();m.start();const box=m.supplies[0];
+ m.hero.x=box.x-55;m.hero.y=503;m.hero.hp=80;
+ const a:Attack={move:'slash',elapsed:0,duration:.3,impact:.1,hit:false,face:1,x:m.hero.x,y:m.hero.y};
+ m.hero.step=3;m.resolve(m.hero,a);assert.equal(m.pickups.length,1);
+ for(let i=0;i<30;i++)m.tick(1/60,{x:1,y:0});
+ assert.equal(m.hero.hp,120);assert.equal(m.pickups.length,0);
+});

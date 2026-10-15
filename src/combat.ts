@@ -24,6 +24,9 @@ export const clamp = (value: number, min: number, max: number) => Math.max(min, 
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal';
 export type Move = 'slash' | 'slam' | 'charge' | 'sweep';
 export interface Supply { id: number; x: number; y: number; hp: number; }
+export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
+  return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
+}
 export interface Pickup { id: number; x: number; y: number; amount: number; }
 export interface Attack {
   move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
@@ -169,7 +172,7 @@ export class Campaign {
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
     this.pickups = this.pickups.filter(p => {
-      if (h.hp >= h.max || h.z > 8 || Math.abs(p.x - h.x) > 27 || Math.abs(p.y - h.y) > 22) return true;
+      if (h.hp >= h.max || !nearPickup(h, p)) return true;
       const amount = Math.min(p.amount, h.max - h.hp); h.hp += amount;
       this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
     });
