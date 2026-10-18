@@ -65,5 +65,6 @@ export function drawBackground(scene: Phaser.Scene, level: Level) {
     }
   }
   text(44, 294, level.title, 18, river ? '#b1c9b5' : '#c8b98c');
+  text(44, 317, river ? '火船警戒：避開火線，或跳躍／閃身' : '城樓箭雨：留意框線，移出警戒區', 12, '#e4d7ac');
   return layer;
 }

@@ -1,6 +1,6 @@
 {
   "name": "three-kingdoms-battle",
-  "version": "0.4.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
-    "release": "npm test && npm run build && python3 scripts/package_release.py"
+    "release": "npm test && npm run build && python3 scripts/package_release.py",
+    "desktop:build:mac": "tauri build --bundles app --target aarch64-apple-darwin"
   },
   "dependencies": {
     "phaser": "^3.90.0"

@@ -6,3 +6,5 @@ src-tauri/target/
 release/
 __pycache__/
 .env
+
+src-tauri/gen/

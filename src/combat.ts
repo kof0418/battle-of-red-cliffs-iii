@@ -1,4 +1,6 @@
+import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS } from './levels.ts';
+import { fieldEvent, fieldHits } from './battlefield.ts';
 /** Pure combat rules, in seconds and world pixels. */
 export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'boss' | 'marshal';
 export const stats = {
@@ -33,13 +35,13 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  id: number; kind: Kind; x: number; y: number; hp: number; max: number; face: number;
+  id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate'; x: number; y: number; value?: number; heavy?: boolean };
+export type Effect = { type: 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
@@ -59,7 +61,12 @@ export class Campaign {
   kills = 0;
   checkpointScore = 0;
   checkpointKills = 0;
+  ranked = true;
+  waveStarted = 0;
+  waveDamage = 0;
+  waveReward = -1;
   get level() { return LEVELS[this.stage]; }
+  get field() { return this.status === 'playing' && this.enemies.length ? fieldEvent(this.stage,this.wave,this.time,this.waveStarted) : null; }
   get rank() { return this.continuesUsed === 0 && this.hero.hp >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
   time = 0;
   wave = 0;
@@ -76,9 +83,15 @@ export class Campaign {
   freeze = 0;
   clearedAt = -1;
   private serial = 0;
-  constructor() { this.hero = this.fighter('hero', 180, 412); }
+  constructor(heroId: HeroId = 'guanyu') { this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
+  get champion() { return HEROES[this.hero.heroId ?? 'guanyu']; }
+  selectHero(id: HeroId) { if (this.status !== 'ready') return false; this.hero.heroId = id; return true; }
+  slash(step: number) {
+    const s = SLASHES[Math.max(0, step - 1)], c = this.champion;
+    return { duration: s.duration * c.tempo, impact: s.impact * c.tempo, damage: Math.round(s.damage * c.damage), reach: s.reach * c.reach, push: s.push * c.push };
+  }
   fighter(kind: Kind, x: number, y: number): Fighter {
-    return { id: ++this.serial, kind, x, y, hp: stats[kind].hp, max: stats[kind].hp,
+    return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: stats[kind].hp, max: stats[kind].hp,
       face: kind === 'hero' ? 1 : -1, z: 0, vz: 0, inv: 0, stun: 0, cooldown: .9,
       step: 0, last: -10, attack: null, moving: false, dodge: 0, dodgeCooldown: 0,
       dashX: 0, dashY: 0, attacks: 0 };
@@ -109,13 +122,14 @@ export class Campaign {
   }
   spawn() {
     this.wave++; this.clearedAt = -1;
+    this.waveStarted = this.time; this.waveDamage = 0; this.waveReward = -1;
     this.checkpointScore = this.score; this.checkpointKills = this.kills;
     const base = [0, 430, 1230, 2110][this.wave];
     const kinds = this.level.waves[this.wave - 1];
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 82, 370 + i % 3 * 49));
     this.supplies = [{ id: ++this.serial, x: base + 240, y: 479, hp: 24 }];
     this.pickups = [];
-    this.message = this.wave === 3 ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　／　第 ${this.wave} 陣`;
+    this.message = this.wave === 3 ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　第 ${this.wave} 陣 · ${this.stage === 0 ? '留意箭雨，移出框線' : '火船來襲，跳躍避火'}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
   }
@@ -132,7 +146,7 @@ export class Campaign {
     for (const f of [h, ...this.enemies]) {
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
-      if (f.z > 0 || f.vz > 0) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; } }
+      if (f.z > 0 || f.vz > 0) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { f.stun = Math.max(f.stun, .12); f.attack = null; } } }
     }
     if (input.dodge && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
@@ -146,7 +160,7 @@ export class Campaign {
       if (this.queuedUntil > this.time && !h.attack) { this.swing(); this.queuedUntil = 0; }
       if (!h.attack) {
         const len = Math.hypot(input.x, input.y) || 1;
-        h.x += input.x / len * stats.hero.speed * dt; h.y += input.y / len * 125 * dt;
+        h.x += input.x / len * this.champion.speed * dt; h.y += input.y / len * this.champion.speed * (125 / 180) * dt;
         h.moving = !!(input.x || input.y); if (input.x) h.face = Math.sign(input.x);
       }
     }
@@ -169,6 +183,15 @@ export class Campaign {
       }
     }
     this.enemies = this.enemies.filter(e => e.hp > 0);
+    const field = this.field;
+    if(field && this.time-dt < field.impactAt && this.time >= field.impactAt) {
+      this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
+      if(fieldHits(field,h)) {
+        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;
+        h.inv=.75;h.stun=.22;h.attack=null;this.hits=0;this.queuedUntil=0;
+        this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
+      }
+    }
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
     this.pickups = this.pickups.filter(p => {
@@ -177,19 +200,24 @@ export class Campaign {
       this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
     });
     if (!this.enemies.length) {
+      if (this.waveReward < 0) {
+        const speed = Math.max(0, 1200 - Math.floor(this.time - this.waveStarted) * 10);
+        this.waveReward = speed + (this.waveDamage === 0 ? 800 : 0);
+        this.score += this.waveReward;
+      }
       if (this.wave === 3) { this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
       else if (this.clearedAt < 0) {
         this.clearedAt = this.time; h.hp = Math.min(h.max, h.hp + 35);
-        this.message = '破陣！氣血 +35　　向右前進 →'; this.messageUntil = Infinity;
+        this.message = `破陣！獎勵 +${this.waveReward} · 氣血 +35　向右前進 →`; this.messageUntil = Infinity;
       } else if (this.time - this.clearedAt > .8 && h.x > (this.wave === 1 ? 900 : 1770)) this.spawn();
     }
   }
   swing() {
     const h = this.hero;
     h.step = comboStep(h.step, h.last * 1000, this.time * 1000); h.last = this.time;
-    const s = SLASHES[h.step - 1];
+    const s = this.slash(h.step);
     h.attack = { move: 'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.face, x: h.x, y: h.y };
-    this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step });
+    this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
   ai(e: Fighter, index: number, dt: number) {
     if (e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
@@ -215,9 +243,17 @@ export class Campaign {
     e.moving = !!(moveX || moveY);
   }
   resolve(f: Fighter, a: Attack) {
-    const heroAttack = f === this.hero, s = SLASHES[Math.max(0, f.step - 1)];
+    // Ground targets can only be struck within the same low-height band.
+    if (f.z > 38) return;
+    const heroAttack = f === this.hero, s = this.slash(f.step);
     const reach = heroAttack ? s.reach : f.kind === 'heavy' ? 88 : 73;
+    const bow = heroAttack && f.heroId === 'huangzhong';
+    const first = bow && f.step !== 3 ? [...this.enemies, ...this.supplies]
+      .filter(t => t.hp > 0 && inRange(a.x, a.y, t.x, t.y, a.face, reach))
+      .sort((x, y) => (x.x - y.x) * a.face)[0] : undefined;
+    if (bow) this.events.push({ type: 'arrow', x: a.x, y: a.y - 40, value: a.face * (first ? Math.abs(first.x - a.x) : reach), heavy: f.step === 3 });
     for (const t of heroAttack ? this.enemies : [this.hero]) {
+      if (bow && first && t.id !== first.id) continue;
       if (t.hp <= 0 || t.inv > 0 || !attackHits(a, t, reach)) continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
@@ -226,10 +262,10 @@ export class Campaign {
       if (!isBoss(t.kind)) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
       t.x = clamp(t.x + a.face * (heroAttack ? s.push : 23), 25, 2770);
       if (heroAttack) {
-        this.score += actual * 10; this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
+        this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = f.step === 3 ? .065 : .035;
-      } else { this.hits = 0; this.queuedUntil = 0; }
-      this.events.push({ type: 'hit', x: t.x, y: t.y - t.z - 38, value: damage, heavy: f.step === 3 || isBoss(f.kind) });
+      } else { this.waveDamage += actual; this.hits = 0; this.queuedUntil = 0; }
+      this.events.push({ type: 'hit', x: t.x, y: t.y - t.z - 38, value: damage, heavy: f.step === 3 || isBoss(f.kind), ...(heroAttack ? {heroId:f.heroId} : {}) });
       if (!t.hp) {
         this.score += heroAttack ? 100 : 0;
         if (heroAttack) {
@@ -241,6 +277,7 @@ export class Campaign {
     }
     if (heroAttack) {
       for (const box of this.supplies) {
+        if (bow && first && box.id !== first.id) continue;
         if (box.hp <= 0 || !inRange(a.x, a.y, box.x, box.y, a.face, s.reach)) continue;
         box.hp = Math.max(0, box.hp - s.damage);
         this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });

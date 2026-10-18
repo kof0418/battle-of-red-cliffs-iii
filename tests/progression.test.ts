@@ -7,8 +7,8 @@ function finishStage(m:Campaign){m.wave=3;m.enemies=[];tick(m);}
 
 test('first boss opens intermission, only second boss wins campaign',()=>{
  const m=new Campaign();m.start();m.score=1234;finishStage(m);assert.equal(m.status,'stage-clear');
- const t=m.time;tick(m);assert.equal(m.time,t);assert.equal(m.stage,0);
- assert.ok(m.nextStage());assert.equal(m.stage,1);assert.equal(m.wave,1);assert.equal(m.score,1234);assert.equal(m.hero.hp,160);
+ const earned=m.score;assert.equal(earned,3234);const t=m.time;tick(m);assert.equal(m.time,t);assert.equal(m.stage,0);
+ assert.ok(m.nextStage());assert.equal(m.stage,1);assert.equal(m.wave,1);assert.equal(m.score,earned);assert.equal(m.hero.hp,160);
  assert.equal(m.nextStage(),false);finishStage(m);assert.equal(m.status,'won');assert.equal(m.nextStage(),false);
 });
 test('continue restarts current wave with checkpoint score and only two credits',()=>{

@@ -1,3 +1,4 @@
+import { HERO_IDS } from '../src/heroes.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Campaign, attackHits, type Input, type Attack} from '../src/combat.ts';
@@ -36,14 +37,14 @@ test('zero health loses even if last enemy dies on the same frame',()=>{
 test('new campaign resets all combat state',()=>{
  const m=isolated();m.score=900;m.paused=true;m.hero.hp=1;const n=new Campaign();assert.equal(n.status,'ready');assert.equal(n.score,0);assert.equal(n.hero.hp,160);assert.equal(n.paused,false);
 });
-test('deterministic full campaign can be won using normal combat inputs',()=>{
- const m=new Campaign();m.start();
+for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal combat inputs`,()=>{
+ const m=new Campaign(id);m.start();
  for(let frame=0;frame<60*480&&(m.status==='playing'||m.status==='stage-clear');frame++){
   if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
   const h=m.hero,e=[...m.enemies].sort((a,b)=>Math.abs(a.x-h.x)+Math.abs(a.y-h.y)*3-Math.abs(b.x-h.x)-Math.abs(b.y-h.y)*3)[0];
   let input:Input={x:1,y:0};
   if(e){const dx=e.x-h.x,dy=e.y-h.y;const near=Math.abs(dx)<94&&Math.abs(dy)<25;
-   input={x:Math.abs(dx)>70?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>8?Math.sign(dy):0,attack:near&&frame%12===0,jump:near&&h.z===0};
+   input={x:Math.abs(dx)>70?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>8?Math.sign(dy):0,attack:near&&frame%12===0,jump:false};
    if(e.attack&&!e.attack.hit&&e.attack.elapsed>e.attack.impact-.22)input.dodge=true;
   }
   m.tick(1/60,input);
