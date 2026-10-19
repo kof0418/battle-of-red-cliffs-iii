@@ -307,6 +307,7 @@ class Battle extends Phaser.Scene {
     const state = m.paused ? 'paused' : m.status;
     const overlayKey=state+(this.countdown.remaining>0?`:${Math.ceil(this.countdown.remaining)}`:'');
     document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready';
+    document.documentElement.setAttribute('data-ready','');
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
@@ -432,6 +433,7 @@ function openSettings() {
   settingsReturnFocus = document.activeElement as HTMLElement;
   suspend(); settingsOpen = true;
   current().input.keyboard!.enabled = false;
+  document.querySelector<HTMLElement>('#settings-panel')!.setAttribute('data-open','');
   document.querySelector<HTMLElement>('#settings-panel')!.hidden = false;
   document.querySelector<HTMLInputElement>('#music-volume')!.value = String(preferences.music * 100);
   document.querySelector<HTMLInputElement>('#effects-volume')!.value = String(preferences.effects * 100);
@@ -443,7 +445,7 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#music-volume')!.focus();
 }
 function closeSettings() {
-  settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
+  settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
   pressed.clear(); held.clear(); keyboardHeld.clear(); current().pad.reset(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
