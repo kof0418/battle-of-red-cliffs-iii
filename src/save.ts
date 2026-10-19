@@ -19,7 +19,7 @@ function list<T>(v: unknown, max: number, parse: (v: unknown) => T): T[] {
 function attack(v: unknown): Attack | null {
   if (v === null) return null;
   const a = obj(v), move = a.move;
-  if (move !== 'slash' && move !== 'slam' && move !== 'charge' && move !== 'sweep') return fail();
+  if (move !== 'special' && move !== 'slash' && move !== 'slam' && move !== 'charge' && move !== 'sweep') return fail();
   const duration = number(a.duration, .1, 3), elapsed = number(a.elapsed, 0, duration), impact = number(a.impact, 0, duration);
   const face = number(a.face, -1, 1, true); if (!face) return fail();
   return { move, elapsed, duration, impact, hit: bool(a.hit), face, x: number(a.x, 0, 2800), y: number(a.y, 340, 510) };
@@ -35,7 +35,7 @@ function fighter(v: unknown): Fighter {
   return { ...(kind === 'hero' && isHeroId(heroId) ? { heroId } : {}), id: number(f.id, 1, 100000, true), kind, max, hp: number(f.hp, 0, max), x: number(f.x, 0, 2800), y: number(f.y, 340, 510), face,
     z: number(f.z, 0, 1000), vz: number(f.vz, -2000, 2000), inv: number(f.inv, 0, 5), stun: number(f.stun, 0, 5), cooldown: number(f.cooldown, -1e8, 100),
     step: number(f.step, 0, 3, true), last: number(f.last, -10, 1e8), attack: attack(f.attack), moving: bool(f.moving),
-    dodge: number(f.dodge, -.1, 1), dodgeCooldown: number(f.dodgeCooldown, 0, 2), dashX: number(f.dashX, -1, 1), dashY: number(f.dashY, -1, 1), attacks: number(f.attacks, 0, 1e7, true) };
+    specialCooldown: f.specialCooldown===undefined?0:number(f.specialCooldown,0,8), dodge: number(f.dodge, -.1, 1), dodgeCooldown: number(f.dodgeCooldown, 0, 2), dashX: number(f.dashX, -1, 1), dashY: number(f.dashY, -1, 1), attacks: number(f.attacks, 0, 1e7, true) };
 }
 /** Build a whitelist rather than copying arbitrary imported properties into the model. */
 export function parseSave(text: string): SaveData {
@@ -55,14 +55,14 @@ export function parseSave(text: string): SaveData {
   if ((status === 'lost') !== (hero.hp === 0)) return fail();
   if ((status === 'won' || status === 'stage-clear') && (wave !== 3 || enemies.length > 0)) return fail();
   if ((status === 'won' && stage !== 1) || (status === 'stage-clear' && stage !== 0)) return fail();
-  if (hero.attack && (hero.attack.move !== 'slash' || hero.step === 0)) return fail();
+  if (hero.attack && (!['slash','special'].includes(hero.attack.move) || hero.step === 0)) return fail();
   const supplies = list<Supply>(r.supplies, 4, v => { const a = obj(v); return { id: number(a.id, 1, 100000, true), x: number(a.x, 0, 2800), y: number(a.y, 340, 510), hp: number(a.hp, 1, 24) }; });
   const pickups = list<Pickup>(r.pickups, 16, v => { const a = obj(v); if (a.amount !== 25 && a.amount !== 40) return fail(); return { id: number(a.id, 1, 100000, true), x: number(a.x, 0, 2800), y: number(a.y, 340, 510), amount: a.amount }; });
   const ids = [hero, ...enemies, ...supplies, ...pickups].map(a => a.id);
   if (new Set(ids).size !== ids.length) return fail();
   const score = number(r.score, 0, 1e8, true), kills = number(r.kills, 0, 21, true);
   const run: Run = { stage, wave, continues, continuesUsed, time, hero, enemies, supplies, pickups, status, score, kills,
-    ranked: s.gameVersion === '1.3.0' && r.ranked !== undefined ? bool(r.ranked) : false,
+    ranked: obj(r.hero).specialCooldown !== undefined && s.gameVersion === '1.3.0' && r.ranked !== undefined ? bool(r.ranked) : false,
     waveStarted: (['1.1.0','1.2.0','1.2.1','1.3.0'].includes(String(s.gameVersion))) ? number(r.waveStarted, 0, time) : time,
     waveDamage: (['1.1.0','1.2.0','1.2.1','1.3.0'].includes(String(s.gameVersion))) ? number(r.waveDamage, 0, 1e8, true) : 1,
     waveReward: (['1.1.0','1.2.0','1.2.1','1.3.0'].includes(String(s.gameVersion))) ? number(r.waveReward, -1, 2000, true) : (status === 'won' || status === 'stage-clear' || (typeof r.clearedAt === 'number' && r.clearedAt >= 0) ? 0 : -1),

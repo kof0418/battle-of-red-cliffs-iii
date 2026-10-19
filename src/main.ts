@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {ProfileStorage,exportProfile,parseBackup,MAX_BACKUP_BYTES,type Entries} from './profile';
 import {ResumeCountdown,LESSONS} from './experience';
@@ -40,7 +41,7 @@ import { captureSave, restoreSave, readSave, writeSave, parseSave, MAX_SAVE_BYTE
 const held = new Set<string>(), pressed = new Set<string>();
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
-function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13special')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
 let savedRecord: SaveData | null = null;
 let saveMessage = '尚無紀錄；戰鬥中每 5 秒自動保存。';
 try { savedRecord = readSave(profileStorage); if (savedRecord) saveMessage = '找到行軍紀錄，可按「載入紀錄」接續。'; }
@@ -153,7 +154,7 @@ class Battle extends Phaser.Scene {
     const pad = this.pad.read(pads);
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
     if (pad.disconnected) suspend();
-    setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 閃身 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
+    setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 閃身 · Y／△ 必殺 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
     if (pad.pressed.has('settings')) { if(settingsOpen)closeSettings();else openSettings(); }
     else if(settingsOpen) { handleMenuPad(pad.pressed); }
     else if(m.status === 'ready') {
@@ -173,10 +174,10 @@ class Battle extends Phaser.Scene {
     const input: Input = {
       x: Number(this.actionDown('right') || pad.held.has('right') || held.has('right')) - Number(this.actionDown('left') || pad.held.has('left') || held.has('left')),
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
-      attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'),
+      attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('special'),
     };
     if(this.countdown.remaining>0 && !settingsOpen) {
-      if(this.countdown.tick(delta/1000)){this.needsCountdown=false;m.paused=false;keyboardHeld.clear();held.clear();pressed.clear();this.pad.reset();input.x=0;input.y=0;input.attack=false;input.jump=false;input.dodge=false;}
+      if(this.countdown.tick(delta/1000)){this.needsCountdown=false;m.paused=false;keyboardHeld.clear();held.clear();pressed.clear();this.pad.reset();input.x=0;input.y=0;input.attack=false;input.jump=false;input.dodge=false;input.special=false;}
     }
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
       m.tick(dt, stepInput);
@@ -190,7 +191,7 @@ class Battle extends Phaser.Scene {
         tone(740, .35);
       }
       this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
-      try { profileStorage.setItem('red-banner-best-v13', String(this.best)); } catch { /* Storage is optional. */ }
+      try { profileStorage.setItem('red-banner-best-v13special', String(this.best)); } catch { /* Storage is optional. */ }
     }
     if (m.status !== 'ready' && (this.signature() !== this.saveSignature || (!m.paused && m.time - this.autosaveAt >= 5))) this.saveCurrent();
     this.tweens.timeScale = m.paused ? 0 : 1;
@@ -198,7 +199,23 @@ class Battle extends Phaser.Scene {
     this.draw();
   }
   effect(e: Effect) {
-    if (e.type === 'arrow') {
+    if(e.type==='special') {
+      const id=e.heroId!,spec=SPECIALS[id],face=e.value??1;
+      soundtrack.weapon(id,true,true);
+      const fx=this.add.graphics().setPosition(e.x,e.y-30).setScale(face,1).setDepth(8000);
+      fx.lineStyle(4,spec.color,.9);
+      if(id==='guanyu'||id==='zhangfei'){
+        fx.strokeEllipse(0,25,spec.reach*2,spec.depth*2);
+        if(id==='guanyu')fx.lineStyle(7,spec.color,.6).beginPath().arc(0,0,100,-2.5,1.5).strokePath();
+        else for(let i=0;i<8;i++){const a=i*Math.PI/4;fx.lineBetween(Math.cos(a)*30,25+Math.sin(a)*20,Math.cos(a)*110,25+Math.sin(a)*70);}
+      }else if(id==='huangzhong'){
+        for(const dy of [-100,-50,0,50,100]){fx.lineStyle(2,spec.color,.85).lineBetween(15,0,440,dy);fx.fillStyle(0xffefd0).fillTriangle(440,dy,427,dy-4,427,dy+4);}
+      }else if(id==='zhaoyun'){
+        for(const dy of [-18,0,18])fx.lineStyle(dy===0?6:2,spec.color,.9).lineBetween(10,dy,320,dy);
+        fx.fillStyle(0xffffff).fillTriangle(325,0,303,-9,303,9);
+      }else for(let i=0;i<3;i++)fx.lineStyle(5-i,spec.color,.9).beginPath().arc(15,-i*8,85+i*12,-1.4,.9).strokePath();
+      this.tweens.add({targets:fx,alpha:0,duration:500,onComplete:()=>fx.destroy()});
+    } else if (e.type === 'arrow') {
       const reach = e.value ?? 300, end = e.x + reach;
       const arrow = this.add.graphics().setDepth(e.y + 41);
       arrow.lineStyle(e.heavy ? 4 : 2, 0xf8d690).lineBetween(e.x, e.y, end, e.y);
@@ -278,7 +295,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
-    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 ${bindings.dodge.slice(3)}`);
+    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 ${bindings.dodge.slice(3)}   必殺 ${bindings.special.slice(3)} ${(m.hero.specialCooldown??0)>0?Math.ceil(m.hero.specialCooldown!)+'s':m.hero.hp<=12?'氣血不足':'就緒'}`);
     this.stageLabel.setText(`赤旌 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
@@ -293,7 +310,7 @@ class Battle extends Phaser.Scene {
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
-    document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description}`;
+    document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name} — ${SPECIALS[m.hero.heroId!].description}。`;
     document.querySelector<HTMLButtonElement>('#resume-from-select')!.disabled = !savedRecord;
     const personal = records[m.hero.heroId ?? 'guanyu'];
     setText('#hero-record', personal ? `此武將已通關 · v1.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成雙關留下戰績');
@@ -471,7 +488,8 @@ function renderControls() {
 }
 function updateKeyGuide(){
  const label=(a:Action)=>bindings[a].slice(3);
- setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · ${label('dodge')} 閃身 · ${label('pause')} 暫停`);
+ setText('#special-key',label('special'));
+ setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · ${label('dodge')} 閃身 · ${label('special')} 必殺（12 氣血／8 秒冷卻） · ${label('pause')} 暫停`);
  const keys=document.querySelectorAll('.controls kbd');
  if(keys.length>=8){keys[0].textContent=`${label('up')} ${label('left')} ${label('down')} ${label('right')}`;keys[2].textContent=label('attack');keys[3].textContent=label('jump');keys[5].textContent=label('dodge');keys[6].textContent=label('pause');}
 }
@@ -525,7 +543,7 @@ function handleMenuPad(actions:Set<string>){
 }
 function renderHistory(){
  const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
- for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13']]){
+ for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special']]){
   const title=document.createElement('p');title.textContent=`v${version}`;area.append(title);
   let rows:Records={};try{rows=parseRecords(JSON.parse(profileStorage.getItem(`red-banner-records-${key}`)??'{}'));}catch{}
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
@@ -575,7 +593,7 @@ function renderLesson(){
 }
 function finishTutorial(){try{profileStorage.setItem('red-banner-tutorial-v1','true');}catch{}closeSettings();}
 function practice(action:string){
- if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge'].includes(action))return;
+ if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge','special'].includes(action))return;
  const hero=document.querySelector<HTMLElement>('.practice-hero');if(!hero)return;
  practiceCount++;hero.className=`practice-hero demo-${action}`;
  setText('#practice-status',`${ACTION_LABELS[action as Action]} ✓　已練習 ${practiceCount} 次；完成後可按下一步。`);

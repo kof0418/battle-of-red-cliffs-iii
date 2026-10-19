@@ -3,7 +3,7 @@ import {parsePreferences,PREFERENCES_KEY} from './preferences.ts';
 import {parseBindings,CONTROL_KEY,ACTIONS} from './controls.ts';
 import {parseRecords} from './records.ts';
 export const PROFILE_KEY='red-banner-profile-v1';
-export const PROFILE_KEYS=['red-banner-save-v1',...Array.from({length:3},(_,i)=>`red-banner-manual-${i+1}`),PREFERENCES_KEY,CONTROL_KEY,'red-banner-tutorial-v1',...['v1','v11','v12','v13'].map(v=>`red-banner-records-${v}`),...['v03','v11','v12','v13'].map(v=>`red-banner-best-${v}`)];
+export const PROFILE_KEYS=['red-banner-save-v1',...Array.from({length:3},(_,i)=>`red-banner-manual-${i+1}`),PREFERENCES_KEY,CONTROL_KEY,'red-banner-tutorial-v1',...['v1','v11','v12','v13','v13special'].map(v=>`red-banner-records-${v}`),...['v03','v11','v12','v13','v13special'].map(v=>`red-banner-best-${v}`)];
 export type Entries=Record<string,string>;
 /** A single localStorage commit keeps a full restore atomic, including quota failure. */
 export class ProfileStorage {
@@ -30,7 +30,7 @@ export function parseBackup(text:string):Entries {
   if(key.startsWith('red-banner-best-')){const n=Number(value);if(!Number.isInteger(n)||n<0||n>1e8)throw new Error('最高分無效。');result[key]=String(n);continue;}
   const data=JSON.parse(value);
   if(key===PREFERENCES_KEY){if(!data||typeof data!=='object')throw new Error('設定無效。');result[key]=JSON.stringify(parsePreferences(data));}
-  else if(key===CONTROL_KEY){const parsed=parseBindings(data);if(ACTIONS.some(a=>parsed[a]!==data?.[a]))throw new Error('按鍵設定無效。');result[key]=JSON.stringify(parsed);}
+  else if(key===CONTROL_KEY){const parsed=parseBindings(data);if(ACTIONS.some(a=>!(a==='special'&&data?.[a]===undefined)&&parsed[a]!==data?.[a]))throw new Error('按鍵設定無效。');result[key]=JSON.stringify(parsed);}
   else if(key==='red-banner-tutorial-v1'){if(typeof data!=='boolean')throw new Error('教學進度無效。');result[key]=JSON.stringify(data);}
   else{if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('戰績無效。');const parsed=parseRecords(data);if(Object.keys(parsed).length!==Object.keys(data).length)throw new Error('戰績無效。');result[key]=JSON.stringify(parsed);}
  }

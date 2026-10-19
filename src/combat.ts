@@ -1,3 +1,4 @@
+import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS } from './levels.ts';
 import { fieldEvent, fieldHits } from './battlefield.ts';
@@ -24,7 +25,7 @@ export function comboStep(previous: number, last: number, now: number) {
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal';
-export type Move = 'slash' | 'slam' | 'charge' | 'sweep';
+export type Move = 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
 export interface Supply { id: number; x: number; y: number; hp: number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
@@ -38,10 +39,10 @@ export interface Fighter {
   id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
-  dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
+  specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
-export interface Input { x: number; y: number; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
+export interface Input { x: number; y: number; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
+export type Effect = { type: 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
@@ -80,6 +81,7 @@ export class Campaign {
   message = '暮色關隘';
   messageUntil = 0;
   queuedUntil = 0;
+  private specialQueued = false;
   freeze = 0;
   clearedAt = -1;
   private serial = 0;
@@ -93,7 +95,7 @@ export class Campaign {
   fighter(kind: Kind, x: number, y: number): Fighter {
     return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: stats[kind].hp, max: stats[kind].hp,
       face: kind === 'hero' ? 1 : -1, z: 0, vz: 0, inv: 0, stun: 0, cooldown: .9,
-      step: 0, last: -10, attack: null, moving: false, dodge: 0, dodgeCooldown: 0,
+      step: 0, last: -10, attack: null, moving: false, specialCooldown: 0, dodge: 0, dodgeCooldown: 0,
       dashX: 0, dashY: 0, attacks: 0 };
   }
   reseedIds() {
@@ -118,7 +120,7 @@ export class Campaign {
   }
   private resetTransient() {
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
-    this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
+    this.specialQueued = false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
   spawn() {
     this.wave++; this.clearedAt = -1;
@@ -138,6 +140,7 @@ export class Campaign {
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
     // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
+    if (input.special) this.specialQueued = true;
     if (input.attack) this.queuedUntil = this.time + .38;
     if (this.freeze > 0) { this.freeze -= dt; return; }
     this.time += dt;
@@ -145,17 +148,20 @@ export class Campaign {
     const h = this.hero;
     for (const f of [h, ...this.enemies]) {
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
+      f.specialCooldown = Math.max(0,(f.specialCooldown ?? 0)-dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
       if (f.z > 0 || f.vz > 0) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { f.stun = Math.max(f.stun, .12); f.attack = null; } } }
     }
-    if (input.dodge && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
+    if(this.specialQueued){this.specialQueued=false;this.special();}
+    const casting=h.attack?.move==='special';
+    if (input.dodge && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
       h.dashX = length ? input.x / length : h.face; h.dashY = length ? input.y / length : 0;
       h.dodge = .22; h.dodgeCooldown = .95; h.inv = .28; h.attack = null; this.queuedUntil = 0;
       this.events.push({ type: 'dodge', x: h.x, y: h.y });
     }
     if (h.dodge > 0) { h.dodge -= dt; h.x += h.dashX * 410 * dt; h.y += h.dashY * 245 * dt; }
-    else if (h.stun <= 0) {
+    else if (h.stun <= 0 && !casting) {
       if (input.jump && h.z === 0) { h.vz = 360; this.events.push({ type: 'jump', x: h.x, y: h.y }); }
       if (this.queuedUntil > this.time && !h.attack) { this.swing(); this.queuedUntil = 0; }
       if (!h.attack) {
@@ -212,6 +218,20 @@ export class Campaign {
       } else if (this.time - this.clearedAt > .8 && h.x > (this.wave === 1 ? 900 : 1770)) this.spawn();
     }
   }
+  special() {
+    const h=this.hero;
+    if(this.status!=='playing'||this.paused||h.hp<=0)return false;
+    let reason='';
+    if((h.specialCooldown??0)>0)reason='必殺技冷卻中';
+    else if(h.hp<=SPECIAL_COST)reason='氣血不足，必須高於 12';
+    else if(h.z>0||h.vz>0||h.dodge>0)reason='請落地站穩後施放';
+    if(reason){this.message=reason;this.messageUntil=this.time+1.2;return false;}
+    h.hp-=SPECIAL_COST;this.waveDamage+=SPECIAL_COST;h.specialCooldown=SPECIAL_COOLDOWN;
+    h.stun=0;h.inv=Math.max(h.inv,.85);h.step=3;h.last=this.time;h.moving=false;this.queuedUntil=0;
+    h.attack={move:'special',elapsed:0,duration:.8,impact:.24,hit:false,face:h.face,x:h.x,y:h.y};
+    this.message=SPECIALS[h.heroId!].name+'！';this.messageUntil=this.time+1.2;
+    this.events.push({type:'swing',x:h.x,y:h.y,value:3,heroId:h.heroId});return true;
+  }
   swing() {
     const h = this.hero;
     h.step = comboStep(h.step, h.last * 1000, this.time * 1000); h.last = this.time;
@@ -245,21 +265,22 @@ export class Campaign {
   resolve(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > 38) return;
-    const heroAttack = f === this.hero, s = this.slash(f.step);
+    const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = special?SPECIALS[f.heroId!]:this.slash(f.step);
+    if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId});
     const reach = heroAttack ? s.reach : f.kind === 'heavy' ? 88 : 73;
-    const bow = heroAttack && f.heroId === 'huangzhong';
+    const bow = !special && heroAttack && f.heroId === 'huangzhong';
     const first = bow && f.step !== 3 ? [...this.enemies, ...this.supplies]
       .filter(t => t.hp > 0 && inRange(a.x, a.y, t.x, t.y, a.face, reach))
       .sort((x, y) => (x.x - y.x) * a.face)[0] : undefined;
     if (bow) this.events.push({ type: 'arrow', x: a.x, y: a.y - 40, value: a.face * (first ? Math.abs(first.x - a.x) : reach), heavy: f.step === 3 });
     for (const t of heroAttack ? this.enemies : [this.hero]) {
       if (bow && first && t.id !== first.id) continue;
-      if (t.hp <= 0 || t.inv > 0 || !attackHits(a, t, reach)) continue;
+      if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):attackHits(a, t, reach))) continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
       t.inv = heroAttack ? .16 : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
-      if (!isBoss(t.kind)) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
+      if (!isBoss(t.kind) || special) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
       t.x = clamp(t.x + a.face * (heroAttack ? s.push : 23), 25, 2770);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
@@ -278,7 +299,7 @@ export class Campaign {
     if (heroAttack) {
       for (const box of this.supplies) {
         if (bow && first && box.id !== first.id) continue;
-        if (box.hp <= 0 || !inRange(a.x, a.y, box.x, box.y, a.face, s.reach)) continue;
+        if (box.hp <= 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,box.x,box.y):inRange(a.x,a.y,box.x,box.y,a.face,s.reach))) continue;
         box.hp = Math.max(0, box.hp - s.damage);
         this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });
         if (!box.hp) this.pickups.push({ id: ++this.serial, x: box.x, y: box.y, amount: 40 });
