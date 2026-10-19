@@ -1,3 +1,4 @@
+import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
 import Phaser from 'phaser';
@@ -28,6 +29,7 @@ export class Actor {
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
+    if (champion) { drawWarrior(g,f,frame,phase); return; }
     const color = f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
@@ -44,28 +46,6 @@ export class Actor {
     g.fillStyle(color).fillRect(-12, -65, 27, 5);
     g.fillStyle(0xe0bc70).fillRect(-2, -74, 6, 12);
     g.fillStyle(0x9e493d).fillTriangle(1, -75, -14 - frame % 3, -87, -6, -74);
-    if (champion) {
-      const hair = champion.hair;
-      if (f.heroId === 'guanyu') {
-        g.fillStyle(0x66966b).fillRect(-12, -71, 27, 12);
-        g.fillStyle(hair).fillRect(-2, -52, 13, 21).fillTriangle(-2, -31, 11, -31, 5, -22);
-      } else if (f.heroId === 'zhangfei') {
-        g.fillStyle(hair).fillRect(-13, -72, 28, 8).fillRect(-6, -53, 20, 12);
-        g.fillStyle(0xb96b44).fillRect(-13, -63, 28, 4);
-        g.fillStyle(0xdbc69a).fillRect(-23, -48, 12, 15).fillRect(13, -48, 12, 15);
-      } else if (f.heroId === 'zhaoyun') {
-        g.fillStyle(0xcbd8d7).fillTriangle(-13, -62, 1, -82, 15, -62);
-        g.fillStyle(0x78bbcf).fillTriangle(0, -82, -26, -92, -11, -77);
-      } else if (f.heroId === 'huangzhong') {
-        g.fillStyle(hair).fillRect(-11, -71, 25, 8).fillRect(-5, -53, 16, 15).fillTriangle(-5, -38, 11, -38, 3, -27);
-        g.lineStyle(4, 0x9e7748).lineBetween(-20, -55, -29, -27);
-        for (let i = 0; i < 3; i++) g.lineStyle(2, 0xe5d5af).lineBetween(-22+i*4, -59, -17+i*4, -76);
-      } else {
-        g.fillStyle(0xa96579).fillRect(-13, -72, 28, 11);
-        g.fillStyle(0xdfb891).fillTriangle(15, -63, 31, -54, 14, -59);
-        g.fillStyle(hair).fillRect(0, -52, 10, 6);
-      }
-    }
     if (f.kind === 'marshal') { g.fillStyle(0xb7d3cc).fillTriangle(-9, -69, -18, -91, 0, -71).fillTriangle(7, -69, 15, -91, 0, -71); }
     if (f.kind === 'boss') { g.fillStyle(0xe0bd74).fillTriangle(-12, -65, -22, -79, -7, -68).fillTriangle(11, -65, 19, -81, 5, -68); }
     // Each slash has a distinct silhouette: forward cut, rising cut, sweeping finisher.
