@@ -1,3 +1,4 @@
+import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
 import Phaser from 'phaser';
 import {attackPhase,heroMotion} from './motion';
@@ -26,6 +27,7 @@ export class Actor {
     const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
+    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
     const color = f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
