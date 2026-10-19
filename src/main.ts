@@ -16,6 +16,8 @@ import { parseRecords, recordVictory, RECORDS_KEY, type Records } from './record
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let settingsOpen = false;
+let titleScreen = true;
+let newRunApproved = false;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
 try { records = parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY) ?? '{}')); } catch { /* optional storage */ }
@@ -25,6 +27,7 @@ import { HEROES, HERO_IDS, type HeroId } from './heroes';
 import { selectionMarkup } from './selection';
 let selectedHero: HeroId = 'guanyu';
 document.querySelector('#hero-select')!.innerHTML = selectionMarkup();
+for(const selector of ['#manual-slots','#slot-status','#backup-export','#history']){const el=document.querySelector(selector)!;document.querySelector('#save-details')!.append(selector==='#backup-export'?el.parentElement!:el);}
 function setText(selector: string, value: string) { const el = document.querySelector(selector)!; if (el.textContent !== value) el.textContent = value; }
 import './style.css';
 import { desktop } from './desktop';
@@ -71,7 +74,7 @@ class Battle extends Phaser.Scene {
   autosaveAt = 0; saveSignature = '';
   constructor() { super('Battle'); }
   create(data?: { save?: SaveData }) {
-    this.countdown.cancel(); this.needsCountdown=!!data?.save;
+    newRunApproved=false;this.countdown.cancel(); this.needsCountdown=!!data?.save;
     this.model = new Campaign(selectedHero); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     if (data?.save) { this.model = restoreSave(data.save); if (this.model.ranked) this.best = Math.max(this.best, data.save.best); /* Audio preferences remain local to this device. */ }
     selectedHero = this.model.hero.heroId ?? 'guanyu';
@@ -86,6 +89,7 @@ class Battle extends Phaser.Scene {
     // Keyboard actions use physical codes and the saved binding map.
     // Event buffering avoids missing a short tap between rendered frames.
     const onKey = (event: KeyboardEvent) => {
+      if(titleScreen && !settingsOpen){if(event.code==='Enter'){event.preventDefault();document.querySelector<HTMLButtonElement>('#title-start')!.click();}return;}
       if (settingsOpen || event.ctrlKey || event.metaKey || event.altKey) return;
       const mapped = keyAction(event.code, bindings);
       if (mapped) { event.preventDefault(); keyboardHeld.add(event.code); }
@@ -116,6 +120,7 @@ class Battle extends Phaser.Scene {
     // Local visual QA fixture. Vite removes this branch from production builds.
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
+      if(preview)titleScreen=false;
       if (preview === 'river') { this.model.stage = 1; this.model.start(); }
       if (preview === 'continue') { this.model.start(); this.model.hero.hp = 0; this.model.status = 'lost'; }
       if (preview === 'intermission') { this.model.start(); this.model.wave = 3; this.model.enemies = []; this.model.status = 'stage-clear'; }
@@ -131,10 +136,11 @@ class Battle extends Phaser.Scene {
   }
   activate() {
     const m = this.model;
-    if (settingsOpen) return;
+    if (settingsOpen || titleScreen) return;
     if (m.status === 'ready') {
+      if(savedRecord&&!newRunApproved){document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=false;document.querySelector<HTMLButtonElement>('#new-run-no')!.focus();return;}
       let seen=false;try{seen=profileStorage.getItem('red-banner-tutorial-v1')==='true';}catch{}
-      if(!seen){openSettings();openTutorial();return;}m.start();
+      if(!seen){openSettings();openTutorial();return;}m.start();newRunApproved=false;document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;
     }
     else if (m.paused) this.resume();
     else if (m.status === 'stage-clear') { m.nextStage(); this.recorded = false; }
@@ -162,9 +168,9 @@ class Battle extends Phaser.Scene {
         selectedHero = HERO_IDS[(HERO_IDS.indexOf(selectedHero) + (pad.pressed.has('right') ? 1 : HERO_IDS.length-1)) % HERO_IDS.length];
         m.selectHero(selectedHero);
       }
-      if(pad.pressed.has('attack') || pad.pressed.has('pause'))this.activate();
+      if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else if(m.status !== 'playing') {
-      if(pad.pressed.has('attack') || pad.pressed.has('pause'))this.activate();
+      if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else { for(const action of pad.pressed)pressed.add(action); }
     if (pressed.delete('restart')) { requestRestart(); return; }
     if (pressed.delete('start')) this.activate();
@@ -306,8 +312,13 @@ class Battle extends Phaser.Scene {
     if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
     const state = m.paused ? 'paused' : m.status;
     const overlayKey=state+(this.countdown.remaining>0?`:${Math.ceil(this.countdown.remaining)}`:'');
-    document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready';
-    document.documentElement.setAttribute('data-ready','');
+    document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready' || titleScreen;
+    document.querySelector<HTMLElement>('#title-screen')!.hidden = !titleScreen;
+    document.querySelector<HTMLElement>('#title-screen')!.inert = settingsOpen;
+    document.querySelector<HTMLButtonElement>('#title-continue')!.disabled = !savedRecord;
+    document.body.dataset.screen = titleScreen?'title':state;
+    document.querySelector<HTMLElement>('#advance')!.classList.toggle('terminal-action', ['lost','won','stage-clear'].includes(state));
+    if(!document.documentElement.hasAttribute('data-ready')){document.documentElement.setAttribute('data-ready','');requestAnimationFrame(()=>this.scale.refresh());}
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
@@ -321,7 +332,7 @@ class Battle extends Phaser.Scene {
       if (state !== 'playing') this.showOverlay(state);
     }
     const pause = document.querySelector<HTMLButtonElement>('#pause');
-    if (pause) { setText('#pause', m.paused ? '繼續 ▶' : '暫停 Ⅱ'); pause.disabled = m.status !== 'playing'; }
+    if (pause) { setText('#pause', 'Ⅱ Esc'); pause.disabled = m.status === 'ready'; }
     const status = document.querySelector('#game-status');
     if (status) status.textContent = state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `兩關完成 · ${m.score} 分` : state === 'lost' ? `敗陣 · 續關剩 ${m.continues} 次` : state === 'stage-clear' ? '第一關完成' : `第 ${m.stage + 1} 關 · ${m.enemies.length} 名敵人`;
     const action = document.querySelector<HTMLButtonElement>('#advance');
@@ -352,11 +363,11 @@ class Battle extends Phaser.Scene {
   }
 }
 const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, pixelArt: true, roundPixels: true,
-  backgroundColor: '#24393d', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: Battle, banner: false });
+  backgroundColor: '#24393d', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, fullscreenTarget: document.documentElement }, scene: Battle, banner: false });
 document.querySelector('#sound')!.addEventListener('click', () => { preferences.muted = !preferences.muted; savePreferences(); });
 document.querySelector('#fullscreen')!.addEventListener('click', async () => { if (desktop) { try { await desktop.invoke('toggle_fullscreen'); } catch { saveMessage = '無法切換全螢幕。'; } return; } if (game.scale.isFullscreen) game.scale.stopFullscreen(); else game.scale.startFullscreen(); });
 document.querySelector('#advance')!.addEventListener('click', () => { current().activate(); current().draw(); });
-document.querySelector('#pause')!.addEventListener('click', () => { if(current().model.paused)current().resume();else current().model.togglePause(); if(current().model.paused) current().saveCurrent(); current().draw(); });
+document.querySelector('#pause')!.addEventListener('click',openSettings);
 document.querySelector('#restart')!.addEventListener('click', requestRestart);
 document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
   el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); held.add(el.dataset.key!); pressed.add(el.dataset.key!); });
@@ -376,7 +387,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) suspe
 const current = () => game.scene.getScene('Battle') as Battle;
 document.querySelector('#save-now')!.addEventListener('click', () => { suspend(); current().saveCurrent(); });
 document.querySelector('#load-save')!.addEventListener('click', () => {
-  if (savedRecord) { const requested = savedRecord; suspend(); persist(requested); saveMessage = '紀錄已載入；按繼續返回戰場。'; current().scene.restart({ save: requested }); }
+  if (savedRecord) { titleScreen=false;const requested = savedRecord; suspend(); persist(requested); saveMessage = '紀錄已載入；按繼續返回戰場。'; current().scene.restart({ save: requested }); }
 });
 document.querySelector('#export-save')!.addEventListener('click', async () => {
   suspend();
@@ -406,7 +417,7 @@ picker.addEventListener('change', async () => {
   const file = picker.files?.[0]; if (!file) return;
   try {
     if (file.size > MAX_SAVE_BYTES) throw new Error('存檔太大，請選擇 128 KB 以下的遊戲存檔。');
-    const save = parseSave(await file.text()); persist(save); current().scene.restart({ save });
+    const save = parseSave(await file.text()); titleScreen=false;persist(save); current().scene.restart({ save });
   } catch (error) { saveMessage = error instanceof Error ? error.message : '匯入失敗，原有紀錄未變更。'; }
   finally { picker.value = ''; }
 });
@@ -430,6 +441,9 @@ function savePreferences() {
 function openSettings() {
   if(settingsOpen) return;
   overwriteSlot = -1;
+  setText('#menu-resume',current().model.status==='playing'?'繼續遊戲 · Esc':'返回 · Esc');
+  document.querySelector<HTMLDetailsElement>('#options-details')!.open=false;
+  document.querySelector<HTMLDetailsElement>('#save-details')!.open=false;
   settingsReturnFocus = document.activeElement as HTMLElement;
   suspend(); settingsOpen = true;
   current().input.keyboard!.enabled = false;
@@ -442,22 +456,23 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#auto-attack')!.checked = preferences.autoAttack;
   renderControls(); renderSlots(); renderHistory();
   refreshVolumeLabels(); current().draw();
-  document.querySelector<HTMLInputElement>('#music-volume')!.focus();
+  document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
 }
-function closeSettings() {
+function closeSettings(resume=true) {
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
   pressed.clear(); held.clear(); keyboardHeld.clear(); current().pad.reset(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
   document.querySelector<HTMLElement>('#tutorial-panel')!.hidden=true;tutorialStep=-1;
-  settingsReturnFocus?.focus();
+  if(resume && current().model.status==='playing' && current().model.paused)current().resume();
+  current().draw();settingsReturnFocus?.focus();
 }
 function refreshVolumeLabels() {
   setText('#music-value', `${Math.round(preferences.music*100)}%`);
   setText('#effects-value', `${Math.round(preferences.effects*100)}%`);
 }
 for(const id of ['settings-open','select-settings']) document.getElementById(id)!.addEventListener('click',openSettings);
-document.getElementById('settings-close')!.addEventListener('click',closeSettings);
+document.getElementById('settings-close')!.addEventListener('click',()=>closeSettings());
 for(const [id,key] of [['music-volume','music'],['effects-volume','effects']] as const) {
  document.getElementById(id)!.addEventListener('input',e=>{
   preferences[key] = Number((e.target as HTMLInputElement).value)/100;savePreferences();refreshVolumeLabels();
@@ -517,20 +532,21 @@ function renderSlots(){
    catch(e){setText('#slot-status',`保存失敗：${String(e)}`);}
   });
   const load=document.createElement('button');load.textContent=`載入槽 ${i+1}`;load.disabled=!save;
-  load.addEventListener('click',()=>{if(!save)return;closeSettings();suspend();persist(save);current().scene.restart({save});overwriteSlot=-1;saveMessage=`已載入手動槽 ${i+1}，按繼續返回戰場。`;});
+  load.addEventListener('click',()=>{if(!save)return;titleScreen=false;closeSettings(false);suspend();persist(save);current().scene.restart({save});overwriteSlot=-1;saveMessage=`已載入手動槽 ${i+1}，按繼續返回戰場。`;});
   row.append(store,load);area.append(row);
  }
 }
 renderControls();
 
 function requestRestart(){
+ document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;
  if(current().model.status==='ready')return;
- openSettings();document.querySelector<HTMLElement>('#restart-confirm')!.hidden=false;
+ openSettings();document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;document.querySelector<HTMLElement>('#restart-confirm')!.hidden=false;
  document.querySelector<HTMLButtonElement>('#restart-no')!.focus();
 }
-document.querySelector('#restart-yes')!.addEventListener('click',()=>{closeSettings();suspend();current().scene.restart({});});
-document.querySelector('#restart-no')!.addEventListener('click',closeSettings);
-function menuControls(){return Array.from(document.querySelectorAll<HTMLElement>('#settings-panel input, #settings-panel select, #settings-panel button')).filter(el=>!el.hasAttribute('disabled')&&el.getClientRects().length>0);}
+document.querySelector('#restart-yes')!.addEventListener('click',()=>{closeSettings(false);suspend();current().scene.restart({});});
+document.querySelector('#restart-no')!.addEventListener('click',()=>closeSettings());
+function menuControls(){return Array.from(document.querySelectorAll<HTMLElement>('#settings-panel input, #settings-panel select, #settings-panel button, #settings-panel summary')).filter(el=>!el.hasAttribute('disabled')&&el.getClientRects().length>0);}
 function handleMenuPad(actions:Set<string>){
  if(actions.has('jump')){closeSettings();return;}
  if(tutorialStep>=0)for(const action of actions)practice(action);
@@ -580,12 +596,12 @@ document.querySelector('#backup-apply')!.addEventListener('click',()=>{
   profileStorage.replace(pendingBackup);pendingBackup=null;
   preferences=readPreferences(profileStorage);bindings=parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY)??'null'));
   records=parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY)??'{}'));savedRecord=readSave(profileStorage);
-  muted=preferences.muted;soundtrack.configure(preferences);closeSettings();current().scene.restart({});current().best=readBest();
+  muted=preferences.muted;soundtrack.configure(preferences);closeSettings(false);current().scene.restart({});current().best=readBest();
   saveMessage='完整備份已還原；請選擇接續存檔或手動槽。';document.querySelector<HTMLElement>('#backup-confirm')!.hidden=true;updateKeyGuide();
  }catch(e){setText('#backup-status',`還原失敗，請保留備份：${String(e)}`);}
 });
 let tutorialStep=-1,practiceCount=0;
-function openTutorial(){tutorialStep=0;renderLesson();}
+function openTutorial(){document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;tutorialStep=0;renderLesson();}
 function renderLesson(){
  const area=document.querySelector<HTMLElement>('#tutorial-panel')!;area.hidden=false;practiceCount=0;
  const lesson=LESSONS[tutorialStep];area.innerHTML=`<h3>${lesson.title}</h3><p>${lesson.text}</p><div class="practice-stage"><span class="practice-hero">將</span><span class="practice-target">敵</span></div><p id="practice-status">這是安全練習，不會改變戰役。可試按移動、攻擊、跳躍與閃身鍵。</p><button id="lesson-next">${tutorialStep===LESSONS.length-1?'完成教學':'下一步'}</button><button id="lesson-skip">略過教學</button>`;
@@ -602,3 +618,13 @@ function practice(action:string){
 }
 window.addEventListener('keydown',e=>{if(settingsOpen&&tutorialStep>=0&&!e.repeat){const a=keyAction(e.code,bindings);if(a){e.preventDefault();practice(a);}}});
 document.querySelector('#tutorial-open')!.addEventListener('click',openTutorial);
+
+document.querySelector('#title-start')!.addEventListener('click',()=>{titleScreen=false;current().draw();document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
+document.querySelector('#title-continue')!.addEventListener('click',()=>{document.querySelector<HTMLButtonElement>('#load-save')!.click();});
+document.querySelector('#title-settings')!.addEventListener('click',openSettings);
+document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettings());
+document.querySelector('#menu-reselect')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=false;current().scene.restart({});});
+document.querySelector('#menu-home')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=true;current().scene.restart({});});
+
+document.querySelector('#new-run-yes')!.addEventListener('click',()=>{newRunApproved=true;document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;current().activate();current().draw();});
+document.querySelector('#new-run-no')!.addEventListener('click',()=>{document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
