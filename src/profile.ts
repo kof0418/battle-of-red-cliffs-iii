@@ -22,7 +22,7 @@ export const MAX_BACKUP_BYTES=1024*1024;
 export function exportProfile(storage:ProfileStorage){return JSON.stringify({format:'red-banner-backup',schema:1,createdAt:new Date().toISOString(),entries:storage.snapshot()},null,2);}
 export function parseBackup(text:string):Entries {
  if(new TextEncoder().encode(text).length>MAX_BACKUP_BYTES)throw new Error('完整備份超過 1 MB。');
- const b=JSON.parse(text);if(b?.format!=='red-banner-backup'||b.schema!==1||!b.entries||typeof b.entries!=='object'||Array.isArray(b.entries))throw new Error('不是有效的赤旌完整備份。');
+ const b=JSON.parse(text);if(b?.format!=='red-banner-backup'||b.schema!==1||!b.entries||typeof b.entries!=='object'||Array.isArray(b.entries))throw new Error('不是有效的赤壁之戰三完整備份。');
  const result:Entries={};
  for(const [key,value] of Object.entries(b.entries)){
   if(!PROFILE_KEYS.includes(key)||typeof value!=='string')throw new Error('備份含有未知欄位。');

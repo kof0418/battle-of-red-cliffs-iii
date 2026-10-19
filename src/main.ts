@@ -302,7 +302,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 ${bindings.dodge.slice(3)}   必殺 ${bindings.special.slice(3)} ${(m.hero.specialCooldown??0)>0?Math.ceil(m.hero.specialCooldown!)+'s':m.hero.hp<=12?'氣血不足':'就緒'}`);
-    this.stageLabel.setText(`赤旌 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
     this.notice.setText(field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
@@ -353,8 +353,8 @@ class Battle extends Phaser.Scene {
   }
   showOverlay(state: string) {
     const m = this.model;
-    const title = this.countdown.remaining>0 ? `${Math.ceil(this.countdown.remaining)}` : state === 'ready' ? '赤 旌' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '赤 旌 凱 旋' : '勝 敗 乃 常';
-    const sub = this.countdown.remaining>0 ? '準備返回戰場 · 遊戲時間暫停' : state === 'ready' ? '雙關戰役 · 赤旌凱旋 v1.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const title = this.countdown.remaining>0 ? `${Math.ceil(this.countdown.remaining)}` : state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
+    const sub = this.countdown.remaining>0 ? '準備返回戰場 · 遊戲時間暫停' : state === 'ready' ? '雙關戰役 · 赤壁之戰三 v1.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? '按 ENTER 或點擊前往第二關 · 氣血全回復' : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story + (m.ranked ? '' : '（舊檔戰役不列入 v1.3 戰績）') : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 閃身　／　打破木箱、走近藥包補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);

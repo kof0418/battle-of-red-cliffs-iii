@@ -1,4 +1,4 @@
-# 赤旌 · Three Kingdoms Battle
+# 赤壁之戰三 · Three Kingdoms Battle
 
 v1.3 原創三國街機橫向動作遊戲。Phaser 3 + TypeScript + Vite，960 × 540 像素畫面。角色、場景、音樂與音效均由程式原創繪製／合成，沒有使用《吞食天地 II》的圖像、音樂、角色造型或地圖。
 

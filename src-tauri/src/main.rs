@@ -5,7 +5,7 @@ fn validate_json(contents: &str) -> Result<(), String> {
     if contents.len() > MAX_SAVE_BYTES { return Err("存檔超過 128 KB 上限。".into()); }
     let value: serde_json::Value = serde_json::from_str(contents).map_err(|_| "無效的 JSON 存檔。")?;
     if value.get("format").and_then(|v| v.as_str()) != Some("red-banner") {
-        return Err("這不是赤旌存檔。".into());
+        return Err("這不是赤壁之戰三存檔。".into());
     }
     Ok(())
 }
@@ -14,8 +14,8 @@ fn validate_json(contents: &str) -> Result<(), String> {
 #[tauri::command]
 async fn export_save(contents: String) -> Result<bool, String> {
     validate_json(&contents)?;
-    let chosen = rfd::AsyncFileDialog::new().set_title("匯出赤旌存檔")
-        .add_filter("赤旌存檔", &["json"]).set_file_name("red-banner-save.json").save_file().await;
+    let chosen = rfd::AsyncFileDialog::new().set_title("匯出赤壁之戰三存檔")
+        .add_filter("赤壁之戰三存檔", &["json"]).set_file_name("red-banner-save.json").save_file().await;
     match chosen {
         Some(file) => { std::fs::write(file.path(), contents).map_err(|e| format!("無法儲存：{e}"))?; Ok(true) }
         None => Ok(false),
@@ -24,7 +24,7 @@ async fn export_save(contents: String) -> Result<bool, String> {
 
 #[tauri::command]
 async fn import_save() -> Result<Option<String>, String> {
-    let chosen = rfd::AsyncFileDialog::new().set_title("匯入赤旌存檔").add_filter("赤旌存檔", &["json"]).pick_file().await;
+    let chosen = rfd::AsyncFileDialog::new().set_title("匯入赤壁之戰三存檔").add_filter("赤壁之戰三存檔", &["json"]).pick_file().await;
     let Some(file) = chosen else { return Ok(None); };
     // Bound the read even if the selected file changes after selection.
     use std::io::Read;
@@ -44,12 +44,12 @@ fn validate_backup(contents: &str) -> Result<(), String> {
 #[tauri::command]
 async fn export_backup(contents: String) -> Result<bool, String> {
     validate_backup(&contents)?;
-    let chosen=rfd::AsyncFileDialog::new().set_title("匯出赤旌完整備份").add_filter("JSON", &["json"]).set_file_name("red-banner-full-backup.json").save_file().await;
+    let chosen=rfd::AsyncFileDialog::new().set_title("匯出赤壁之戰三完整備份").add_filter("JSON", &["json"]).set_file_name("red-banner-full-backup.json").save_file().await;
     match chosen {Some(file)=>{std::fs::write(file.path(),contents).map_err(|e|e.to_string())?;Ok(true)},None=>Ok(false)}
 }
 #[tauri::command]
 async fn import_backup() -> Result<Option<String>, String> {
-    let chosen=rfd::AsyncFileDialog::new().set_title("還原赤旌完整備份").add_filter("JSON", &["json"]).pick_file().await;
+    let chosen=rfd::AsyncFileDialog::new().set_title("還原赤壁之戰三完整備份").add_filter("JSON", &["json"]).pick_file().await;
     let Some(file)=chosen else{return Ok(None)};
     use std::io::Read;
     let file=std::fs::File::open(file.path()).map_err(|e|e.to_string())?;
