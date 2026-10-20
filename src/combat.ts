@@ -242,7 +242,7 @@ export class Campaign {
     if(!target)return false;
     h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;target.grapplePose='held';target.face=-h.face;
     this.grapple={target:target.id,hits:0,deadline:this.time+2.8,started:this.time,phase:'hold',elapsed:0,direction:h.face,air:false,startX:h.x,startZ:0};
-    this.queuedUntil=0;this.specialQueued=false;this.message='抓住！跳＋攻擊空中摔，或兩下後左右＋攻擊';this.messageUntil=this.time+1.5;
+    this.queuedUntil=0;this.specialQueued=false;this.message='抓住！跳＋攻擊空中摔，或左右＋攻擊';this.messageUntil=this.time+1.5;
     this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});return true;
   }
   releaseGrapple(escape:boolean){
@@ -256,7 +256,7 @@ export class Campaign {
   grappleDamage(e:Fighter,amount:number){
     const actual=Math.min(e.hp,amount);e.hp-=actual;this.score+=actual*10;this.hits++;this.bestCombo=Math.max(this.bestCombo,this.hits);this.hitDeadline=this.time+1.7;
     this.events.push({type:'hit',x:e.x,y:e.y-e.z-38,value:actual,heroId:this.hero.heroId,heavy:amount>20});
-    if(e.hp<=0){this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:e.x,y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});this.releaseGrapple(false);}
+    if(e.hp<=0){this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:e.x,y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});if(this.grapple?.target===e.id)this.releaseGrapple(false);}
   }
   updateGrapple(dt:number,input:Input){
     const state=this.grapple!,h=this.hero,e=this.enemies.find(e=>e.id===state.target);if(!e){this.releaseGrapple(false);return;}
@@ -266,9 +266,9 @@ export class Campaign {
       if(this.time>state.deadline||this.time-state.started>8){this.releaseGrapple(true);return;}
       e.x=clamp(h.x+h.face*27,25,2770);e.y=h.y;e.z=0;
       if(fresh){
-        if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,7);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
-        else if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
-        else{this.message='已打兩下：按跳躍，或左右＋攻擊摔出';this.messageUntil=this.time+1;}
+        if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
+        else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,7);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
+        else{this.releaseGrapple(false);this.message='連打三下，鬆開抓取';this.messageUntil=this.time+1;return;}
       }
       if(input.jump&&state.phase==='hold'){state.phase='jump';state.elapsed=0;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});}
     }else if(state.phase==='jump'){
@@ -278,7 +278,7 @@ export class Campaign {
       state.elapsed+=dt;const spec=THROWS[h.heroId!],limit=[0,970,1840,2770][this.wave];
       // First pull the enemy to the shoulder, then release into an accelerating fall.
       const lift=Math.min(1,state.elapsed/.18),flight=Math.max(0,Math.min(1,(state.elapsed-.18)/.42));
-      const shoulder=h.x+state.direction*12;
+      const shoulder=h.x+state.direction*12,previousX=e.x;
       e.y=h.y;h.throwSpin=state.direction*(flight>0?24*(1-flight):-12*lift);
       if(state.elapsed<.18){
         e.x=state.startX+(shoulder-state.startX)*lift;
@@ -289,6 +289,15 @@ export class Campaign {
         e.throwSpin=state.direction*(-65+155*flight);
       }
       h.z=state.air?Math.max(0,state.startZ-24)*(1-flight):0;
+      if(state.elapsed>=.18){
+        for(const other of this.enemies){
+          if(other.id===e.id||other.hp<=0||other.inv>0||state.collisions?.includes(other.id)||Math.abs(other.y-e.y)>26||Math.abs(other.z-e.z)>90||other.x<Math.min(previousX,e.x)-24||other.x>Math.max(previousX,e.x)+24)continue;
+          (state.collisions??=[]).push(other.id);
+          other.attack=null;other.stun=Math.max(other.stun,1);other.knockdown=.8;other.inv=.35;
+          other.x=clamp(other.x+state.direction*18,25,limit);
+          this.grappleDamage(other,24);
+        }
+      }
       if(flight>=1){e.z=0;h.z=0;e.inv=.35;e.stun=.9;e.knockdown=.65;e.grappleCooldown=1.2;this.events.push({type:'throw',x:e.x,y:e.y,value:state.direction,heroId:h.heroId});
         this.grappleDamage(e,spec.damage+(state.air?14:0));this.releaseGrapple(false);h.stun=Math.max(h.stun,.24);}
 

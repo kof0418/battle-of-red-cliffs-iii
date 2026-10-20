@@ -7,7 +7,7 @@ function setup(id:typeof HERO_IDS[number]='guanyu',kind:'soldier'|'heavy'|'boss'
 function punch(m:Campaign){m.tick(1/60,{...idle,attack:true,grappleAttack:true});}
 function step(m:Campaign,n:number){for(let i=0;i<n;i++)m.tick(1/60,idle);}
 test('all five heroes grab, punch exactly twice and throw in either direction',()=>{
- for(const id of HERO_IDS)for(const direction of [-1,1]){const {m,e}=setup(id);assert(m.tryGrab({x:1,y:0}),id);punch(m);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,76);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,76);
+ for(const id of HERO_IDS)for(const direction of [-1,1]){const {m,e}=setup(id);assert(m.tryGrab({x:1,y:0}),id);punch(m);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,76);
  m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(e.hp,76-THROWS[id].damage);assert(direction<0?e.x<400:e.x>428);assert.equal(e.z,0);
  }
 });
@@ -55,4 +55,29 @@ test('all heroes can jump immediately after grabbing without prerequisite punche
 });
 test('hold allows a deliberate pause and throw has shoulder preparation before release',()=>{
  const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,120);assert(m.grapple);punch(m);step(m,120);assert(m.grapple);punch(m);m.tick(1/60,{x:1,y:0,attack:true,grappleAttack:true});step(m,6);assert(e.z>0);assert(Math.abs(e.x-m.hero.x)<30);step(m,36);assert.equal(m.grapple,null);assert.equal(e.z,0);assert((e.knockdown??0)>0);
+});
+
+test('five heroes throw before punches or after one punch, in either direction',()=>{
+ for(const id of HERO_IDS)for(const count of [0,1])for(const direction of [-1,1]){
+  const {m,e}=setup(id);m.tryGrab({x:1,y:0});for(let i=0;i<count;i++)punch(m);
+  m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');assert.equal(m.grapple?.hits,count);
+  step(m,45);assert.equal(e.hp,Math.max(0,90-count*7-THROWS[id].damage));
+ }
+});
+test('third neutral attack releases without a third hit or a normal swing',()=>{
+ const {m,e}=setup();m.tryGrab({x:1,y:0});punch(m);punch(m);punch(m);
+ assert.equal(m.grapple,null);assert.equal(e.hp,76);assert.equal(e.grapplePose,undefined);assert.equal(m.hero.attack,null);assert((e.grappleCooldown??0)>0);
+});
+test('thrown enemy knocks down and damages multiple targets once, without hitting other lanes',()=>{
+ for(const direction of [-1,1])for(const air of [false,true]){
+  const {m,e}=setup();const targets=[50,85].map(offset=>{const t=m.fighter('heavy',400+direction*offset,412);t.cooldown=10;m.enemies.push(t);return t;});
+  const outside=m.fighter('heavy',400+direction*70,470);outside.stun=10;m.enemies.push(outside);
+  m.tryGrab({x:1,y:0});if(air){m.hero.face=direction;m.tick(1/60,{...idle,jump:true});step(m,10);punch(m);}else m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});
+  step(m,38);for(const t of targets){assert.equal(t.hp,66);assert((t.knockdown??0)>0);assert(t.stun>0);assert.equal(t.attack,null);}assert.equal(outside.hp,90);assert(e.hp<90);
+  step(m,15);for(const t of targets)assert.equal(t.hp,66);
+ }
+});
+test('collision kill awards score once and does not cancel the original throw',()=>{
+ const {m,e}=setup();const t=m.fighter('heavy',460,412);t.hp=10;t.cooldown=10;m.enemies.push(t);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,attack:true,grappleAttack:true});step(m,45);
+ assert.equal(t.hp,0);assert.equal(e.hp,90-THROWS.guanyu.damage);assert.equal(m.kills,1);assert.equal(m.pickups.length,1);const score=m.score;step(m,20);assert.equal(m.score,score);
 });

@@ -104,7 +104,7 @@ class Battle extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
-      if(preview==='grapple'){document.body.classList.add('touch-controls');this.model.start();this.model.hero.x=400;this.model.hero.y=412;const e=this.model.fighter('heavy',428,412);e.cooldown=10;this.model.enemies=[e];this.model.supplies=[];this.model.tryGrab({x:1,y:0});this.model.paused=true;}
+      if(preview==='grapple'||preview==='grapple-collision'){document.body.classList.add('touch-controls');this.model.start();this.model.hero.x=400;this.model.hero.y=412;const e=this.model.fighter('heavy',428,412);e.cooldown=10;this.model.enemies=[e];this.model.supplies=[];if(preview==='grapple-collision'){for(const offset of [55,90]){const t=this.model.fighter('heavy',400+offset,412);t.stun=10;this.model.enemies.push(t);}}this.model.tryGrab({x:1,y:0});this.model.paused=true;}
       if (preview === 'river') { this.model.stage = 1; this.model.start(); }
       if (preview === 'continue') { this.model.start(); this.model.hero.hp = 0; this.model.status = 'lost'; }
       if (preview === 'intermission') { this.model.start(); this.model.wave = 3; this.model.enemies = []; this.model.status = 'stage-clear'; }
@@ -275,7 +275,7 @@ class Battle extends Phaser.Scene {
     this.stageLabel.setText(`赤壁之戰三 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
-    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／兩下後左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！快按攻擊摔下':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
+    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！快按攻擊摔下':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
     this.combo.setText(m.hits > 1 ? `${m.hits} HITS\n${m.champion.moves[Math.max(0, m.hero.step - 1)]}` : '');
     const boss = m.enemies.find(e => isBoss(e.kind));
     this.bossLabel.setText(boss ? `${m.level.boss}${boss.hp <= boss.max / 2 ? ' · 怒勢' : ''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
