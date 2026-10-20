@@ -1,12 +1,11 @@
 /// <reference types="vite/client" />
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
-import {ProfileStorage,exportProfile,parseBackup,MAX_BACKUP_BYTES,type Entries} from './profile';
+import {ProfileStorage} from './profile';
 import {ResumeCountdown,LESSONS} from './experience';
 const profileStorage = new ProfileStorage(localStorage);
 import { FixedStep } from './fixed-step';
 import { ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, CONTROL_KEY, VALID_KEYS, parseBindings, remap, keyAction, PadInput, type Bindings, type Action } from './controls';
-import { readSlot, writeSlot, SLOT_COUNT } from './slots';
 let bindings: Bindings = {...DEFAULT_BINDINGS};
 try { bindings = parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY) ?? 'null')); } catch {}
 const keyboardHeld = new Set<string>();
@@ -17,7 +16,6 @@ let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) 
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let settingsOpen = false;
 let titleScreen = true;
-let newRunApproved = false;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
 try { records = parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY) ?? '{}')); } catch { /* optional storage */ }
@@ -27,39 +25,21 @@ import { HEROES, HERO_IDS, type HeroId } from './heroes';
 import { selectionMarkup } from './selection';
 let selectedHero: HeroId = 'guanyu';
 document.querySelector('#hero-select')!.innerHTML = selectionMarkup();
-for(const selector of ['#manual-slots','#slot-status','#backup-export','#history']){const el=document.querySelector(selector)!;document.querySelector('#save-details')!.append(selector==='#backup-export'?el.parentElement!:el);}
 function setText(selector: string, value: string) { const el = document.querySelector(selector)!; if (el.textContent !== value) el.textContent = value; }
 import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
  document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.3';
- document.querySelector('.save-note')!.textContent = '紀錄保存在此 Mac App。網頁版存檔可透過匯出、匯入接續遊玩。';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
 import { drawBackground } from './background';
-import { captureSave, restoreSave, readSave, writeSave, parseSave, MAX_SAVE_BYTES, type SaveData } from './save';
 
 const held = new Set<string>(), pressed = new Set<string>();
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
 function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13special')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
-let savedRecord: SaveData | null = null;
-let saveMessage = '尚無紀錄；戰鬥中每 5 秒自動保存。';
-try { savedRecord = readSave(profileStorage); if (savedRecord) saveMessage = '找到行軍紀錄，可按「載入紀錄」接續。'; }
-catch { saveMessage = '無法讀取本機紀錄；仍可遊玩或匯入有效存檔。'; }
-function saveSummary() {
-  if (!savedRecord) return '未保存';
-  const r = savedRecord.run;
-  return `${HEROES[r.hero.heroId ?? 'guanyu'].name} · 第 ${r.stage + 1} 關 · 第 ${r.wave} 陣 · 氣血 ${Math.ceil(r.hero.hp)} · ${r.score} 分`;
-}
-function persist(save: SaveData) {
-  savedRecord = save;
-  try { writeSave(profileStorage, save); saveMessage = `已保存 ${new Date(save.savedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`; }
-  catch { saveMessage = '瀏覽器無法寫入；紀錄暫存於本頁，請匯出備份。'; }
-}
-
 class Battle extends Phaser.Scene {
   model = new Campaign(selectedHero); actors = new Map<number, Actor>();
   hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
@@ -71,16 +51,13 @@ class Battle extends Phaser.Scene {
   clock = new FixedStep();
   pad = new PadInput();
   autoAttackAt = 0;
-  autosaveAt = 0; saveSignature = '';
   constructor() { super('Battle'); }
-  create(data?: { save?: SaveData }) {
-    newRunApproved=false;this.countdown.cancel(); this.needsCountdown=!!data?.save;
+  create() {
+    this.countdown.cancel(); this.needsCountdown=false;
     this.model = new Campaign(selectedHero); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
-    if (data?.save) { this.model = restoreSave(data.save); if (this.model.ranked) this.best = Math.max(this.best, data.save.best); /* Audio preferences remain local to this device. */ }
     selectedHero = this.model.hero.heroId ?? 'guanyu';
     this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
     this.autoAttackAt = 0;
-    this.autosaveAt = this.model.time; this.saveSignature = this.signature();
     document.querySelector('#sound')!.textContent = `聲音：${muted ? '關' : '開'}`;
     held.clear(); pressed.clear();
     this.cameras.main.setBounds(0, 0, 2800, 540);
@@ -126,21 +103,14 @@ class Battle extends Phaser.Scene {
       if (preview === 'intermission') { this.model.start(); this.model.wave = 3; this.model.enemies = []; this.model.status = 'stage-clear'; }
     }
     this.draw();
-    if (settingsOpen) { this.input.keyboard!.enabled = false; renderSlots(); }
-  }
-  signature() { const m = this.model; return `${m.stage}:${m.wave}:${m.status}:${m.continues}`; }
-  saveCurrent() {
-    if (this.model.status === 'ready') { saveMessage = '請先出陣，或載入已有紀錄。'; return; }
-    try { persist(captureSave(this.model, this.best, muted)); this.autosaveAt = this.model.time; this.saveSignature = this.signature(); }
-    catch (error) { saveMessage = error instanceof Error ? error.message : '保存失敗，請稍後再試。'; }
+    if (settingsOpen) { this.input.keyboard!.enabled = false; }
   }
   activate() {
     const m = this.model;
     if (settingsOpen || titleScreen) return;
     if (m.status === 'ready') {
-      if(savedRecord&&!newRunApproved){document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=false;document.querySelector<HTMLButtonElement>('#new-run-no')!.focus();return;}
       let seen=false;try{seen=profileStorage.getItem('red-banner-tutorial-v1')==='true';}catch{}
-      if(!seen){openSettings();openTutorial();return;}m.start();newRunApproved=false;document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;
+      if(!seen){openSettings();openTutorial();return;}m.start();
     }
     else if (m.paused) this.resume();
     else if (m.status === 'stage-clear') { m.nextStage(); this.recorded = false; }
@@ -174,7 +144,7 @@ class Battle extends Phaser.Scene {
     } else { for(const action of pad.pressed)pressed.add(action); }
     if (pressed.delete('restart')) { requestRestart(); return; }
     if (pressed.delete('start')) this.activate();
-    if (pressed.delete('pause')) { if(m.paused)this.resume();else {m.togglePause();this.saveCurrent();} }
+    if (pressed.delete('pause')) { if(m.paused)this.resume();else {m.togglePause();} }
     const autoAttack = preferences.autoAttack && !settingsOpen && (this.actionDown('attack') || held.has('attack') || pad.held.has('attack')) && m.time >= this.autoAttackAt;
     if(autoAttack) this.autoAttackAt = m.time + .20;
     const input: Input = {
@@ -199,7 +169,6 @@ class Battle extends Phaser.Scene {
       this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
       try { profileStorage.setItem('red-banner-best-v13special', String(this.best)); } catch { /* Storage is optional. */ }
     }
-    if (m.status !== 'ready' && (this.signature() !== this.saveSignature || (!m.paused && m.time - this.autosaveAt >= 5))) this.saveCurrent();
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = Phaser.Math.Clamp(m.hero.x - 340, 0, 1840);
     this.draw();
@@ -315,7 +284,6 @@ class Battle extends Phaser.Scene {
     document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready' || titleScreen;
     document.querySelector<HTMLElement>('#title-screen')!.hidden = !titleScreen;
     document.querySelector<HTMLElement>('#title-screen')!.inert = settingsOpen;
-    document.querySelector<HTMLButtonElement>('#title-continue')!.disabled = !savedRecord;
     document.body.dataset.screen = titleScreen?'title':state;
     document.querySelector<HTMLElement>('#advance')!.classList.toggle('terminal-action', ['lost','won','stage-clear'].includes(state));
     if(!document.documentElement.hasAttribute('data-ready')){document.documentElement.setAttribute('data-ready','');requestAnimationFrame(()=>this.scale.refresh());}
@@ -323,7 +291,6 @@ class Battle extends Phaser.Scene {
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name} — ${SPECIALS[m.hero.heroId!].description}。`;
-    document.querySelector<HTMLButtonElement>('#resume-from-select')!.disabled = !savedRecord;
     const personal = records[m.hero.heroId ?? 'guanyu'];
     setText('#hero-record', personal ? `此武將已通關 · v1.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成雙關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
@@ -340,11 +307,6 @@ class Battle extends Phaser.Scene {
       action.hidden = state === 'playing' || state === 'paused';
       setText('#advance', state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? '前往第二關 ▶' : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻');
     }
-    document.querySelector('#save-summary')!.textContent = saveSummary();
-    document.querySelector('#save-status')!.textContent = saveMessage;
-    document.querySelector<HTMLButtonElement>('#load-save')!.disabled = !savedRecord;
-    document.querySelector<HTMLButtonElement>('#export-save')!.disabled = !savedRecord && m.status === 'ready';
-    document.querySelector<HTMLButtonElement>('#save-now')!.disabled = m.status === 'ready';
     document.querySelector('#credits')!.textContent = `續關 ${m.continues} / 2`;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-stage]'))) {
       const index = Number(card.dataset.stage); card.dataset.state = index < m.stage || state === 'won' || (state === 'stage-clear' && index === m.stage) ? 'cleared' : index === m.stage ? 'current' : 'locked';
@@ -365,7 +327,7 @@ class Battle extends Phaser.Scene {
 const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, pixelArt: true, roundPixels: true,
   backgroundColor: '#24393d', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, fullscreenTarget: document.documentElement }, scene: Battle, banner: false });
 document.querySelector('#sound')!.addEventListener('click', () => { preferences.muted = !preferences.muted; savePreferences(); });
-document.querySelector('#fullscreen')!.addEventListener('click', async () => { if (desktop) { try { await desktop.invoke('toggle_fullscreen'); } catch { saveMessage = '無法切換全螢幕。'; } return; } if (game.scale.isFullscreen) game.scale.stopFullscreen(); else game.scale.startFullscreen(); });
+document.querySelector('#fullscreen')!.addEventListener('click', async () => { if (desktop) { try { await desktop.invoke('toggle_fullscreen'); } catch { setText('#settings-status','無法切換全螢幕。'); } return; } if (game.scale.isFullscreen) game.scale.stopFullscreen(); else game.scale.startFullscreen(); });
 document.querySelector('#advance')!.addEventListener('click', () => { current().activate(); current().draw(); });
 document.querySelector('#pause')!.addEventListener('click',openSettings);
 document.querySelector('#restart')!.addEventListener('click', requestRestart);
@@ -379,50 +341,12 @@ function suspend() {
   current()?.clock.reset(); current()?.pad.reset(); keyboardHeld.clear();
   held.clear(); pressed.clear();
   const scene = game.scene.getScene('Battle') as Battle;
-  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); scene.saveCurrent(); }
+  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
 }
 window.addEventListener('blur', suspend);
 document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); });
 
 const current = () => game.scene.getScene('Battle') as Battle;
-document.querySelector('#save-now')!.addEventListener('click', () => { suspend(); current().saveCurrent(); });
-document.querySelector('#load-save')!.addEventListener('click', () => {
-  if (savedRecord) { titleScreen=false;const requested = savedRecord; suspend(); persist(requested); saveMessage = '紀錄已載入；按繼續返回戰場。'; current().scene.restart({ save: requested }); }
-});
-document.querySelector('#export-save')!.addEventListener('click', async () => {
-  suspend();
-  if (current().model.status !== 'ready') current().saveCurrent();
-  if (!savedRecord) return;
-  if (desktop) {
-    try { saveMessage = await desktop.invoke<boolean>('export_save', { contents: JSON.stringify(savedRecord, null, 2) }) ? '存檔已匯出。' : '已取消匯出。'; }
-    catch (error) { saveMessage = String(error); }
-    return;
-  }
-  const blob = new Blob([JSON.stringify(savedRecord, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob), link = document.createElement('a');
-  link.href = url; link.download = `red-banner-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
-});
-const picker = document.querySelector<HTMLInputElement>('#save-file')!;
-document.querySelector('#import-save')!.addEventListener('click', async () => {
-  suspend();
-  if (!desktop) { picker.click(); return; }
-  try {
-    const contents = await desktop.invoke<string | null>('import_save');
-    if (contents === null) { saveMessage = '已取消匯入。'; return; }
-    const save = parseSave(contents); persist(save); current().scene.restart({ save });
-  } catch (error) { saveMessage = String(error); }
-});
-picker.addEventListener('change', async () => {
-  const file = picker.files?.[0]; if (!file) return;
-  try {
-    if (file.size > MAX_SAVE_BYTES) throw new Error('存檔太大，請選擇 128 KB 以下的遊戲存檔。');
-    const save = parseSave(await file.text()); titleScreen=false;persist(save); current().scene.restart({ save });
-  } catch (error) { saveMessage = error instanceof Error ? error.message : '匯入失敗，原有紀錄未變更。'; }
-  finally { picker.value = ''; }
-});
-window.addEventListener('pagehide', () => { if (current()?.model) current().saveCurrent(); });
-
 document.querySelectorAll<HTMLElement>('[data-hero]').forEach(card => card.addEventListener('click', () => {
   const id = card.dataset.hero as HeroId;
   if (current().model.selectHero(id)) selectedHero = id;
@@ -430,7 +354,6 @@ document.querySelectorAll<HTMLElement>('[data-hero]').forEach(card => card.addEv
 document.querySelector('#deploy-hero')!.addEventListener('click', () => { current().activate(); current().draw(); });
 document.querySelector('#reselect')!.addEventListener('click', requestRestart);
 
-document.querySelector('#resume-from-select')!.addEventListener('click', () => document.querySelector<HTMLButtonElement>('#load-save')!.click());
 
 function savePreferences() {
   muted = preferences.muted; soundtrack.configure(preferences);
@@ -440,10 +363,8 @@ function savePreferences() {
 }
 function openSettings() {
   if(settingsOpen) return;
-  overwriteSlot = -1;
   setText('#menu-resume',current().model.status==='playing'?'繼續遊戲 · Esc':'返回 · Esc');
   document.querySelector<HTMLDetailsElement>('#options-details')!.open=false;
-  document.querySelector<HTMLDetailsElement>('#save-details')!.open=false;
   settingsReturnFocus = document.activeElement as HTMLElement;
   suspend(); settingsOpen = true;
   current().input.keyboard!.enabled = false;
@@ -454,7 +375,7 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#mute-all')!.checked = preferences.muted;
   document.querySelector<HTMLInputElement>('#reduce-motion')!.checked = preferences.reducedMotion;
   document.querySelector<HTMLInputElement>('#auto-attack')!.checked = preferences.autoAttack;
-  renderControls(); renderSlots(); renderHistory();
+  renderControls(); renderHistory();
   refreshVolumeLabels(); current().draw();
   document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
 }
@@ -516,26 +437,6 @@ function persistBindings(){
  catch{setText('#binding-status','本機無法保存，按鍵設定僅本次有效。');}
  updateKeyGuide();
 }
-let overwriteSlot=-1;
-function renderSlots(){
- const area=document.querySelector('#manual-slots')!;area.innerHTML='<h3>三個手動存檔槽</h3>';
- for(let i=0;i<SLOT_COUNT;i++){
-  let save:SaveData|null=null,summary='空白';
-  try{save=readSlot(profileStorage,i);if(save)summary=`${HEROES[save.run.hero.heroId??'guanyu'].name} · 關 ${save.run.stage+1} 陣 ${save.run.wave} · ${save.run.score} 分 · ${new Date(save.savedAt).toLocaleString()}`;}
-  catch{summary='無法讀取此槽；可用目前進度覆寫。';}
-  const row=document.createElement('div');row.className='slot-row';
-  const text=document.createElement('span');text.textContent=`${i+1}　${summary}`;row.append(text);
-  const store=document.createElement('button');store.textContent=overwriteSlot===i?'確認覆寫':`存入槽 ${i+1}`;store.disabled=current().model.status==='ready';
-  store.addEventListener('click',()=>{
-   if(summary!=='空白'&&overwriteSlot!==i){overwriteSlot=i;renderSlots();setText('#slot-status','再次點擊確認覆寫此槽；其他存檔不受影響。');return;}
-   try{writeSlot(profileStorage,i,captureSave(current().model,current().best,muted));overwriteSlot=-1;renderSlots();setText('#slot-status',`已存入槽 ${i+1}。`);}
-   catch(e){setText('#slot-status',`保存失敗：${String(e)}`);}
-  });
-  const load=document.createElement('button');load.textContent=`載入槽 ${i+1}`;load.disabled=!save;
-  load.addEventListener('click',()=>{if(!save)return;titleScreen=false;closeSettings(false);suspend();persist(save);current().scene.restart({save});overwriteSlot=-1;saveMessage=`已載入手動槽 ${i+1}，按繼續返回戰場。`;});
-  row.append(store,load);area.append(row);
- }
-}
 renderControls();
 
 function requestRestart(){
@@ -567,39 +468,6 @@ function renderHistory(){
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
  }
 }
-let pendingBackup:Entries|null=null;
-async function exportBackup(){
- try{
-  const contents=exportProfile(profileStorage);
-  if(desktop){const saved=await desktop.invoke<boolean>('export_backup',{contents});setText('#backup-status',saved?'完整備份已匯出。':'已取消匯出。');}
-  else{const url=URL.createObjectURL(new Blob([contents],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='red-banner-full-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);setText('#backup-status','已產生完整備份下載。');}
- }catch(e){setText('#backup-status',`匯出失敗：${String(e)}`);}
-}
-function stageBackup(text:string){
- pendingBackup=null;document.querySelector<HTMLElement>('#backup-confirm')!.hidden=true;
- try{pendingBackup=parseBackup(text);setText('#backup-status',`備份已驗證：${Object.keys(pendingBackup).length} 項資料，尚未修改本機。`);document.querySelector<HTMLElement>('#backup-confirm')!.hidden=false;}
- catch(e){setText('#backup-status',`無法還原：${String(e)}`);}
-}
-document.querySelector('#backup-export')!.addEventListener('click',exportBackup);
-document.querySelector('#backup-import')!.addEventListener('click',async()=>{
- try{if(desktop){const text=await desktop.invoke<string|null>('import_backup');if(text!==null)stageBackup(text);}else document.querySelector<HTMLInputElement>('#backup-file')!.click();}
- catch(e){setText('#backup-status',String(e));}
-});
-document.querySelector('#backup-file')!.addEventListener('change',async e=>{
- const el=e.target as HTMLInputElement,file=el.files?.[0];if(!file)return;
- try{if(file.size>MAX_BACKUP_BYTES)throw new Error('完整備份超過 1 MB。');stageBackup(await file.text());}catch(error){setText('#backup-status',String(error));}finally{el.value='';}
-});
-document.querySelector('#backup-cancel')!.addEventListener('click',()=>{pendingBackup=null;document.querySelector<HTMLElement>('#backup-confirm')!.hidden=true;});
-document.querySelector('#backup-apply')!.addEventListener('click',()=>{
- if(!pendingBackup)return;
- try{
-  profileStorage.replace(pendingBackup);pendingBackup=null;
-  preferences=readPreferences(profileStorage);bindings=parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY)??'null'));
-  records=parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY)??'{}'));savedRecord=readSave(profileStorage);
-  muted=preferences.muted;soundtrack.configure(preferences);closeSettings(false);current().scene.restart({});current().best=readBest();
-  saveMessage='完整備份已還原；請選擇接續存檔或手動槽。';document.querySelector<HTMLElement>('#backup-confirm')!.hidden=true;updateKeyGuide();
- }catch(e){setText('#backup-status',`還原失敗，請保留備份：${String(e)}`);}
-});
 let tutorialStep=-1,practiceCount=0;
 function openTutorial(){document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;tutorialStep=0;renderLesson();}
 function renderLesson(){
@@ -620,11 +488,7 @@ window.addEventListener('keydown',e=>{if(settingsOpen&&tutorialStep>=0&&!e.repea
 document.querySelector('#tutorial-open')!.addEventListener('click',openTutorial);
 
 document.querySelector('#title-start')!.addEventListener('click',()=>{titleScreen=false;current().draw();document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
-document.querySelector('#title-continue')!.addEventListener('click',()=>{document.querySelector<HTMLButtonElement>('#load-save')!.click();});
 document.querySelector('#title-settings')!.addEventListener('click',openSettings);
 document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettings());
 document.querySelector('#menu-reselect')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=false;current().scene.restart({});});
 document.querySelector('#menu-home')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=true;current().scene.restart({});});
-
-document.querySelector('#new-run-yes')!.addEventListener('click',()=>{newRunApproved=true;document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;current().activate();current().draw();});
-document.querySelector('#new-run-no')!.addEventListener('click',()=>{document.querySelector<HTMLElement>('#new-run-confirm')!.hidden=true;document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
