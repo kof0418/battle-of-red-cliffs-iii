@@ -24,19 +24,19 @@ export class Actor {
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
     this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
-    this.body.setAngle(special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
+    this.body.setAngle(f.grapplePose==='thrown'?f.throwSpin??0:f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-24:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}`;
+    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
-    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
+    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); this.grip(f);return; }
     if (champion) { drawWarrior(g,f,frame,phase);
       if(special&&f.heroId==='weiyan'){
         const extension=Math.sin(Math.min(1,f.attack!.elapsed/.58)*Math.PI)*28;
         g.lineStyle(9,0x504b48).lineBetween(-6,-26,12+extension,-48);g.lineStyle(7,0x151f23).lineBetween(12+extension,-48,24+extension,-54);
         g.lineStyle(2,0xe7c188).lineBetween(13+extension,-51,24+extension,-57);
-      }return; }
+      }this.grip(f);return; }
     const color = f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
@@ -91,6 +91,13 @@ export class Actor {
     }
     if (f.attack && !f.attack.hit && f.kind !== 'hero') g.fillStyle(0xffc163).fillTriangle(-4, -89, 4, -89, 0, -79);
     if (f.kind !== 'hero') { g.fillStyle(0x17251f).fillRect(-20, -96, 40, 4); g.fillStyle(boss ? 0xd97856 : 0xd5ab70).fillRect(-20, -96, 40 * f.hp / f.max, 4); }
+  }
+  private grip(f:Fighter){
+    if(f.grapplePose==='hold'||f.grapplePose==='air'){
+      const g=this.ink,air=f.grapplePose==='air',color=HEROES[f.heroId??'guanyu'].color;
+      g.lineStyle(9,color).lineBetween(8,-53,30,air?-78:-49);g.lineStyle(6,0xd3ad7d).lineBetween(25,air?-72:-50,33,air?-80:-50);
+      g.lineStyle(7,color).lineBetween(-9,-49,22,air?-69:-40);g.fillStyle(0xd3ad7d).fillRect(20,air?-72:-43,8,6);
+    }
   }
   fall(scene:Phaser.Scene) {
     this.shadow.destroy();

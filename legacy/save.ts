@@ -32,7 +32,7 @@ function fighter(v: unknown): Fighter {
   const heroId = f.heroId === undefined ? 'guanyu' : f.heroId;
   if (kind === 'hero' && !isHeroId(heroId)) return fail();
   const face = number(f.face, -1, 1, true); if (!face) return fail();
-  return { ...(kind === 'hero' && isHeroId(heroId) ? { heroId } : {}), id: number(f.id, 1, 100000, true), kind, max, hp: number(f.hp, 0, max), x: number(f.x, 0, 2800), y: number(f.y, 340, 510), face,
+  return { ...(f.grappleCooldown!==undefined?{grappleCooldown:number(f.grappleCooldown,0,2)}:{}), ...(kind === 'hero' && isHeroId(heroId) ? { heroId } : {}), id: number(f.id, 1, 100000, true), kind, max, hp: number(f.hp, 0, max), x: number(f.x, 0, 2800), y: number(f.y, 340, 510), face,
     z: number(f.z, 0, 1000), vz: number(f.vz, -2000, 2000), inv: number(f.inv, 0, 5), stun: number(f.stun, 0, 5), cooldown: number(f.cooldown, -1e8, 100),
     step: number(f.step, 0, 3, true), last: number(f.last, -10, 1e8), attack: attack(f.attack), moving: bool(f.moving),
     specialCooldown: f.specialCooldown===undefined?0:number(f.specialCooldown,0,8), dodge: number(f.dodge, -.1, 1), dodgeCooldown: number(f.dodgeCooldown, 0, 2), dashX: number(f.dashX, -1, 1), dashY: number(f.dashY, -1, 1), attacks: number(f.attacks, 0, 1e7, true) };

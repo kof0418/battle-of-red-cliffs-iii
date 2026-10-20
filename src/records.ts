@@ -1,7 +1,7 @@
 import { HERO_IDS, isHeroId, type HeroId } from './heroes.ts';
 export type Rank = 'S' | 'A' | 'B';
 export type Records = Partial<Record<HeroId,{score:number;rank:Rank}>>;
-export const RECORDS_KEY = 'red-banner-records-v13command';
+export const RECORDS_KEY = 'red-banner-records-v13grapple';
 export function parseRecords(raw: unknown): Records {
  const result: Records = {};
  if (!raw || typeof raw !== 'object') return result;

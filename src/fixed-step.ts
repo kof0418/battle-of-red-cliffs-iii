@@ -8,7 +8,7 @@ export class FixedStep {
     if (!active) { this.reset(); return; }
     if (!Number.isFinite(seconds) || seconds < 0) return;
     this.pending = { x: input.x, y: input.y, attack: this.pending.attack || input.attack,
-      special: this.pending.special || input.special, jump: this.pending.jump || input.jump, dodge: this.pending.dodge || input.dodge };
+      throwX: input.throwX??this.pending.throwX, grappleAttack: this.pending.grappleAttack || input.grappleAttack, special: this.pending.special || input.special, jump: this.pending.jump || input.jump, dodge: this.pending.dodge || input.dodge };
     // Bound catch-up after a stall; normal 10–144 Hz rendering preserves elapsed time.
     this.remaining += Math.min(seconds, .25);
     const step = 1 / 60;

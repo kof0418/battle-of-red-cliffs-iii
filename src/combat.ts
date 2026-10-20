@@ -1,3 +1,4 @@
+import {THROWS,type Grapple} from './throws.ts';
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS } from './levels.ts';
@@ -39,10 +40,10 @@ export interface Fighter {
   id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
-  specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
+  grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'; throwSpin?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
-export interface Input { x: number; y: number; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
+export interface Input { x: number; y: number; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
+export type Effect = { type: 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
@@ -53,6 +54,7 @@ export function attackHits(a: Attack, target: Fighter, reach: number) {
 /** Deterministic, renderer-independent game simulation. */
 export class Campaign {
   hero: Fighter;
+  grapple:Grapple|null=null;
   enemies: Fighter[] = [];
   supplies: Supply[] = [];
   pickups: Pickup[] = [];
@@ -119,6 +121,7 @@ export class Campaign {
     this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   private resetTransient() {
+    this.releaseGrapple(false);
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
@@ -140,21 +143,25 @@ export class Campaign {
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
     // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
-    if (input.special) this.specialQueued = true;
-    if (input.attack) this.queuedUntil = this.time + .38;
+    if (input.special && !this.grapple) this.specialQueued = true;
+    if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
     if (this.freeze > 0) { this.freeze -= dt; return; }
     this.time += dt;
     if (this.time > this.hitDeadline) this.hits = 0;
     const h = this.hero;
     for (const f of [h, ...this.enemies]) {
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
+      f.grappleCooldown=Math.max(0,(f.grappleCooldown??0)-dt);
       f.specialCooldown = Math.max(0,(f.specialCooldown ?? 0)-dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
-      if (f.z > 0 || f.vz > 0) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { f.stun = Math.max(f.stun, .12); f.attack = null; } } }
+      if ((!this.grapple || (f!==h && f.id!==this.grapple.target)) && (f.z > 0 || f.vz > 0)) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { f.stun = Math.max(f.stun, .12); f.attack = null; } } }
     }
+    if(this.grapple && (h.hp<=0||h.stun>0||!this.enemies.some(e=>e.id===this.grapple!.target&&e.hp>0)))this.releaseGrapple(false);
+    const occupied=!!this.grapple;
+    if(this.grapple)this.updateGrapple(dt,input);
     if(this.specialQueued){this.specialQueued=false;this.special();}
-    const casting=h.attack?.move==='special';
-    if(casting&&h.heroId==='zhaoyun'&&h.attack!.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
+    const casting=occupied||h.attack?.move==='special';
+    if(h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
     if (input.dodge && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
       h.dashX = length ? input.x / length : h.face; h.dashY = length ? input.y / length : 0;
@@ -171,6 +178,7 @@ export class Campaign {
         h.moving = !!(input.x || input.y); if (input.x) h.face = Math.sign(input.x);
       }
     }
+    if(!occupied && !h.attack && h.stun<=0 && h.z===0 && h.dodge<=0 && !input.attack && !input.special && (input.x||input.y))this.tryGrab(input);
     // Each arena opens only after its defenders fall.
     const right = [0, 970, 1840, 2770][this.wave];
     h.x = clamp(h.x, 25, this.enemies.length ? right : 2770); h.y = clamp(h.y, 350, 503);
@@ -187,6 +195,7 @@ export class Campaign {
     // Gentle separation prevents enemies occupying exactly the same lane and pixel.
     for (let i = 0; i < this.enemies.length; i++) for (let j = i + 1; j < this.enemies.length; j++) {
       const a = this.enemies[i], b = this.enemies[j];
+      if(this.grapple && (a.id===this.grapple.target||b.id===this.grapple.target))continue;
       if (Math.abs(a.x - b.x) < 30 && Math.abs(a.y - b.y) < 21) {
         if (!a.attack) a.y = clamp(a.y - 20 * dt, 350, 503);
         if (!b.attack) b.y = clamp(b.y + 20 * dt, 350, 503);
@@ -202,6 +211,7 @@ export class Campaign {
         this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
       }
     }
+    if(this.grapple&&(h.hp<=0||h.stun>0))this.releaseGrapple(false);
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
     this.pickups = this.pickups.filter(p => {
@@ -222,9 +232,61 @@ export class Campaign {
       } else if (this.time - this.clearedAt > .8 && h.x > (this.wave === 1 ? 900 : 1770)) this.spawn();
     }
   }
+  tryGrab(input:Input){
+    const h=this.hero;if(this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||h.attack||h.z>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
+    const target=this.enemies.filter(e=>e.hp>0&&!e.attack&&e.z===0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=31&&Math.abs(e.y-h.y)<=18&&(!isBoss(e.kind)||(e.hp<=e.max*.5&&e.stun>0)))
+     .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
+    if(!target||!((input.x&&Math.sign(target.x-h.x)===Math.sign(input.x))||(input.y&&Math.sign(target.y-h.y)===Math.sign(input.y))))return false;
+    h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;target.grapplePose='held';target.face=-h.face;
+    this.grapple={target:target.id,hits:0,deadline:this.time+1.3,started:this.time,phase:'hold',elapsed:0,direction:h.face,air:false,startX:h.x,startZ:0};
+    this.queuedUntil=0;this.specialQueued=false;this.message='抓住！攻擊兩下，再跳＋攻擊或左右＋攻擊';this.messageUntil=this.time+1.5;
+    this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});return true;
+  }
+  releaseGrapple(escape:boolean){
+    const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
+    h.grapplePose=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
+    if(e){e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=1.2;
+      if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,25,2770);}}
+    this.grapple=null;
+    if(escape){h.stun=Math.max(h.stun,.2);this.message='接招太慢，敵人掙脫！';this.messageUntil=this.time+1.3;this.events.push({type:'escape',x:h.x,y:h.y});}
+  }
+  grappleDamage(e:Fighter,amount:number){
+    const actual=Math.min(e.hp,amount);e.hp-=actual;this.score+=actual*10;this.hits++;this.bestCombo=Math.max(this.bestCombo,this.hits);this.hitDeadline=this.time+1.7;
+    this.events.push({type:'hit',x:e.x,y:e.y-e.z-38,value:actual,heroId:this.hero.heroId,heavy:amount>20});
+    if(e.hp<=0){this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:e.x,y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});this.releaseGrapple(false);}
+  }
+  updateGrapple(dt:number,input:Input){
+    const state=this.grapple!,h=this.hero,e=this.enemies.find(e=>e.id===state.target);if(!e){this.releaseGrapple(false);return;}
+    e.attack=null;e.moving=false;h.moving=false;this.queuedUntil=0;this.specialQueued=false;
+    const fresh=input.grappleAttack??input.attack;
+    if(state.phase==='hold'){
+      if(this.time>state.deadline||this.time-state.started>4){this.releaseGrapple(true);return;}
+      e.x=clamp(h.x+h.face*27,25,2770);e.y=h.y;e.z=0;
+      if(fresh){
+        if(state.hits<2){state.hits++;state.deadline=this.time+1.3;this.grappleDamage(e,7);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
+        else if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
+        else{this.message='已打兩下：按跳躍，或左右＋攻擊摔出';this.messageUntil=this.time+1;}
+      }
+      if(input.jump&&state.hits>=2){state.phase='jump';state.elapsed=0;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});}
+    }else if(state.phase==='jump'){
+      state.elapsed+=dt;h.z=Math.sin(Math.min(1,state.elapsed/.72)*Math.PI)*78;e.z=h.z+24;e.x=clamp(h.x+h.face*24,25,2770);e.y=h.y;
+      if(fresh){this.beginThrow(h.face,true);}else if(state.elapsed>=.72){h.z=0;this.releaseGrapple(true);}
+    }else{
+      state.elapsed+=dt;const p=Math.min(1,state.elapsed/.48),spec=THROWS[h.heroId!],limit=[0,970,1840,2770][this.wave];
+      e.x=clamp(state.startX+state.direction*spec.distance*p,25,limit);e.y=h.y;e.z=(1-p)*state.startZ+Math.sin(p*Math.PI)*(state.air?95:65);e.throwSpin=state.direction*spec.spin*p;
+      h.z=state.air?(1-p)*state.startZ*.65:0;
+      if(p>=1){e.z=0;h.z=0;e.inv=.35;e.stun=.9;e.grappleCooldown=1.2;this.events.push({type:'throw',x:e.x,y:e.y,value:state.direction,heroId:h.heroId});
+        this.grappleDamage(e,spec.damage+(state.air?14:0));this.releaseGrapple(false);h.stun=Math.max(h.stun,.18);}
+    }
+  }
+  beginThrow(direction:number,air:boolean){
+    if(!this.grapple)return;const state=this.grapple,e=this.enemies.find(e=>e.id===state.target);if(!e)return;
+    state.phase='throw';state.direction=direction;state.air=air;state.elapsed=0;state.startX=e.x;state.startZ=e.z;this.hero.face=direction;this.hero.grapplePose=air?'air':'hold';e.grapplePose='thrown';
+    this.message=THROWS[this.hero.heroId!].name+(air?' · 空中摔':' · '+(direction<0?'左摔':'右摔'));this.messageUntil=this.time+1.1;
+  }
   special() {
     const h=this.hero;
-    if(this.status!=='playing'||this.paused||h.hp<=0)return false;
+    if(this.status!=='playing'||this.paused||h.hp<=0||this.grapple)return false;
     let reason='';
     if((h.specialCooldown??0)>0||h.attack?.move==='special')reason='招式尚未收完';
     else if(h.z>0||h.vz>0||h.dodge>0)reason='請落地站穩後施放';
@@ -243,7 +305,7 @@ export class Campaign {
     this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
   ai(e: Fighter, index: number, dt: number) {
-    if (e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
+    if (this.grapple?.target===e.id || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
     e.face = dx >= 0 ? 1 : -1;
     const boss = isBoss(e.kind), enraged = boss && e.hp <= e.max / 2;

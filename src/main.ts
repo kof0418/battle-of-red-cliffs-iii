@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import {CommandInput} from './command-input';
+import {THROWS} from './throws';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {UserSettings} from './user-settings';
@@ -41,10 +42,10 @@ import { drawBackground } from './background';
 
 const held = new Set<string>(), pressed = new Set<string>();
 const command=new CommandInput();
-function queueAction(action:string){const m=current()?.model;if(m?.status==='playing'&&!m.paused&&!settingsOpen&&command.press(action,performance.now()))pressed.add('command-special');else pressed.add(action);}
+function queueAction(action:string){const m=current()?.model;if(m?.grapple){command.reset();if(action==='attack'){const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));if(keys.includes('left')||held.has('left'))pressed.add('throw-left');else if(keys.includes('right')||held.has('right'))pressed.add('throw-right');}pressed.add(action);return;}if(m?.status==='playing'&&!m.paused&&!settingsOpen&&command.press(action,performance.now()))pressed.add('command-special');else pressed.add(action);}
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
-function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13command')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13grapple')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
 class Battle extends Phaser.Scene {
   model = new Campaign(selectedHero); actors = new Map<number, Actor>();
   hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
@@ -103,6 +104,7 @@ class Battle extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
+      if(preview==='grapple'){document.body.classList.add('touch-controls');this.model.start();this.model.hero.x=400;this.model.hero.y=412;const e=this.model.fighter('heavy',428,412);e.cooldown=10;this.model.enemies=[e];this.model.supplies=[];this.model.tryGrab({x:1,y:0});this.model.paused=true;}
       if (preview === 'river') { this.model.stage = 1; this.model.start(); }
       if (preview === 'continue') { this.model.start(); this.model.hero.hp = 0; this.model.status = 'lost'; }
       if (preview === 'intermission') { this.model.start(); this.model.wave = 3; this.model.enemies = []; this.model.status = 'stage-clear'; }
@@ -151,7 +153,7 @@ class Battle extends Phaser.Scene {
     const input: Input = {
       x: Number(this.actionDown('right') || pad.held.has('right') || held.has('right')) - Number(this.actionDown('left') || pad.held.has('left') || held.has('left')),
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
-      attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('command-special'),
+      throwX: pressed.delete('throw-left')?-1:pressed.delete('throw-right')?1:undefined, grappleAttack: pressed.has('attack'), attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('command-special'),
     };
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
       m.tick(dt, stepInput);
@@ -165,14 +167,16 @@ class Battle extends Phaser.Scene {
         tone(740, .35);
       }
       this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
-      try { profileStorage.setItem('red-banner-best-v13command', String(this.best)); } catch { /* Storage is optional. */ }
+      try { profileStorage.setItem('red-banner-best-v13grapple', String(this.best)); } catch { /* Storage is optional. */ }
     }
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = Phaser.Math.Clamp(m.hero.x - 340, 0, 1840);
     this.draw();
   }
   effect(e: Effect) {
-    if(e.type==='special-start'){setText('#command-feedback',`使出${SPECIALS[e.heroId!].name}`);soundtrack.weapon(e.heroId!,false,true);
+    if(e.type==='grapple-hit'||e.type==='grab-air'){setText('#command-feedback',e.type==='grab-air'?'空中抓住敵人':`抓住打擊${e.value}/2`);
+    }else if(e.type==='grab'||e.type==='escape'||e.type==='throw'){setText('#command-feedback',e.type==='throw'?`${THROWS[e.heroId!].name}命中`:e.type==='grab'?'抓住敵人':'敵人掙脫');tone(e.type==='throw'?70:180,.12);if(e.type==='throw'){const dust=this.add.ellipse(e.x,e.y,80,18,0xe2c18c,.7).setDepth(e.y+1);this.tweens.add({targets:dust,scaleX:1.8,alpha:0,duration:320,onComplete:()=>dust.destroy()});}
+    }else if(e.type==='special-start'){setText('#command-feedback',`使出${SPECIALS[e.heroId!].name}`);soundtrack.weapon(e.heroId!,false,true);
     }else if(e.type==='special') {
       const id=e.heroId!,spec=SPECIALS[id],face=e.value??1;
       soundtrack.weapon(id,true,true);
@@ -271,7 +275,7 @@ class Battle extends Phaser.Scene {
     this.stageLabel.setText(`赤壁之戰三 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
-    this.notice.setText(field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
+    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 兩下後跳＋攻擊／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！快按攻擊摔下':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
     this.combo.setText(m.hits > 1 ? `${m.hits} HITS\n${m.champion.moves[Math.max(0, m.hero.step - 1)]}` : '');
     const boss = m.enemies.find(e => isBoss(e.kind));
     this.bossLabel.setText(boss ? `${m.level.boss}${boss.hp <= boss.max / 2 ? ' · 怒勢' : ''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
@@ -292,7 +296,7 @@ class Battle extends Phaser.Scene {
     const selectionKey=`${m.hero.heroId}/${records[m.hero.heroId??'guanyu']?.score??0}`;
     if(state==='ready' && this.selectionKey!==selectionKey){this.selectionKey=selectionKey;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
-    document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name} — ${SPECIALS[m.hero.heroId!].description}。`;
+    document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
     setText('#hero-record', personal ? `此武將已通關 · v1.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成雙關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
@@ -470,7 +474,7 @@ function handleMenuPad(actions:Set<string>){
 }
 function renderHistory(){
  const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
- for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command']]){
+ for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command'],['摔技版','v13grapple']]){
   const title=document.createElement('p');title.textContent=`v${version}`;area.append(title);
   let rows:Records={};try{rows=parseRecords(JSON.parse(profileStorage.getItem(`red-banner-records-${key}`)??'{}'));}catch{}
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
