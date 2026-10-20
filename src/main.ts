@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {CommandInput} from './command-input';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {UserSettings} from './user-settings';
@@ -39,9 +40,11 @@ import { Actor } from './actor';
 import { drawBackground } from './background';
 
 const held = new Set<string>(), pressed = new Set<string>();
+const command=new CommandInput();
+function queueAction(action:string){const m=current()?.model;if(m?.status==='playing'&&!m.paused&&!settingsOpen&&command.press(action,performance.now()))pressed.add('command-special');else pressed.add(action);}
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
-function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13special')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v13command')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
 class Battle extends Phaser.Scene {
   model = new Campaign(selectedHero); actors = new Map<number, Actor>();
   hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
@@ -49,7 +52,7 @@ class Battle extends Phaser.Scene {
   label!: Phaser.GameObjects.Text; healthLabel!: Phaser.GameObjects.Text; stageLabel!: Phaser.GameObjects.Text; scoreLabel!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
   overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
   portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';
-  specialLabel!:Phaser.GameObjects.Text; specialWasReady=false;
+
   clock = new FixedStep();
   pad = new PadInput();
   autoAttackAt = 0;
@@ -59,9 +62,9 @@ class Battle extends Phaser.Scene {
     this.model = new Campaign(selectedHero); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
     this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
-    this.autoAttackAt = 0;
+    this.autoAttackAt = 0;setText('#command-feedback','');
     document.querySelector('#sound')!.textContent = `聲音：${muted ? '關' : '開'}`;
-    held.clear(); pressed.clear();
+    held.clear(); pressed.clear();command.reset();
     this.cameras.main.setBounds(0, 0, 2800, 540);
     this.supplies = this.add.graphics().setDepth(349.5);
     this.danger = this.add.graphics().setDepth(349);
@@ -81,7 +84,7 @@ class Battle extends Phaser.Scene {
         else index = -1;
         if (index >= 0) { event.preventDefault(); selectedHero = HERO_IDS[index]; this.model.selectHero(selectedHero); return; }
       }
-      if (mapped) pressed.add(mapped);
+      if (mapped) queueAction(mapped);
     };
     window.addEventListener('keydown', onKey);
     this.events.once('shutdown', () => window.removeEventListener('keydown', onKey));
@@ -96,7 +99,6 @@ class Battle extends Phaser.Scene {
     this.notice = this.add.text(480, 111, '', { fontFamily: 'sans-serif', fontSize: '17px', color: '#f4d28d', stroke: '#1d2d28', strokeThickness: 4 }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
     this.combo = this.add.text(920, 125, '', { fontFamily: 'monospace', fontSize: '29px', color: '#f9d38a', align: 'right', stroke: '#25312b', strokeThickness: 4 }).setOrigin(1, 0).setScrollFactor(0).setDepth(9001);
     this.bossLabel = this.add.text(480, 483, '', { fontFamily: 'sans-serif', fontSize: '13px', color: '#f9d38a' }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
-    this.specialLabel=this.add.text(120,65,'',{fontFamily:'sans-serif',fontSize:'12px',color:'#dce5c3'}).setScrollFactor(0).setDepth(9001);
     // Local visual QA fixture. Vite removes this branch from production builds.
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
@@ -129,7 +131,7 @@ class Battle extends Phaser.Scene {
     const pad = this.pad.read(pads);
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
     if (pad.disconnected) suspend();
-    setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 閃身 · Y／△ 必殺 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
+    setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 閃身 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
     if (pad.pressed.has('settings') || pad.pressed.has('pause')) { if(settingsOpen)closeSettings();else openSettings(); }
     else if(settingsOpen) { handleMenuPad(pad.pressed); }
     else if(m.status === 'ready') {
@@ -140,7 +142,7 @@ class Battle extends Phaser.Scene {
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else if(m.status !== 'playing') {
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
-    } else { for(const action of pad.pressed)pressed.add(action); }
+    } else { for(const action of pad.pressed)queueAction(action); }
     if (pressed.delete('restart')) { requestRestart(); return; }
     if (pressed.delete('start')) this.activate();
     if (pressed.delete('pause')) {toggleSettings();return;}
@@ -149,7 +151,7 @@ class Battle extends Phaser.Scene {
     const input: Input = {
       x: Number(this.actionDown('right') || pad.held.has('right') || held.has('right')) - Number(this.actionDown('left') || pad.held.has('left') || held.has('left')),
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
-      attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('special'),
+      attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('command-special'),
     };
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
       m.tick(dt, stepInput);
@@ -163,27 +165,26 @@ class Battle extends Phaser.Scene {
         tone(740, .35);
       }
       this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
-      try { profileStorage.setItem('red-banner-best-v13special', String(this.best)); } catch { /* Storage is optional. */ }
+      try { profileStorage.setItem('red-banner-best-v13command', String(this.best)); } catch { /* Storage is optional. */ }
     }
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = Phaser.Math.Clamp(m.hero.x - 340, 0, 1840);
     this.draw();
   }
   effect(e: Effect) {
-    if(e.type==='special') {
+    if(e.type==='special-start'){setText('#command-feedback',`使出${SPECIALS[e.heroId!].name}`);soundtrack.weapon(e.heroId!,false,true);
+    }else if(e.type==='special') {
       const id=e.heroId!,spec=SPECIALS[id],face=e.value??1;
       soundtrack.weapon(id,true,true);
       const fx=this.add.graphics().setPosition(e.x,e.y-30).setScale(face,1).setDepth(8000);
       fx.lineStyle(4,spec.color,.9);
-      if(id==='guanyu'||id==='zhangfei'){
+      if(id==='guanyu'||id==='zhangfei'||id==='huangzhong'){
         fx.strokeEllipse(0,25,spec.reach*2,spec.depth*2);
-        if(id==='guanyu')fx.lineStyle(7,spec.color,.6).beginPath().arc(0,0,100,-2.5,1.5).strokePath();
+        if(id==='guanyu'||id==='huangzhong')fx.lineStyle(7,spec.color,.6).beginPath().arc(0,0,100,-2.5,1.5).strokePath();
         else for(let i=0;i<8;i++){const a=i*Math.PI/4;fx.lineBetween(Math.cos(a)*30,25+Math.sin(a)*20,Math.cos(a)*110,25+Math.sin(a)*70);}
-      }else if(id==='huangzhong'){
-        for(const dy of [-100,-50,0,50,100]){fx.lineStyle(2,spec.color,.85).lineBetween(15,0,440,dy);fx.fillStyle(0xffefd0).fillTriangle(440,dy,427,dy-4,427,dy+4);}
       }else if(id==='zhaoyun'){
-        for(const dy of [-18,0,18])fx.lineStyle(dy===0?6:2,spec.color,.9).lineBetween(10,dy,320,dy);
-        fx.fillStyle(0xffffff).fillTriangle(325,0,303,-9,303,9);
+        for(const dy of [-18,0,18])fx.lineStyle(dy===0?6:2,spec.color,.9).lineBetween(10,dy,175,dy-20);
+        fx.fillStyle(0xffffff).fillTriangle(180,-20,158,-29,158,-11);
       }else for(let i=0;i<3;i++)fx.lineStyle(5-i,spec.color,.9).beginPath().arc(15,-i*8,85+i*12,-1.4,.9).strokePath();
       this.tweens.add({targets:fx,alpha:0,duration:500,onComplete:()=>fx.destroy()});
     } else if (e.type === 'arrow') {
@@ -267,20 +268,6 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   閃身 ${bindings.dodge.slice(3)}`);
-    const cd=m.hero.specialCooldown??0,ready=cd<=0&&m.hero.hp>12,skillColor=ready?SPECIALS[m.hero.heroId!].color:0x6b7678;
-    g.fillStyle(0x142827).fillCircle(280,39,13);g.lineStyle(3,skillColor).beginPath().arc(280,39,13,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-cd/8)).strokePath();
-    g.lineStyle(2,skillColor);
-    if(m.hero.heroId==='huangzhong'){g.beginPath().arc(275,39,7,-1.3,1.3).strokePath();g.lineBetween(277,32,277,46).lineBetween(274,39,287,39);}
-    else if(m.hero.heroId==='zhangfei'){g.lineBetween(283,31,277,39).lineBetween(277,39,283,39).lineBetween(283,39,277,47);}
-    else if(m.hero.heroId==='guanyu'){g.lineBetween(277,47,277,32);g.beginPath().arc(279,34,5,-1.5,1.4).strokePath();}
-    else if(m.hero.heroId==='zhaoyun'){g.lineBetween(274,45,286,33).lineBetween(280,33,286,33).lineBetween(286,33,286,39);}
-    else{g.lineBetween(275,45,284,34).lineBetween(275,41,280,46).lineBetween(284,34,286,32);}
-    this.specialLabel.setText(`${bindings.special.slice(3)} ${cd>0?Math.ceil(cd)+'秒':ready?'必殺就緒':'氣血不足'}`).setColor(ready?'#dbefba':'#9a9f9c');
-    const specialButton=document.querySelector<HTMLElement>('[data-key=special]')!,specialState=cd>0?'cooldown':ready?'ready':'low';
-    const buttonKey=`${specialState}/${Math.ceil(cd)}`;
-    if(specialButton.dataset.status!==buttonKey){specialButton.dataset.status=buttonKey;specialButton.dataset.state=specialState;specialButton.textContent=cd>0?`必殺\n${Math.ceil(cd)}秒`:ready?'必殺':'氣血不足';specialButton.setAttribute('aria-label',cd>0?`必殺技冷卻 ${Math.ceil(cd)} 秒`:ready?'必殺技已就緒':'必殺技氣血不足');}
-
-    if(ready&&!this.specialWasReady&&m.status==='playing'){tone(640,.06);}this.specialWasReady=ready;
     this.stageLabel.setText(`赤壁之戰三 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
@@ -349,13 +336,13 @@ document.querySelector('#advance')!.addEventListener('click', () => { current().
 document.querySelector('#pause')!.addEventListener('click',openSettings);
 document.querySelector('#restart')!.addEventListener('click', requestRestart);
 document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
-  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); held.add(el.dataset.key!); pressed.add(el.dataset.key!); });
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); held.add(el.dataset.key!); queueAction(el.dataset.key!); });
   for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(event, () => held.delete(el.dataset.key!));
 });
 function suspend() {
   soundtrack.pause();
   current()?.clock.reset(); current()?.pad.reset(); keyboardHeld.clear();
-  held.clear(); pressed.clear();
+  held.clear(); pressed.clear();command.reset();
   const scene = game.scene.getScene('Battle') as Battle;
   if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
 }
@@ -399,7 +386,7 @@ function closeSettings(resume=true) {
   pendingExit=null;tutorialLaunch=false;
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
-  pressed.clear(); held.clear(); keyboardHeld.clear(); current().pad.reset(); current().draw();
+  pressed.clear(); held.clear(); keyboardHeld.clear();command.reset(); current().pad.reset(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
   document.querySelector<HTMLElement>('#tutorial-panel')!.hidden=true;tutorialStep=-1;
   if(resume && current().model.status==='playing' && current().model.paused)current().resume();
@@ -443,8 +430,7 @@ function renderControls() {
 }
 function updateKeyGuide(){
  const label=(a:Action)=>bindings[a].slice(3);
- setText('#special-key',label('special'));
- setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · ${label('dodge')} 閃身 · ${label('special')} 必殺（12 氣血／8 秒冷卻） · ${label('pause')} 暫停`);
+ setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · ${label('dodge')} 閃身 · ↓↑＋攻擊 必殺 · ${label('pause')} 暫停`);
  const keys=document.querySelectorAll('.controls kbd');
  if(keys.length>=8){keys[0].textContent=`${label('up')} ${label('left')} ${label('down')} ${label('right')}`;keys[2].textContent=label('attack');keys[3].textContent=label('jump');keys[5].textContent=label('dodge');keys[6].textContent=label('pause');}
 }
@@ -484,7 +470,7 @@ function handleMenuPad(actions:Set<string>){
 }
 function renderHistory(){
  const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
- for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special']]){
+ for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command']]){
   const title=document.createElement('p');title.textContent=`v${version}`;area.append(title);
   let rows:Records={};try{rows=parseRecords(JSON.parse(profileStorage.getItem(`red-banner-records-${key}`)??'{}'));}catch{}
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
@@ -501,7 +487,7 @@ function renderLesson(){
 }
 function finishTutorial(){const launch=tutorialLaunch;try{profileStorage.setItem('red-banner-tutorial-v1','true');}catch{}closeSettings();if(launch&&current().model.status==='ready'){current().model.start();current().draw();}}
 function practice(action:string){
- if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge','special'].includes(action))return;
+ if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge'].includes(action))return;
  const hero=document.querySelector<HTMLElement>('.practice-hero');if(!hero)return;
  practiceCount++;hero.className=`practice-hero demo-${action}`;
  setText('#practice-status',`${ACTION_LABELS[action as Action]} ✓　已練習 ${practiceCount} 次；完成後可按下一步。`);

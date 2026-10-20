@@ -1,3 +1,4 @@
+import {specialMotion} from './special-motion';
 import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
@@ -20,16 +21,22 @@ export class Actor {
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
     const motion=champion&&f.attack?heroMotion(f.heroId!,f.step,phase):null;
+    const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
-    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob)).setDepth(f.y).setScale(s * f.face, s);
-    this.body.setAngle(f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
+    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
+    this.body.setAngle(special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
     const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
-    if (champion) { drawWarrior(g,f,frame,phase); return; }
+    if (champion) { drawWarrior(g,f,frame,phase);
+      if(special&&f.heroId==='weiyan'){
+        const extension=Math.sin(Math.min(1,f.attack!.elapsed/.58)*Math.PI)*28;
+        g.lineStyle(9,0x504b48).lineBetween(-6,-26,12+extension,-48);g.lineStyle(7,0x151f23).lineBetween(12+extension,-48,24+extension,-54);
+        g.lineStyle(2,0xe7c188).lineBetween(13+extension,-51,24+extension,-57);
+      }return; }
     const color = f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;

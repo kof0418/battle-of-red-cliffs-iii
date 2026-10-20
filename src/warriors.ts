@@ -96,13 +96,15 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   poly(0x252a29,[-4,-65,2,-66,7,-64,9,-65,7,-58,1,-55,-3,-59]);
   line(0x625542,1,[1,-63,3,-59]);
  }
- const m=f.attack?heroMotion(id,f.step,phase):{x:17,y:-43};
+ const m=f.attack?.move==='special'&&zhang?{x:[12,22,44,40,17][phase],y:-44}:f.attack?heroMotion(id,f.step,phase):{x:17,y:-43};
  const hx=m.x,hy=m.y-5;
  // Sleeve and bracer follow the hand rather than stretching a rectangular arm.
  poly(cloth,[w-5,-58,w+2,-56,hx+3,hy-3,hx+4,hy+5,hx-3,hy+7,w-7,-49]);
  line(light,2,[w-2,-55,hx-3,hy+2]);
  line(metal,6,[hx-6,hy,hx,hy+2]);line(edge,1,[hx-7,hy-2,hx,hy]);
- if(huang){
+ if(zhang&&f.attack?.move==='special'){
+  line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
+ }else if(huang){
   const bx=hx+7,draw=f.attack?[6,17,0,2,0][phase]:0;
   line(0x3e3021,5,[bx-2,hy-30,bx+9,hy-21,bx+14,hy,bx+9,hy+21,bx-2,hy+30]);
   line(0xc9a76b,2,[bx-2,hy-30,bx+7,hy-20,bx+11,hy,bx+7,hy+20,bx-2,hy+30]);

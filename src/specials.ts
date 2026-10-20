@@ -1,15 +1,15 @@
 import type {HeroId} from './heroes.ts';
-export const SPECIAL_COST=12, SPECIAL_COOLDOWN=8;
+// No resource meter: duration plus a short recovery prevents invulnerability loops.
+export const SPECIAL_COST=0,SPECIAL_COOLDOWN=1.05;
 export const SPECIALS={
- guanyu:{name:'青龍迴天',description:'迴旋長刀，掃開身前身後的敵人',damage:66,reach:150,depth:65,push:85,color:0x98e0ab},
- zhangfei:{name:'雷震長坂',description:'震地怒喝，重創周圍並強力擊退',damage:82,reach:115,depth:90,push:110,color:0xf0bd74},
- zhaoyun:{name:'銀龍穿陣',description:'向前長距離穿刺，貫穿同一路線',damage:74,reach:320,depth:30,push:45,color:0xb7e9ff},
- huangzhong:{name:'百步流星',description:'射出扇形箭陣，遠距離覆蓋多條路線',damage:58,reach:440,depth:105,push:25,color:0xffdf91},
- weiyan:{name:'赤刃斷空',description:'近身向前斬擊，集中高傷害',damage:100,reach:125,depth:43,push:60,color:0xff9b9b},
+ guanyu:{name:'昇龍迴旋斬',description:'旋身挑刀上斬，三段刀光掃開周圍',damage:24,reach:135,depth:58,push:12,color:0x98e0ab},
+ zhangfei:{name:'直拳體爆',description:'踏步直拳，三段近身勁力震退敵人',damage:28,reach:105,depth:74,push:9,color:0xf0bd74},
+ zhaoyun:{name:'飛撲劍斬',description:'躍身向前飛撲，三段斬擊貫穿同路線',damage:23,reach:180,depth:32,push:12,color:0xb7e9ff},
+ huangzhong:{name:'回轉弓',description:'以弓身旋轉，三段近身掃擊前後敵人',damage:20,reach:125,depth:60,push:8,color:0xffdf91},
+ weiyan:{name:'翻身腳刀',description:'翻身踢出腳刀，三段近身上挑',damage:26,reach:120,depth:40,push:10,color:0xff9b9b},
 } as const;
 export function specialHits(id:HeroId,x:number,y:number,face:number,tx:number,ty:number,z=0){
- const s=SPECIALS[id],dx=(tx-x)*face,dy=Math.abs(ty-y);
- if(z>38)return false;
- if(id==='guanyu'||id==='zhangfei')return Math.hypot((tx-x)/s.reach,(ty-y)/s.depth)<=1;
- return dx>=-10&&dx<=s.reach&&dy<=(id==='huangzhong'?20+Math.max(0,dx)/s.reach*(s.depth-20):s.depth);
+ const s=SPECIALS[id];if(z>60)return false;
+ if(id==='guanyu'||id==='zhangfei'||id==='huangzhong')return Math.hypot((tx-x)/s.reach,(ty-y)/s.depth)<=1;
+ return (tx-x)*face>=-10&&(tx-x)*face<=s.reach&&Math.abs(ty-y)<=s.depth;
 }

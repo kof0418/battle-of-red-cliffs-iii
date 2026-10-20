@@ -43,3 +43,4 @@ body[data-screen=title] #touch,body[data-screen=ready] #touch{display:none!impor
 @media(max-width:650px){.hero-card img{max-height:110px}}@media(max-height:500px){.hero-card img{max-height:70px}}
 #touch [data-key=special]{white-space:pre-line;font-size:12px}#touch [data-key=special][data-state=low],#touch [data-key=special][data-state=cooldown]{color:#929c99;border-color:#596966;background:#192624}
 body.touch-controls[data-screen=playing] #touch,body.touch-controls[data-screen=paused] #touch{display:flex}body.touch-controls #app main{height:calc(100dvh - 140px)}body.touch-controls #cabinet{width:min(100vw,calc((100dvh - 140px)*16/9));height:min(56.25vw,calc(100dvh - 140px))}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

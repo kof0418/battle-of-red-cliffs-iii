@@ -32,7 +32,7 @@ export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: nu
 }
 export interface Pickup { id: number; x: number; y: number; amount: number; }
 export interface Attack {
-  move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
+  pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
 }
 export interface Fighter {
@@ -42,7 +42,7 @@ export interface Fighter {
   specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
+export type Effect = { type: 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
@@ -154,6 +154,7 @@ export class Campaign {
     }
     if(this.specialQueued){this.specialQueued=false;this.special();}
     const casting=h.attack?.move==='special';
+    if(casting&&h.heroId==='zhaoyun'&&h.attack!.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
     if (input.dodge && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
       h.dashX = length ? input.x / length : h.face; h.dashY = length ? input.y / length : 0;
@@ -176,7 +177,10 @@ export class Campaign {
     for (const f of [h, ...this.enemies]) {
       if (f.hp <= 0 || !f.attack) continue;
       const a = f.attack; a.elapsed += dt;
-      if (a.elapsed >= a.impact && !a.hit) { a.hit = true; this.resolve(f, a); }
+      if(a.move==='special'){
+        const times=[.18,.38,.58];let pulse=a.pulses??0;
+        while(pulse<times.length&&a.elapsed>=times[pulse]){this.resolve(f,a);pulse++;}a.pulses=pulse;a.hit=pulse>=3;
+      }else if (a.elapsed >= a.impact && !a.hit) { a.hit = true; this.resolve(f, a); }
       if (a.elapsed >= a.duration) f.attack = null;
     }
     this.enemies.forEach((e, i) => this.ai(e, i, dt));
@@ -222,15 +226,14 @@ export class Campaign {
     const h=this.hero;
     if(this.status!=='playing'||this.paused||h.hp<=0)return false;
     let reason='';
-    if((h.specialCooldown??0)>0)reason='必殺技冷卻中';
-    else if(h.hp<=SPECIAL_COST)reason='氣血不足，必須高於 12';
+    if((h.specialCooldown??0)>0||h.attack?.move==='special')reason='招式尚未收完';
     else if(h.z>0||h.vz>0||h.dodge>0)reason='請落地站穩後施放';
     if(reason){this.message=reason;this.messageUntil=this.time+1.2;return false;}
     h.hp-=SPECIAL_COST;this.waveDamage+=SPECIAL_COST;h.specialCooldown=SPECIAL_COOLDOWN;
-    h.stun=0;h.inv=Math.max(h.inv,.85);h.step=3;h.last=this.time;h.moving=false;this.queuedUntil=0;
-    h.attack={move:'special',elapsed:0,duration:.8,impact:.24,hit:false,face:h.face,x:h.x,y:h.y};
+    h.stun=0;h.inv=Math.max(h.inv,.45);h.step=3;h.last=this.time;h.moving=false;this.queuedUntil=0;
+    h.attack={move:'special',elapsed:0,duration:.85,impact:.18,hit:false,pulses:0,face:h.face,x:h.x,y:h.y};
     this.message=SPECIALS[h.heroId!].name+'！';this.messageUntil=this.time+1.2;
-    this.events.push({type:'swing',x:h.x,y:h.y,value:3,heroId:h.heroId});return true;
+    this.events.push({type:'special-start',x:h.x,y:h.y,value:3,heroId:h.heroId});return true;
   }
   swing() {
     const h = this.hero;
@@ -264,7 +267,7 @@ export class Campaign {
   }
   resolve(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
-    if (f.z > 38) return;
+    if (f.z > 38 && a.move!=='special') return;
     const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = special?SPECIALS[f.heroId!]:this.slash(f.step);
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId});
     const reach = heroAttack ? s.reach : f.kind === 'heavy' ? 88 : 73;
@@ -278,10 +281,10 @@ export class Campaign {
       if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):attackHits(a, t, reach))) continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
-      t.inv = heroAttack ? .16 : .75;
+      t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
       if (!isBoss(t.kind) || special) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
-      t.x = clamp(t.x + a.face * (heroAttack ? s.push : 23), 25, 2770);
+      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), 25, 2770);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = f.step === 3 ? .065 : .035;

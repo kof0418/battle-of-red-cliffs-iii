@@ -1,6 +1,6 @@
 import {Campaign,isBoss,type Input} from '../src/combat.ts';
 import {HERO_IDS} from '../src/heroes.ts';
-import {specialHits} from '../src/specials.ts';
+import {SPECIAL_COST,specialHits} from '../src/specials.ts';
 const results=[];
 for(const mode of ['baseline','tactical-special'])for(const strategy of ['close','weapon-range','field-aware'])for(const id of HERO_IDS){
  const m=new Campaign(id);m.start();let damage=0,frames=0,specials=0,bossFrames=0;
@@ -16,8 +16,8 @@ for(const mode of ['baseline','tactical-special'])for(const strategy of ['close'
    if(mode==='tactical-special'&&h.hp>=48&&(h.specialCooldown??0)===0&&h.z===0&&h.dodge<=0&&m.enemies.some(t=>specialHits(id,h.x,h.y,h.face,t.x,t.y,t.z))){input.special=true;input.dodge=false;input.jump=false;}
   }
   const hp=h.hp,cd=h.specialCooldown??0;m.tick(1/60,input);const cast=(h.specialCooldown??0)>cd;if(cast)specials++;
-  damage+=Math.max(0,hp-m.hero.hp-(cast?12:0));
+  damage+=Math.max(0,hp-m.hero.hp-(cast?SPECIAL_COST:0));
  }
- results.push({mode,strategy,hero:id,result:m.status,seconds:Math.round(frames/60),bossSeconds:Math.round(bossFrames/60),enemyDamage:damage,specials,selfCost:specials*12,hp:m.hero.hp,score:m.score});
+ results.push({mode,strategy,hero:id,result:m.status,seconds:Math.round(frames/60),bossSeconds:Math.round(bossFrames/60),enemyDamage:damage,specials,selfCost:specials*SPECIAL_COST,hp:m.hero.hp,score:m.score});
 }
 console.log(JSON.stringify(results,null,2));
