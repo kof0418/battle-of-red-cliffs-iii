@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fieldEvent,fieldHits} from '../src/battlefield.ts';
 import {Campaign} from '../src/combat.ts';
-import {captureSave,restoreSave,parseSave} from '../src/save.ts';
+import {captureSave,restoreSave,parseSave} from '../legacy/save.ts';
 import {HERO_IDS} from '../src/heroes.ts';
 import {attackPhase,heroMotion} from '../src/motion.ts';
 import {weaponVoice} from '../src/audio.ts';

@@ -1,9 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ProfileStorage,PROFILE_KEY,exportProfile,parseBackup,MAX_BACKUP_BYTES} from '../src/profile.ts';
-import {ResumeCountdown,LESSONS} from '../src/experience.ts';
+import {ProfileStorage,PROFILE_KEY,exportProfile,parseBackup,MAX_BACKUP_BYTES} from '../legacy/profile.ts';
+import {ResumeCountdown} from '../legacy/countdown.ts';
+import {LESSONS} from '../src/experience.ts';
 import {Campaign} from '../src/combat.ts';
-import {captureSave,restoreSave} from '../src/save.ts';
+import {captureSave,restoreSave} from '../legacy/save.ts';
 import {fieldEvent,fieldHits} from '../src/battlefield.ts';
 import {DEFAULT_BINDINGS} from '../src/controls.ts';
 function memory(){const data=new Map<string,string>();return {data,getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);}};}

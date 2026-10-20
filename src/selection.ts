@@ -1,11 +1,23 @@
-import { HEROES, HERO_IDS, type HeroId } from './heroes';
-/** Small original SVG pixel portraits, rendered locally without downloaded art. */
-function portrait(id: HeroId) {
- const c=HEROES[id], color='#'+c.color.toString(16), hair='#'+c.hair.toString(16);
- const beard=id==='guanyu'?'<path d="M44 52h19v24l-9 12-10-12z"/>':id==='huangzhong'?'<path d="M44 52h19v19l-10 9-9-9z"/>':id==='zhangfei'?'<path d="M39 50h28v17H39z"/>':'<path d="M47 52h13v5H47z"/>';
- const weapon=id==='huangzhong'?'<path d="M78 30l15 14 5 20-5 20-15 14" fill="none" stroke="#d1ae68" stroke-width="5"/><path d="M78 30v68" stroke="#eee0b5"/>':id==='weiyan'?'<path d="M80 84l19-42-4 30-10 19z" fill="#d7e1d8"/>':id==='guanyu'?'<path d="M85 26v87" stroke="#b89762" stroke-width="5"/><path d="M86 31V10l18-5-3 16-15 17z" fill="#d7e1d8"/>':id==='zhangfei'?'<path d="M85 36v77" stroke="#b89762" stroke-width="5"/><path d="M85 36l-5-9 11-8-5-8 8-7" stroke="#d7e1d8" fill="none" stroke-width="5"/>':'<path d="M85 26v87" stroke="#b89762" stroke-width="5"/><path d="M83 27l6-20 8 17-10 15z" fill="#d7e1d8"/>';
- return `<svg viewBox="0 0 112 112" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h112v112H0z" fill="#142420"/><path d="M22 106h62" stroke="#6a7154"/><path d="M36 73h17v31H36zm23 0h17v31H59z" fill="#263b36"/><path d="M28 56h52v32H28z" fill="${color}"/><path d="M28 56h52v6H28zm7 23h40v5H35z" fill="#cfb982"/><path d="M39 30h29v27H39z" fill="#dcb28c"/><g fill="${hair}"><path d="M34 20h38v14H34zM36 30h6v21h-6z"/>${beard}</g><path d="M34 27h39v6H34z" fill="${color}"/><path d="M51 18h7v9h-7z" fill="#e4c789"/><path d="M58 40h5v4h-5z" fill="#172520"/>${weapon}</svg>`;
-}
-export function selectionMarkup() {
- return `<div class="muster"><p class="eyebrow">BATTLE OF RED CLIFFS III v1.3 · 五將出征</p><h2 id="select-title">選一員虎將，踏上征途。</h2><p class="select-hint">方向鍵 ← → 或 1–5 選將 · Enter 出陣</p><div class="hero-roster">${HERO_IDS.map((id,i)=>{const c=HEROES[id];return `<button class="hero-card" data-hero="${id}" aria-pressed="false" aria-label="${c.name}，${c.weapon}">${portrait(id)}<small>0${i+1} / ${c.title}</small><strong>${c.name}</strong><span>${c.weapon}</span></button>`;}).join('')}</div><p id="hero-detail"></p><button id="deploy-hero">以關羽出陣 ▶</button><button id="select-settings">設定／操作</button><p id="hero-record" class="hero-record"></p><p class="select-note">三國人物原創造型 · 一場出征，連闖雙關</p></div>`;
+import Phaser from 'phaser';
+import {HEROES,HERO_IDS} from './heroes';
+import {Campaign} from './combat';
+import {drawGuanyu} from './guanyu';
+import {drawWarrior} from './warriors';
+export function selectionMarkup(){return `<div class="muster"><p class="eyebrow">BATTLE OF RED CLIFFS III · 五將出征</p><h2 id="select-title">選一員虎將，踏上征途。</h2><p class="select-hint">方向鍵 ← → 或 1–5 選將 · Enter 出陣</p><div class="hero-roster">${HERO_IDS.map((id,i)=>{const c=HEROES[id];return `<button class="hero-card" data-hero="${id}" aria-pressed="false" aria-label="${c.name}，${c.weapon}"><img data-portrait="${id}" alt="" width="180" height="180"><small>0${i+1} / ${c.title}</small><strong>${c.name}</strong><span>${c.weapon}</span></button>`;}).join('')}</div><p id="hero-detail"></p><button id="deploy-hero">以關羽出陣 ▶</button><button id="select-settings">設定／操作</button><p id="hero-record" class="hero-record"></p><p class="select-note">三國人物原創造型 · 一場出征，連闖雙關</p></div>`;}
+/** Generate four idle poses from the exact same graphics routines used in battle. */
+export function createPortraits(scene:Phaser.Scene){
+ return HERO_IDS.map(id=>{
+  const frames:string[]=[];
+  for(let frame=0;frame<4;frame++){
+   const key=`muster-${id}-${frame}`;
+   if(!scene.textures.exists(key)){
+    const g=scene.make.graphics({x:0,y:0});g.fillStyle(0x142420).fillRect(0,0,180,180);
+    g.fillStyle(0x0a1818,.7).fillEllipse(72,158,46,12);g.save();g.translateCanvas(72,155+(frame%2));
+    const f=new Campaign(id).hero;if(id==='guanyu')drawGuanyu(g,f,frame,4);else drawWarrior(g,f,frame,4);
+    g.restore();g.generateTexture(key,180,180);g.destroy();
+   }
+   frames.push(scene.textures.getBase64(key));
+  }
+  return frames;
+ });
 }

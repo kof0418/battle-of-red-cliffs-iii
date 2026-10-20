@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Campaign } from '../src/combat.ts';
 import { HERO_IDS } from '../src/heroes.ts';
-import { captureSave, restoreSave, parseSave } from '../src/save.ts';
+import { captureSave, restoreSave, parseSave } from '../legacy/save.ts';
 for (const id of HERO_IDS) test(`${id}: selection, save, continue and next-stage retain hero`, () => {
  const m = new Campaign(); assert.ok(m.selectHero(id)); m.start(); assert.equal(m.selectHero('guanyu'),false);
  m.tick(1/60,{x:0,y:0,attack:true}); const n=restoreSave(captureSave(m));

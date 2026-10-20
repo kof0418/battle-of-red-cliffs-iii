@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { FixedStep } from '../src/fixed-step.ts';
 import { Campaign, attackHits } from '../src/combat.ts';
 import { HERO_IDS } from '../src/heroes.ts';
-import { captureSave, restoreSave } from '../src/save.ts';
+import { captureSave, restoreSave } from '../legacy/save.ts';
 import { LEVELS } from '../src/levels.ts';
 const idle = {x:0,y:0};
 test('10, 20, 30, 60 and 144 FPS produce identical movement and enemy combat', () => {

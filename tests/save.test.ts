@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Campaign} from '../src/combat.ts';
-import {captureSave,restoreSave,parseSave,readSave,writeSave,MAX_SAVE_BYTES} from '../src/save.ts';
+import {captureSave,restoreSave,parseSave,readSave,writeSave,MAX_SAVE_BYTES} from '../legacy/save.ts';
 const make=()=>{const m=new Campaign();m.start();return m;};
 const mutate=(f:(s:any)=>void)=>{const s:any=captureSave(make());f(s);return JSON.stringify(s);};
 test('battle snapshot round trip preserves health, foes, pickups, attacks and credits',()=>{

@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
-import {ProfileStorage} from './profile';
-import {ResumeCountdown,LESSONS} from './experience';
-const profileStorage = new ProfileStorage(localStorage);
+import {UserSettings} from './user-settings';
+import {LESSONS} from './experience';
+const profileStorage = new UserSettings();
 import { FixedStep } from './fixed-step';
 import { ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, CONTROL_KEY, VALID_KEYS, parseBindings, remap, keyAction, PadInput, type Bindings, type Action } from './controls';
 let bindings: Bindings = {...DEFAULT_BINDINGS};
@@ -15,6 +15,8 @@ import { parseRecords, recordVictory, RECORDS_KEY, type Records } from './record
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let settingsOpen = false;
+let pendingExit:'title'|'select'|null=null;
+let tutorialLaunch=false;
 let titleScreen = true;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
@@ -22,7 +24,7 @@ try { records = parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY) ?? '
 window.addEventListener('pointerdown', () => soundtrack.unlock(), { capture: true });
 window.addEventListener('keydown', () => soundtrack.unlock(), { capture: true });
 import { HEROES, HERO_IDS, type HeroId } from './heroes';
-import { selectionMarkup } from './selection';
+import { selectionMarkup, createPortraits } from './selection';
 let selectedHero: HeroId = 'guanyu';
 document.querySelector('#hero-select')!.innerHTML = selectionMarkup();
 function setText(selector: string, value: string) { const el = document.querySelector(selector)!; if (el.textContent !== value) el.textContent = value; }
@@ -46,14 +48,14 @@ class Battle extends Phaser.Scene {
   supplies!: Phaser.GameObjects.Graphics; backdrop?: Phaser.GameObjects.Container; drawnStage = -1;
   label!: Phaser.GameObjects.Text; healthLabel!: Phaser.GameObjects.Text; stageLabel!: Phaser.GameObjects.Text; scoreLabel!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
   overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
-  countdown = new ResumeCountdown();
-  needsCountdown = false;
+  portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';
+  specialLabel!:Phaser.GameObjects.Text; specialWasReady=false;
   clock = new FixedStep();
   pad = new PadInput();
   autoAttackAt = 0;
   constructor() { super('Battle'); }
   create() {
-    this.countdown.cancel(); this.needsCountdown=false;
+    this.portraits=createPortraits(this);this.portraitFrame=-1;this.selectionKey='';this.shellKey='';
     this.model = new Campaign(selectedHero); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
     this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
@@ -94,6 +96,7 @@ class Battle extends Phaser.Scene {
     this.notice = this.add.text(480, 111, '', { fontFamily: 'sans-serif', fontSize: '17px', color: '#f4d28d', stroke: '#1d2d28', strokeThickness: 4 }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
     this.combo = this.add.text(920, 125, '', { fontFamily: 'monospace', fontSize: '29px', color: '#f9d38a', align: 'right', stroke: '#25312b', strokeThickness: 4 }).setOrigin(1, 0).setScrollFactor(0).setDepth(9001);
     this.bossLabel = this.add.text(480, 483, '', { fontFamily: 'sans-serif', fontSize: '13px', color: '#f9d38a' }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
+    this.specialLabel=this.add.text(120,65,'',{fontFamily:'sans-serif',fontSize:'12px',color:'#dce5c3'}).setScrollFactor(0).setDepth(9001);
     // Local visual QA fixture. Vite removes this branch from production builds.
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
@@ -110,18 +113,14 @@ class Battle extends Phaser.Scene {
     if (settingsOpen || titleScreen) return;
     if (m.status === 'ready') {
       let seen=false;try{seen=profileStorage.getItem('red-banner-tutorial-v1')==='true';}catch{}
-      if(!seen){openSettings();openTutorial();return;}m.start();
+      if(!seen){tutorialLaunch=true;openSettings();openTutorial();return;}m.start();
     }
     else if (m.paused) this.resume();
     else if (m.status === 'stage-clear') { m.nextStage(); this.recorded = false; }
     else if (m.status === 'lost' && m.continues > 0) { m.continueRun(); this.recorded = false; }
     else if (m.status === 'lost' || m.status === 'won') this.scene.restart({});
   }
-  resume() {
-    if(this.countdown.remaining>0)return;
-    if(this.needsCountdown){this.countdown.start();pressed.clear();held.clear();keyboardHeld.clear();this.pad.reset();}
-    else this.model.togglePause();
-  }
+  resume() { if(this.model.paused)this.model.togglePause(); }
   actionDown(action: string) { return [...keyboardHeld].some(code => keyAction(code, bindings) === action); }
   update(_time: number, delta: number) {
     const m = this.model;
@@ -131,7 +130,7 @@ class Battle extends Phaser.Scene {
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
     if (pad.disconnected) suspend();
     setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 閃身 · Y／△ 必殺 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
-    if (pad.pressed.has('settings')) { if(settingsOpen)closeSettings();else openSettings(); }
+    if (pad.pressed.has('settings') || pad.pressed.has('pause')) { if(settingsOpen)closeSettings();else openSettings(); }
     else if(settingsOpen) { handleMenuPad(pad.pressed); }
     else if(m.status === 'ready') {
       if(pad.pressed.has('left') || pad.pressed.has('right')) {
@@ -144,7 +143,7 @@ class Battle extends Phaser.Scene {
     } else { for(const action of pad.pressed)pressed.add(action); }
     if (pressed.delete('restart')) { requestRestart(); return; }
     if (pressed.delete('start')) this.activate();
-    if (pressed.delete('pause')) { if(m.paused)this.resume();else {m.togglePause();} }
+    if (pressed.delete('pause')) {toggleSettings();return;}
     const autoAttack = preferences.autoAttack && !settingsOpen && (this.actionDown('attack') || held.has('attack') || pad.held.has('attack')) && m.time >= this.autoAttackAt;
     if(autoAttack) this.autoAttackAt = m.time + .20;
     const input: Input = {
@@ -152,9 +151,6 @@ class Battle extends Phaser.Scene {
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
       attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('special'),
     };
-    if(this.countdown.remaining>0 && !settingsOpen) {
-      if(this.countdown.tick(delta/1000)){this.needsCountdown=false;m.paused=false;keyboardHeld.clear();held.clear();pressed.clear();this.pad.reset();input.x=0;input.y=0;input.attack=false;input.jump=false;input.dodge=false;input.special=false;}
-    }
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
       m.tick(dt, stepInput);
       for (const event of m.events) this.effect(event);
@@ -270,7 +266,21 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / 2800, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
-    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}     閃身 ${bindings.dodge.slice(3)}   必殺 ${bindings.special.slice(3)} ${(m.hero.specialCooldown??0)>0?Math.ceil(m.hero.specialCooldown!)+'s':m.hero.hp<=12?'氣血不足':'就緒'}`);
+    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   閃身 ${bindings.dodge.slice(3)}`);
+    const cd=m.hero.specialCooldown??0,ready=cd<=0&&m.hero.hp>12,skillColor=ready?SPECIALS[m.hero.heroId!].color:0x6b7678;
+    g.fillStyle(0x142827).fillCircle(280,39,13);g.lineStyle(3,skillColor).beginPath().arc(280,39,13,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-cd/8)).strokePath();
+    g.lineStyle(2,skillColor);
+    if(m.hero.heroId==='huangzhong'){g.beginPath().arc(275,39,7,-1.3,1.3).strokePath();g.lineBetween(277,32,277,46).lineBetween(274,39,287,39);}
+    else if(m.hero.heroId==='zhangfei'){g.lineBetween(283,31,277,39).lineBetween(277,39,283,39).lineBetween(283,39,277,47);}
+    else if(m.hero.heroId==='guanyu'){g.lineBetween(277,47,277,32);g.beginPath().arc(279,34,5,-1.5,1.4).strokePath();}
+    else if(m.hero.heroId==='zhaoyun'){g.lineBetween(274,45,286,33).lineBetween(280,33,286,33).lineBetween(286,33,286,39);}
+    else{g.lineBetween(275,45,284,34).lineBetween(275,41,280,46).lineBetween(284,34,286,32);}
+    this.specialLabel.setText(`${bindings.special.slice(3)} ${cd>0?Math.ceil(cd)+'秒':ready?'必殺就緒':'氣血不足'}`).setColor(ready?'#dbefba':'#9a9f9c');
+    const specialButton=document.querySelector<HTMLElement>('[data-key=special]')!,specialState=cd>0?'cooldown':ready?'ready':'low';
+    const buttonKey=`${specialState}/${Math.ceil(cd)}`;
+    if(specialButton.dataset.status!==buttonKey){specialButton.dataset.status=buttonKey;specialButton.dataset.state=specialState;specialButton.textContent=cd>0?`必殺\n${Math.ceil(cd)}秒`:ready?'必殺':'氣血不足';specialButton.setAttribute('aria-label',cd>0?`必殺技冷卻 ${Math.ceil(cd)} 秒`:ready?'必殺技已就緒':'必殺技氣血不足');}
+
+    if(ready&&!this.specialWasReady&&m.status==='playing'){tone(640,.06);}this.specialWasReady=ready;
     this.stageLabel.setText(`赤壁之戰三 · v1.3\n關 ${m.stage + 1}/2 · 陣 ${m.wave || 1}/3`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => nearPickup(m.hero, item));
@@ -280,7 +290,9 @@ class Battle extends Phaser.Scene {
     this.bossLabel.setText(boss ? `${m.level.boss}${boss.hp <= boss.max / 2 ? ' · 怒勢' : ''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
     if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
     const state = m.paused ? 'paused' : m.status;
-    const overlayKey=state+(this.countdown.remaining>0?`:${Math.ceil(this.countdown.remaining)}`:'');
+    const overlayKey=state;
+    const shellKey=`${state}/${titleScreen}/${settingsOpen}`;
+    if(this.shellKey!==shellKey){this.shellKey=shellKey;
     document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready' || titleScreen;
     document.querySelector<HTMLElement>('#title-screen')!.hidden = !titleScreen;
     document.querySelector<HTMLElement>('#title-screen')!.inert = settingsOpen;
@@ -289,11 +301,16 @@ class Battle extends Phaser.Scene {
     if(!document.documentElement.hasAttribute('data-ready')){document.documentElement.setAttribute('data-ready','');requestAnimationFrame(()=>this.scale.refresh());}
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
+    }
+    const selectionKey=`${m.hero.heroId}/${records[m.hero.heroId??'guanyu']?.score??0}`;
+    if(state==='ready' && this.selectionKey!==selectionKey){this.selectionKey=selectionKey;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name} — ${SPECIALS[m.hero.heroId!].description}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
     setText('#hero-record', personal ? `此武將已通關 · v1.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成雙關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
+    }
+    if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
     if (overlayKey !== this.overlayState) {
       this.overlayState = overlayKey; this.overlay?.destroy(true); this.overlay = undefined;
       if (state !== 'playing') this.showOverlay(state);
@@ -315,8 +332,8 @@ class Battle extends Phaser.Scene {
   }
   showOverlay(state: string) {
     const m = this.model;
-    const title = this.countdown.remaining>0 ? `${Math.ceil(this.countdown.remaining)}` : state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = this.countdown.remaining>0 ? '準備返回戰場 · 遊戲時間暫停' : state === 'ready' ? '雙關戰役 · 赤壁之戰三 v1.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
+    const sub = state === 'ready' ? '雙關戰役 · 赤壁之戰三 v1.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? '按 ENTER 或點擊前往第二關 · 氣血全回復' : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story + (m.ranked ? '' : '（舊檔戰役不列入 v1.3 戰績）') : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 閃身　／　打破木箱、走近藥包補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -337,7 +354,6 @@ document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
 });
 function suspend() {
   soundtrack.pause();
-  current()?.countdown.cancel();
   current()?.clock.reset(); current()?.pad.reset(); keyboardHeld.clear();
   held.clear(); pressed.clear();
   const scene = game.scene.getScene('Battle') as Battle;
@@ -380,6 +396,7 @@ function openSettings() {
   document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
 }
 function closeSettings(resume=true) {
+  pendingExit=null;tutorialLaunch=false;
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
   pressed.clear(); held.clear(); keyboardHeld.clear(); current().pad.reset(); current().draw();
@@ -404,7 +421,7 @@ for(const [id,key] of [['mute-all','muted'],['reduce-motion','reducedMotion'],['
  document.getElementById(id)!.addEventListener('change',e=>{preferences[key]=(e.target as HTMLInputElement).checked;savePreferences();});
 }
 window.addEventListener('keydown', e => {
- if(e.code==='Escape') {e.preventDefault();e.stopImmediatePropagation();if(settingsOpen)closeSettings();else openSettings();}
+ if(e.code==='Escape' || (keyAction(e.code,bindings)==='pause' && (current()?.model.status==='playing'||settingsOpen) && !(e.target instanceof HTMLSelectElement))){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)toggleSettings();return;}
  if(settingsOpen && e.code==='Tab') {
   const controls=menuControls();
   const first=controls[0],last=controls[controls.length-1];
@@ -439,17 +456,22 @@ function persistBindings(){
 }
 renderControls();
 
-function requestRestart(){
- document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;
- if(current().model.status==='ready')return;
- openSettings();document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;document.querySelector<HTMLElement>('#restart-confirm')!.hidden=false;
+function toggleSettings(){if(pendingExit){cancelExit();return;}if(settingsOpen)closeSettings();else openSettings();}
+function requestExit(target:'title'|'select'){
+ if(current().model.status!=='playing'){leaveBattle(target);return;}
+ openSettings();pendingExit=target;
+ setText('#exit-description',`確定結束本次出征並返回${target==='title'?'主選單':'選將'}？目前戰役進度不會保留。`);
+ document.querySelector<HTMLElement>('#restart-confirm')!.hidden=false;
  document.querySelector<HTMLButtonElement>('#restart-no')!.focus();
 }
-document.querySelector('#restart-yes')!.addEventListener('click',()=>{closeSettings(false);suspend();current().scene.restart({});});
-document.querySelector('#restart-no')!.addEventListener('click',()=>closeSettings());
-function menuControls(){return Array.from(document.querySelectorAll<HTMLElement>('#settings-panel input, #settings-panel select, #settings-panel button, #settings-panel summary')).filter(el=>!el.hasAttribute('disabled')&&el.getClientRects().length>0);}
+function cancelExit(){pendingExit=null;document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();}
+function leaveBattle(target:'title'|'select'){pendingExit=null;tutorialLaunch=false;suspend();closeSettings(false);titleScreen=target==='title';current().scene.restart({});}
+function requestRestart(){requestExit('select');}
+document.querySelector('#restart-yes')!.addEventListener('click',()=>{if(pendingExit)leaveBattle(pendingExit);});
+document.querySelector('#restart-no')!.addEventListener('click',cancelExit);
+function menuControls(){if(pendingExit)return Array.from(document.querySelectorAll<HTMLElement>('#restart-confirm button'));return Array.from(document.querySelectorAll<HTMLElement>('#settings-panel input, #settings-panel select, #settings-panel button, #settings-panel summary')).filter(el=>!el.hasAttribute('disabled')&&el.getClientRects().length>0);}
 function handleMenuPad(actions:Set<string>){
- if(actions.has('jump')){closeSettings();return;}
+ if(actions.has('jump')){if(pendingExit)cancelExit();else closeSettings();return;}
  if(tutorialStep>=0)for(const action of actions)practice(action);
  const controls=menuControls();if(!controls.length)return;
  let index=controls.indexOf(document.activeElement as HTMLElement);
@@ -477,7 +499,7 @@ function renderLesson(){
  document.querySelector('#lesson-skip')!.addEventListener('click',finishTutorial);
  document.querySelector<HTMLButtonElement>('#lesson-next')!.focus();area.scrollIntoView({block:'start'});
 }
-function finishTutorial(){try{profileStorage.setItem('red-banner-tutorial-v1','true');}catch{}closeSettings();}
+function finishTutorial(){const launch=tutorialLaunch;try{profileStorage.setItem('red-banner-tutorial-v1','true');}catch{}closeSettings();if(launch&&current().model.status==='ready'){current().model.start();current().draw();}}
 function practice(action:string){
  if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge','special'].includes(action))return;
  const hero=document.querySelector<HTMLElement>('.practice-hero');if(!hero)return;
@@ -490,5 +512,7 @@ document.querySelector('#tutorial-open')!.addEventListener('click',openTutorial)
 document.querySelector('#title-start')!.addEventListener('click',()=>{titleScreen=false;current().draw();document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
 document.querySelector('#title-settings')!.addEventListener('click',openSettings);
 document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettings());
-document.querySelector('#menu-reselect')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=false;current().scene.restart({});});
-document.querySelector('#menu-home')!.addEventListener('click',()=>{suspend();closeSettings(false);titleScreen=true;current().scene.restart({});});
+document.querySelector('#menu-reselect')!.addEventListener('click',()=>requestExit('select'));
+document.querySelector('#menu-home')!.addEventListener('click',()=>requestExit('title'));
+
+document.querySelector('#show-touch')!.addEventListener('change',e=>{document.body.classList.toggle('touch-controls',(e.target as HTMLInputElement).checked);requestAnimationFrame(()=>current().scale.refresh());});

@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Campaign} from '../src/combat.ts';
-import {captureSave,restoreSave,parseSave,SAVE_KEY,writeSave} from '../src/save.ts';
-import {readSlot,writeSlot} from '../src/slots.ts';
+import {captureSave,restoreSave,parseSave,SAVE_KEY,writeSave} from '../legacy/save.ts';
+import {readSlot,writeSlot} from '../legacy/slots.ts';
 import {PadInput,DEFAULT_BINDINGS,parseBindings,remap,keyAction} from '../src/controls.ts';
 const idle={x:0,y:0};
 const make=()=>{const m=new Campaign();m.start();return m;};

@@ -1,5 +1,5 @@
-import { isHeroId } from './heroes.ts';
-import { Campaign, stats, type Fighter, type Attack, type Kind, type Pickup, type Supply } from './combat.ts';
+import { isHeroId } from '../src/heroes.ts';
+import { Campaign, stats, type Fighter, type Attack, type Kind, type Pickup, type Supply } from '../src/combat.ts';
 export const SAVE_KEY = 'red-banner-save-v1';
 export const MAX_SAVE_BYTES = 128 * 1024;
 const RUN_KEYS = ['stage', 'wave', 'continues', 'continuesUsed', 'kills', 'checkpointScore', 'checkpointKills', 'ranked', 'waveStarted', 'waveDamage', 'waveReward', 'time', 'score', 'hits', 'bestCombo', 'hitDeadline', 'freeze', 'clearedAt', 'status'] as const;

@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {Campaign} from '../src/combat.ts';
 import {SPECIALS,specialHits} from '../src/specials.ts';
 import {HERO_IDS} from '../src/heroes.ts';
-import {captureSave,restoreSave,parseSave} from '../src/save.ts';
+import {captureSave,restoreSave,parseSave} from '../legacy/save.ts';
 import {DEFAULT_BINDINGS,parseBindings,PadInput} from '../src/controls.ts';
 import {FixedStep} from '../src/fixed-step.ts';
 const empty={x:0,y:0};
