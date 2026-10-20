@@ -8,18 +8,18 @@ function punch(m:Campaign){m.tick(1/60,{...idle,attack:true,grappleAttack:true})
 function step(m:Campaign,n:number){for(let i=0;i<n;i++)m.tick(1/60,idle);}
 test('all five heroes grab, punch exactly twice and throw in either direction',()=>{
  for(const id of HERO_IDS)for(const direction of [-1,1]){const {m,e}=setup(id);assert(m.tryGrab({x:1,y:0}),id);punch(m);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,76);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,76);
- m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');step(m,35);assert.equal(m.grapple,null);assert.equal(e.hp,76-THROWS[id].damage);assert(direction<0?e.x<400:e.x>428);assert.equal(e.z,0);
+ m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(e.hp,76-THROWS[id].damage);assert(direction<0?e.x<400:e.x>428);assert.equal(e.z,0);
  }
 });
 test('all five heroes can lift and perform aerial throws after two punches',()=>{
- for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,35);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,76-THROWS[id].damage-14));}
+ for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,76-THROWS[id].damage-14));}
 });
 test('idle time escapes, and button spam after two punches cannot renew hold',()=>{
- const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,85);assert.equal(m.grapple,null);assert.equal(e.grapplePose,undefined);assert(!m.tryGrab({x:1,y:0}));
- const b=setup();b.m.tryGrab({x:1,y:0});punch(b.m);punch(b.m);for(let i=0;i<95;i++)punch(b.m);assert.equal(b.m.grapple,null);
+ const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,175);assert.equal(m.grapple,null);assert.equal(e.grapplePose,undefined);assert(!m.tryGrab({x:1,y:0}));
+ const b=setup();b.m.tryGrab({x:1,y:0});punch(b.m);punch(b.m);for(let i=0;i<175;i++)punch(b.m);assert.equal(b.m.grapple,null);
 });
 test('aerial escape if attack is not pressed before landing, no invisible held target',()=>{
- const {m,e}=setup();m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,50);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);step(m,30);assert.equal(e.z,0);assert.equal(e.grapplePose,undefined);
+ const {m,e}=setup();m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,70);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);step(m,30);assert.equal(e.z,0);assert.equal(e.grapplePose,undefined);
 });
 test('paused battle freezes the escape deadline; autoattack does not punch',()=>{
  const {m}=setup();m.tryGrab({x:1,y:0});const time=m.time;m.paused=true;step(m,200);assert.equal(m.time,time);assert(m.grapple);m.paused=false;m.tick(1/60,{...idle,attack:true,grappleAttack:false});assert.equal(m.grapple?.hits,0);
@@ -30,7 +30,7 @@ test('active strikes, range and boss resistance; weakened stunned boss can be gr
 });
 test('walking into enemy grabs; stun or death releases; lethal slam scores only once',()=>{
  const a=setup();a.m.tick(1/60,{x:1,y:0});assert(a.m.grapple);a.m.hero.stun=.2;a.m.tick(1/60,idle);assert.equal(a.m.grapple,null);assert.equal(a.e.grapplePose,undefined);
- const {m}=setup('zhangfei','soldier');m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{x:1,y:0,attack:true});step(m,35);assert.equal(m.kills,1);const score=m.score;step(m,30);assert.equal(m.score,score);assert.equal(m.kills,1);
+ const {m}=setup('zhangfei','soldier');m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{x:1,y:0,attack:true});step(m,45);assert.equal(m.kills,1);const score=m.score;step(m,30);assert.equal(m.score,score);assert.equal(m.kills,1);
 });
 
 test('all five heroes can approach live soldiers and heavies from either side without disabling AI',()=>{
@@ -48,4 +48,11 @@ test('nearer enemy behind does not mask a grabbable enemy ahead; moving away doe
  const {m,e}=setup();e.x=440;const behind=m.fighter('soldier',390,412);m.enemies.unshift(behind);
  assert(m.tryGrab({x:1,y:0}));assert.equal(m.grapple?.target,e.id);
  const b=setup();assert(!b.m.tryGrab({x:-1,y:0}));assert(!b.m.tryGrab({x:0,y:0}));
+});
+
+test('all heroes can jump immediately after grabbing without prerequisite punches',()=>{
+ for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});m.tick(1/60,{...idle,jump:true});step(m,20);assert.equal(m.grapple?.phase,'jump');assert(m.hero.z>0&&e.z>m.hero.z);punch(m);step(m,45);assert.equal(e.hp,Math.max(0,90-THROWS[id].damage-14));assert((e.knockdown??0)>0);}
+});
+test('hold allows a deliberate pause and throw has shoulder preparation before release',()=>{
+ const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,120);assert(m.grapple);punch(m);step(m,120);assert(m.grapple);punch(m);m.tick(1/60,{x:1,y:0,attack:true,grappleAttack:true});step(m,6);assert(e.z>0);assert(Math.abs(e.x-m.hero.x)<30);step(m,36);assert.equal(m.grapple,null);assert.equal(e.z,0);assert((e.knockdown??0)>0);
 });

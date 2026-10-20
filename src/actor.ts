@@ -24,7 +24,14 @@ export class Actor {
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
     this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
-    this.body.setAngle(f.grapplePose==='thrown'?f.throwSpin??0:f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-24:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
+    this.body.setAngle((f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?f.throwSpin??0:f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-24:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
+    // Rotate thrown bodies around the torso rather than their feet.
+    if(f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
+      const angle=this.body.angle*Math.PI/180,center=42*s;
+      this.body.x-=Math.sin(angle)*center;
+      this.body.y+=center*(Math.cos(angle)-1);
+      if((f.knockdown??0)>0)this.body.y+=center-8;
+    }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
     const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}`;
@@ -93,8 +100,8 @@ export class Actor {
     if (f.kind !== 'hero') { g.fillStyle(0x17251f).fillRect(-20, -96, 40, 4); g.fillStyle(boss ? 0xd97856 : 0xd5ab70).fillRect(-20, -96, 40 * f.hp / f.max, 4); }
   }
   private grip(f:Fighter){
-    if(f.grapplePose==='hold'||f.grapplePose==='air'){
-      const g=this.ink,air=f.grapplePose==='air',color=HEROES[f.heroId??'guanyu'].color;
+    if(f.grapplePose==='hold'||f.grapplePose==='air'||f.grapplePose==='throw'){
+      const g=this.ink,air=f.grapplePose==='air'||f.grapplePose==='throw',color=HEROES[f.heroId??'guanyu'].color;
       g.lineStyle(9,color).lineBetween(8,-53,30,air?-78:-49);g.lineStyle(6,0xd3ad7d).lineBetween(25,air?-72:-50,33,air?-80:-50);
       g.lineStyle(7,color).lineBetween(-9,-49,22,air?-69:-40);g.fillStyle(0xd3ad7d).fillRect(20,air?-72:-43,8,6);
     }
