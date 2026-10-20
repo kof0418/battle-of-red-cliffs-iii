@@ -24,11 +24,28 @@ test('aerial escape if attack is not pressed before landing, no invisible held t
 test('paused battle freezes the escape deadline; autoattack does not punch',()=>{
  const {m}=setup();m.tryGrab({x:1,y:0});const time=m.time;m.paused=true;step(m,200);assert.equal(m.time,time);assert(m.grapple);m.paused=false;m.tick(1/60,{...idle,attack:true,grappleAttack:false});assert.equal(m.grapple?.hits,0);
 });
-test('windups, range and boss resistance; weakened stunned boss can be grabbed',()=>{
+test('active strikes, range and boss resistance; weakened stunned boss can be grabbed',()=>{
  const {m,e}=setup('guanyu','boss');assert(!m.tryGrab({x:1,y:0}));e.hp=100;e.stun=.2;assert(m.tryGrab({x:1,y:0}));
- const a=setup();a.e.attack={move:'slash',elapsed:0,duration:1,impact:.5,face:-1,x:428,y:412,hit:false};assert(!a.m.tryGrab({x:1,y:0}));a.e.attack=null;a.e.y=450;assert(!a.m.tryGrab({x:1,y:0}));
+ const a=setup();a.e.attack={move:'slash',elapsed:.5,duration:1,impact:.5,face:-1,x:428,y:412,hit:false};assert(!a.m.tryGrab({x:1,y:0}));a.e.attack=null;a.e.y=450;assert(!a.m.tryGrab({x:1,y:0}));
 });
 test('walking into enemy grabs; stun or death releases; lethal slam scores only once',()=>{
  const a=setup();a.m.tick(1/60,{x:1,y:0});assert(a.m.grapple);a.m.hero.stun=.2;a.m.tick(1/60,idle);assert.equal(a.m.grapple,null);assert.equal(a.e.grapplePose,undefined);
  const {m}=setup('zhangfei','soldier');m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{x:1,y:0,attack:true});step(m,35);assert.equal(m.kills,1);const score=m.score;step(m,30);assert.equal(m.score,score);assert.equal(m.kills,1);
+});
+
+test('all five heroes can approach live soldiers and heavies from either side without disabling AI',()=>{
+ for(const id of HERO_IDS)for(const kind of ['soldier','heavy'] as const)for(const direction of [-1,1]){
+  const {m,e}=setup(id,kind);e.x=400+direction*120;e.cooldown=0;
+  for(let i=0;i<120&&!m.grapple;i++)m.tick(1/60,{x:direction,y:0});
+  assert.equal(m.grapple?.target,e.id,`${id} ${kind} ${direction}`);assert.equal(m.hero.hp,m.hero.max);assert.equal(e.attack,null);
+ }
+});
+test('close approach interrupts windup and accepts modest lane offsets',()=>{
+ const {m,e}=setup();e.x=442;e.y=436;e.attack={move:'slash',elapsed:.2,duration:1,impact:.7,face:-1,x:e.x,y:e.y,hit:false};
+ assert(m.tryGrab({x:1,y:0}));assert.equal(e.attack,null);
+});
+test('nearer enemy behind does not mask a grabbable enemy ahead; moving away does not grab',()=>{
+ const {m,e}=setup();e.x=440;const behind=m.fighter('soldier',390,412);m.enemies.unshift(behind);
+ assert(m.tryGrab({x:1,y:0}));assert.equal(m.grapple?.target,e.id);
+ const b=setup();assert(!b.m.tryGrab({x:-1,y:0}));assert(!b.m.tryGrab({x:0,y:0}));
 });

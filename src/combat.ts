@@ -234,9 +234,11 @@ export class Campaign {
   }
   tryGrab(input:Input){
     const h=this.hero;if(this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||h.attack||h.z>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
-    const target=this.enemies.filter(e=>e.hp>0&&!e.attack&&e.z===0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=31&&Math.abs(e.y-h.y)<=18&&(!isBoss(e.kind)||(e.hp<=e.max*.5&&e.stun>0)))
+    // Ordinary enemies can be interrupted during windup, but not on impact or recovery.
+    // Filter approach direction before selecting: a closer enemy behind must not block a valid grab.
+    const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!isBoss(e.kind)&&!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=44&&Math.abs(e.y-h.y)<=26&&(!isBoss(e.kind)||(e.hp<=e.max*.5&&e.stun>0))&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
-    if(!target||!((input.x&&Math.sign(target.x-h.x)===Math.sign(input.x))||(input.y&&Math.sign(target.y-h.y)===Math.sign(input.y))))return false;
+    if(!target)return false;
     h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;target.grapplePose='held';target.face=-h.face;
     this.grapple={target:target.id,hits:0,deadline:this.time+1.3,started:this.time,phase:'hold',elapsed:0,direction:h.face,air:false,startX:h.x,startZ:0};
     this.queuedUntil=0;this.specialQueued=false;this.message='抓住！攻擊兩下，再跳＋攻擊或左右＋攻擊';this.messageUntil=this.time+1.5;
