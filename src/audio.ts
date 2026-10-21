@@ -1,5 +1,4 @@
 import {musicStep} from './music-score.ts';
-import {HERO_IDS} from './heroes.ts';
 import type {HeroId} from './heroes.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from './preferences.ts';
 // Five original pentatonic phrases, synthesized locally. No sampled game music.
@@ -20,14 +19,20 @@ export function weaponVoice(id:HeroId,hit:boolean,heavy:boolean) {
  } as const;
  const v=voices[id];return {...v,pitch:v.pitch*(hit?.65:1)*(heavy?.8:1),duration:v.duration*(heavy?1.25:1),gain:hit?.065:.035};
 }
+export const SPECIAL_IMPACTS = {
+ guanyu:{metal:460,body:110,decay:.42}, // Heavy blade clang.
+ zhangfei:{metal:290,body:78,decay:.28}, // Deep, blunt metal impact.
+ zhaoyun:{metal:880,body:145,decay:.25}, // Bright spear-point clash.
+ huangzhong:{metal:690,body:180,decay:.34}, // Bow-frame snap and ring.
+ weiyan:{metal:570,body:125,decay:.22}, // Short edged impact.
+} as const;
 export class Soundtrack {
  private context?: AudioContext;
  private music?: GainNode;
  private effects?: GainNode;
  private preferences: Preferences = { ...DEFAULT_PREFERENCES };
- private notes = new Set<OscillatorNode|AudioBufferSourceNode>();
- private voices=new Map<HeroId,AudioBuffer>();
- private voiceUntil=0;
+ private notes = new Set<OscillatorNode>();
+ private impactUntil=0;
  private beat = 0;
  private next = 0;
  private theme = '';
@@ -41,7 +46,6 @@ export class Soundtrack {
     this.music = this.context.createGain(); this.music.connect(master??this.context.destination);
     this.effects = this.context.createGain(); this.effects.connect(master??this.context.destination);
     this.configure(this.preferences);
-    if(typeof window!=='undefined')for(const id of HERO_IDS){const url=new URL(`./assets/voices/${id}.wav`,import.meta.url);void fetch(url).then(r=>{if(!r.ok)throw Error('voice');return r.arrayBuffer();}).then(b=>this.context!.decodeAudioData(b)).then(b=>this.voices.set(id,b)).catch(()=>{});}
    }
    void this.context.resume().catch(()=>{});
   } catch { /* Audio is optional. */ }
@@ -76,13 +80,17 @@ export class Soundtrack {
   this.note(frequency,this.context.currentTime,duration,.12,'triangle',this.effects,false);
   if(frequency<100)this.note(frequency*.5,this.context.currentTime,duration*1.5,.14,'sine',this.effects,false);
  }
- specialVoice(id:HeroId){
+ specialImpact(id:HeroId){
   const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
-  const buffer=this.voices.get(id);
-  if(buffer){const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=buffer;gain.gain.value=.5;source.connect(gain);gain.connect(this.effects);this.notes.add(source);source.onended=()=>{this.notes.delete(source);source.disconnect();gain.disconnect();};source.start();}
-  else{const pitch={guanyu:148,zhangfei:122,zhaoyun:205,huangzhong:166,weiyan:184}[id];for(const harmonic of [1,2,3])this.note(pitch*harmonic,ctx.currentTime,.30,.045/harmonic,'sine',this.effects,false,pitch*harmonic*.95);}
-  this.voiceUntil=ctx.currentTime+(buffer?.duration??.30)+.08;
-  this.music?.gain.setTargetAtTime(this.preferences.music*.38,ctx.currentTime,.02);
+  const v=SPECIAL_IMPACTS[id],now=ctx.currentTime;
+  // Inharmonic resonances produce a metal strike rather than a pitched voice.
+  for(const [index,ratio] of [1,1.47,2.09,2.56,3.71].entries()){
+   this.note(v.metal*ratio,now,v.decay/(1+index*.42),.065/(1+index*.75),'sine',this.effects,false);
+  }
+  this.note(v.body,now,.13,.14,'sine',this.effects,false,36);
+  this.note(v.metal*3,now,.045,.025,'triangle',this.effects,false,v.metal*.55);
+  this.impactUntil=now+.20;
+  this.music?.gain.setTargetAtTime(this.preferences.music*.72,now,.01);
  }
  pause() {
   this.active=false;
@@ -94,7 +102,7 @@ export class Soundtrack {
   if (!playing || !context || context.state !== 'running') { if(this.active)this.pause(); return; }
   const theme=`${stage}:${boss}`;
   if(!this.active || theme!==this.theme) {this.pause();this.active=true;this.theme=theme;this.beat=0;this.next=context.currentTime+.03;}
-  this.music!.gain.setTargetAtTime(this.preferences.muted?0:this.preferences.music*(context.currentTime<this.voiceUntil?.38:1),context.currentTime,.08);
+  this.music!.gain.setTargetAtTime(this.preferences.muted?0:this.preferences.music*(context.currentTime<this.impactUntil?.72:1),context.currentTime,.08);
   const interval=stage>=2?musicStep(stage,boss,this.beat).interval:boss?.19:.25;
   if(this.next<context.currentTime-.5)this.next=context.currentTime;
   while(this.next<context.currentTime+.10) {
