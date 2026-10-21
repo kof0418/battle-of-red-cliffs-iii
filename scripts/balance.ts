@@ -4,7 +4,7 @@ import {SPECIAL_COST,specialHits} from '../src/specials.ts';
 const results=[];
 for(const mode of ['baseline','tactical-special'])for(const strategy of ['close','weapon-range','field-aware'])for(const id of HERO_IDS){
  const m=new Campaign(id);m.start();let damage=0,frames=0,specials=0,bossFrames=0;
- for(;frames<60*480&&(m.status==='playing'||m.status==='stage-clear');frames++){
+ for(;frames<60*1200&&(m.status==='playing'||m.status==='stage-clear');frames++){
   if(m.status==='stage-clear'){m.nextStage();continue;}
   if(m.enemies.some(e=>isBoss(e.kind)))bossFrames++;
   const h=m.hero,e=[...m.enemies].sort((a,b)=>Math.abs(a.x-h.x)+Math.abs(a.y-h.y)*3-Math.abs(b.x-h.x)-Math.abs(b.y-h.y)*3)[0];

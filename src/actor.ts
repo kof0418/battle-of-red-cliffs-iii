@@ -44,7 +44,7 @@ export class Actor {
         g.lineStyle(9,0x504b48).lineBetween(-6,-26,12+extension,-48);g.lineStyle(7,0x151f23).lineBetween(12+extension,-48,24+extension,-54);
         g.lineStyle(2,0xe7c188).lineBetween(13+extension,-51,24+extension,-57);
       }this.grip(f);return; }
-    const color = f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
+    const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
     // Cape, boots, segmented armour, face and original helmet silhouette.
@@ -60,6 +60,9 @@ export class Actor {
     g.fillStyle(color).fillRect(-12, -65, 27, 5);
     g.fillStyle(0xe0bc70).fillRect(-2, -74, 6, 12);
     g.fillStyle(0x9e493d).fillTriangle(1, -75, -14 - frame % 3, -87, -6, -74);
+    if(f.kind==='hunter'){g.fillStyle(0x355841).fillTriangle(-18,-65,1,-94,19,-65);}
+    if(f.kind==='frostlord'){g.fillStyle(0xd4edf0).fillTriangle(-17,-62,-26,-91,-4,-70).fillTriangle(14,-62,23,-91,3,-70);}
+    if(f.kind==='regent'){g.fillStyle(0xd8ad55).fillRect(-12,-77,26,12);g.fillTriangle(-12,-77,-12,-88,-3,-77).fillTriangle(4,-77,11,-91,14,-77);g.lineStyle(5,0xe3d6aa).lineBetween(-20,-44,-48,-71);}
     if (f.kind === 'marshal') { g.fillStyle(0xb7d3cc).fillTriangle(-9, -69, -18, -91, 0, -71).fillTriangle(7, -69, 15, -91, 0, -71); }
     if (f.kind === 'boss') { g.fillStyle(0xe0bd74).fillTriangle(-12, -65, -22, -79, -7, -68).fillTriangle(11, -65, 19, -81, 5, -68); }
     // Each slash has a distinct silhouette: forward cut, rising cut, sweeping finisher.
@@ -68,7 +71,7 @@ export class Actor {
     const handX = motion ? motion.x : attacking ? [8, 23, 34, 17][step] : 17;
     g.fillStyle(color).fillRect(9, -44, handX - 1, 10);
     g.fillStyle(0xe2b588).fillRect(handX, y, 8, 8);
-    if (f.kind==='archer'||f.heroId === 'huangzhong') {
+    if ((f.kind==='archer'||f.kind==='hunter')||f.heroId === 'huangzhong') {
       const bowX = handX + 10;
       g.lineStyle(4, 0xc4a66b).beginPath().arc(bowX - 8, y, 27, -1.2, 1.2).strokePath();
       g.lineStyle(1, 0xf3e3be).lineBetween(bowX + 2, y - 25, bowX - (attacking ? [8,19,0,2,0][phase] : 0), y).lineBetween(bowX - (attacking ? [8,19,0,2,0][phase] : 0), y, bowX + 2, y + 25);
@@ -81,9 +84,9 @@ export class Actor {
     } else if (f.heroId === 'weiyan') {
       g.fillStyle(0xcbd9d5).fillTriangle(handX + 3, y, handX + 40, y - 23, handX + 16, y + 4);
       g.lineStyle(4, 0xc4a46a).lineBetween(handX - 2, y - 5, handX + 13, y + 9);
-    } else if(f.kind==='soldier'||f.kind==='raider'||f.kind==='heavy'){
+    } else if(f.kind==='regent'||f.kind==='soldier'||f.kind==='raider'||f.kind==='heavy'){
       const length=f.kind==='raider'?32:44;g.lineStyle(4,0xa18354).lineBetween(handX,y+8,handX+7,y-6);g.fillStyle(0xc6d5cf).fillTriangle(handX+5,y-4,handX+length,y-25,handX+15,y+1);g.lineStyle(2,0xf0e5bc).lineBetween(handX+7,y-5,handX+length,y-25);
-    } else if(f.kind==='hammer'){
+    } else if(f.kind==='hammer'||f.kind==='frostlord'){
       const hx=attacking?handX+15:handX,hy=attacking?y-28:y-10;
       g.lineStyle(6,0x785138).lineBetween(handX,y+15,hx,hy-22);g.fillStyle(0x323d43).fillRect(hx-18,hy-37,36,23);g.fillStyle(0xa9aaa0).fillRect(hx-17,hy-36,34,5);g.lineStyle(2,0xd3b279).strokeRect(hx-18,hy-37,36,23);
     } else {

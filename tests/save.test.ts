@@ -22,7 +22,7 @@ test('schema, malformed files and oversized files rejected',()=>{
  assert.throws(()=>parseSave(mutate(s=>s.schema=2)));assert.throws(()=>parseSave(mutate(s=>s.run.hero.kind='__proto__')));
 });
 test('reject invalid numbers, duplicate ids, impossible credits and terminal state',()=>{
- for(const change of [(s:any)=>s.run.hero.hp=-1,(s:any)=>s.run.stage=3,(s:any)=>s.run.continues=99,(s:any)=>s.run.time=null,(s:any)=>s.run.enemies[0].id=s.run.hero.id,(s:any)=>s.run.status='won',(s:any)=>s.run.hero.attack={move:'bogus'}])assert.throws(()=>parseSave(mutate(change)));
+ for(const change of [(s:any)=>s.run.hero.hp=-1,(s:any)=>s.run.stage=99,(s:any)=>s.run.continues=99,(s:any)=>s.run.time=null,(s:any)=>s.run.enemies[0].id=s.run.hero.id,(s:any)=>s.run.status='won',(s:any)=>s.run.hero.attack={move:'bogus'}])assert.throws(()=>parseSave(mutate(change)));
 });
 test('unknown imported properties cannot override model methods',()=>{
  const s=parseSave(mutate(s=>{s.run.tick='bad';s.run.__proto__={polluted:true};s.run.hero.extra='ignored';}));const n=restoreSave(s);assert.equal(typeof n.tick,'function');assert.equal((n.hero as any).extra,undefined);assert.equal(({} as any).polluted,undefined);

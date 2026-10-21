@@ -40,7 +40,7 @@ test('new campaign resets all combat state',()=>{
 });
 for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal combat inputs`,()=>{
  const m=new Campaign(id);m.start();
- for(let frame=0;frame<60*480&&(m.status==='playing'||m.status==='stage-clear');frame++){
+ for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear');frame++){
   if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
   const h=m.hero,e=[...m.enemies].sort((a,b)=>Math.abs(a.x-h.x)+Math.abs(a.y-h.y)*3-Math.abs(b.x-h.x)-Math.abs(b.y-h.y)*3)[0];
   let input:Input={x:1,y:0};
@@ -51,5 +51,5 @@ for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal co
   m.tick(1/60,input);
  }
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);
- assert.equal(m.stage,1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills,LEVELS.flatMap(l=>l.waves.flat()).length);
+ assert.equal(m.stage,LEVELS.length-1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills,LEVELS.flatMap(l=>l.waves.flat()).length);
 });

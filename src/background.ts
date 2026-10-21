@@ -1,7 +1,9 @@
+import {drawNewBackground} from './new-backgrounds';
 import Phaser from 'phaser';
 import {WORLD_WIDTH,arenaStart,type Level} from './levels';
 /** Original, deterministic pixel scenery. Own every object so stage swaps cleanly. */
 export function drawBackground(scene: Phaser.Scene, level: Level) {
+  if(!['sunset','river'].includes(level.theme))return drawNewBackground(scene,level);
   const layer = scene.add.container(0, 0).setDepth(-100);
   const g = scene.add.graphics(); layer.add(g);
   const river = level.theme === 'river';

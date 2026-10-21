@@ -20,7 +20,7 @@ function list<T>(v: unknown, max: number, parse: (v: unknown) => T): T[] {
 function attack(v: unknown): Attack | null {
   if (v === null) return null;
   const a = obj(v), move = a.move;
-  if (move !== 'shot' && move !== 'special' && move !== 'slash' && move !== 'slam' && move !== 'charge' && move !== 'sweep') return fail();
+  if (move !== 'fan' && move !== 'ring' && move !== 'cross' && move !== 'shot' && move !== 'special' && move !== 'slash' && move !== 'slam' && move !== 'charge' && move !== 'sweep') return fail();
   const duration = number(a.duration, .1, 3), elapsed = number(a.elapsed, 0, duration), impact = number(a.impact, 0, duration);
   const face = number(a.face, -1, 1, true); if (!face) return fail();
   return { move, elapsed, duration, impact, hit: bool(a.hit), face, x: number(a.x, 0, WORLD_WIDTH), y: number(a.y, 340, 510) };
@@ -48,14 +48,14 @@ export function parseSave(text: string): SaveData {
   const r = obj(s.run), status = r.status;
   if (s.gameVersion !== '0.4.0' && !isHeroId(obj(r.hero).heroId)) return fail();
   if (status !== 'playing' && status !== 'stage-clear' && status !== 'won' && status !== 'lost') return fail();
-  const stage = number(r.stage, 0, 1, true), wave = number(r.wave, 1, LEVELS[stage].waves.length, true);
+  const stage = number(r.stage, 0, LEVELS.length-1, true), wave = number(r.wave, 1, LEVELS[stage].waves.length, true);
   const continues = number(r.continues, 0, 2, true), continuesUsed = number(r.continuesUsed, 0, 2, true);
   if (continues + continuesUsed !== 2) return fail();
   const time = number(r.time, 0, 1e8), hero = fighter(r.hero), enemies = list(r.enemies, 8, fighter);
   if (hero.kind !== 'hero' || enemies.some(e => e.kind === 'hero' || e.hp <= 0)) return fail();
   if ((status === 'lost') !== (hero.hp === 0)) return fail();
   if ((status === 'won' || status === 'stage-clear') && (wave !== LEVELS[stage].waves.length || enemies.length > 0)) return fail();
-  if ((status === 'won' && stage !== 1) || (status === 'stage-clear' && stage !== 0)) return fail();
+  if ((status === 'won' && stage !== LEVELS.length-1) || (status === 'stage-clear' && stage === LEVELS.length-1)) return fail();
   if (hero.attack && (!['slash','special'].includes(hero.attack.move) || hero.step === 0)) return fail();
   const supplies = list<Supply>(r.supplies, 4, v => { const a = obj(v); return { id: number(a.id, 1, 100000, true), x: number(a.x, 0, WORLD_WIDTH), y: number(a.y, 340, 510), hp: number(a.hp, 1, 24) }; });
   const pickups = list<Pickup>(r.pickups, 16, v => { const a = obj(v); if (a.amount !== 25 && a.amount !== 40) return fail(); return { id: number(a.id, 1, 100000, true), x: number(a.x, 0, WORLD_WIDTH), y: number(a.y, 340, 510), amount: a.amount }; });

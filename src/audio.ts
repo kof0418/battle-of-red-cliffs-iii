@@ -1,9 +1,12 @@
 import type {HeroId} from './heroes.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from './preferences.ts';
-// Two original pentatonic phrases, synthesized locally. No sampled game music.
+// Five original pentatonic phrases, synthesized locally. No sampled game music.
 const THEMES = [
  [62,69,74,72,69,67,69,62,65,69,72,74,72,69,67,65],
  [57,64,67,69,72,69,67,64,60,64,67,72,74,72,67,64],
+ [64,67,71,74,71,67,64,62,64,71,74,76,74,71,67,64],
+ [55,62,65,67,70,67,65,62,58,62,65,70,67,65,62,55],
+ [60,67,72,75,72,67,63,60,67,72,75,79,75,72,67,63],
 ];
 export function weaponVoice(id:HeroId,hit:boolean,heavy:boolean) {
  const voices={
@@ -79,7 +82,7 @@ export class Soundtrack {
   const interval=boss?.19:.25;
   if(this.next<context.currentTime-.5)this.next=context.currentTime;
   while(this.next<context.currentTime+.10) {
-   const phrase=THEMES[stage===1?1:0], pitch=phrase[this.beat%phrase.length];
+   const phrase=THEMES[stage%THEMES.length], pitch=phrase[this.beat%phrase.length];
    this.note(440*2**((pitch-69)/12),this.next,interval*.85,.055,'triangle',this.music!,true);
    if(this.beat%4===0)this.note(440*2**((phrase[0]-24-69)/12),this.next,interval*2,.09,'sine',this.music!,true);
    if(this.beat%2===0)this.note(boss?62:48,this.next,.07,.10,'sine',this.music!,true);

@@ -4,7 +4,7 @@ import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS, WORLD_WIDTH, ARENA_ENDS, arenaStart } from './levels.ts';
 import { fieldEvent, fieldHits } from './battlefield.ts';
 /** Pure combat rules, in seconds and world pixels. */
-export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal';
+export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
 export const stats = {
   hero: { hp: 160, speed: 180, damage: 17 },
   soldier: { hp: 48, speed: 62, damage: 8 },
@@ -14,6 +14,9 @@ export const stats = {
   spearman:{hp:58,speed:58,damage:10},
   hammer:{hp:100,speed:35,damage:16},
   boss: { hp: 420, speed: 65, damage: 18 },
+  hunter:{hp:520,speed:88,damage:16},
+  frostlord:{hp:620,speed:40,damage:22},
+  regent:{hp:680,speed:90,damage:20},
   marshal: { hp: 510, speed: 78, damage: 20 },
 };
 export const SLASHES = [
@@ -28,8 +31,8 @@ export function comboStep(previous: number, last: number, now: number) {
   return now - last < 650 ? previous % 3 + 1 : 1;
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal';
-export type Move = 'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
+export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
+export type Move = 'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
 export interface Supply { id: number; x: number; y: number; hp: number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
@@ -46,9 +49,12 @@ export interface Fighter {
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId };
+export type Effect = { type: 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
+  if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
+  if(a.move==='ring'){const r=Math.hypot(target.x-a.x,target.y-a.y);return r>48&&r<155;}
+  if(a.move==='cross')return (Math.abs(target.x-a.x)<28&&Math.abs(target.y-a.y)<155)||(Math.abs(target.x-a.x)<180&&Math.abs(target.y-a.y)<24);
   if (a.move === 'shot') return Math.abs(target.y-a.y)<18&&inRange(a.x,a.y,target.x,target.y,a.face,340);
   if (a.move === 'sweep') return Math.abs(target.x - a.x) < 170 && Math.abs(target.y - a.y) < 49;
   if (a.move === 'slam') return Math.hypot((target.x - a.x) / 1.4, target.y - a.y) < 88;
@@ -139,7 +145,7 @@ export class Campaign {
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 82, 370 + i % 3 * 49));
     this.supplies = [{ id: ++this.serial, x: base + 240, y: 479, hp: 24 }];
     this.pickups = [];
-    this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　${this.level.sections[this.wave-1]} · ${this.stage === 0 ? '留意箭雨，移出框線' : '火船來襲，跳躍避火'}`;
+    this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　${this.level.sections[this.wave-1]} · ${this.stage === 0 ? '留意箭雨，移出框線' : this.stage===1?'火船來襲，跳躍避火':'留意伏兵與蓄力攻擊'}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
   }
@@ -342,10 +348,12 @@ export class Campaign {
     const activeAttackers = this.enemies.filter(f => f.attack).length;
     if (e.cooldown <= 0 && activeAttackers < 2 && Math.abs(dy) < 27 && Math.abs(dx) < (boss ? 250 : reach)) {
       let move: Move = e.kind==='archer'?'shot':e.kind==='hammer'?'slam':'slash';
-      if (boss) move = e.kind === 'marshal' ? (['sweep', 'charge', 'slam'] as Move[])[e.attacks % 3] : e.attacks % 2 === 0 ? 'slam' : 'charge';
+      if (boss) move = e.kind==='hunter'?(['fan','charge','fan'] as Move[])[e.attacks%3]:e.kind==='frostlord'?(['ring','slam','ring'] as Move[])[e.attacks%3]:e.kind==='regent'?(['cross','sweep','charge'] as Move[])[e.attacks%3]:e.kind === 'marshal' ? (['sweep', 'charge', 'slam'] as Move[])[e.attacks % 3] : e.attacks % 2 === 0 ? 'slam' : 'charge';
       if ((move === 'slam' && Math.abs(dx) > 125) || (move === 'sweep' && Math.abs(dx) > 160)) move = 'charge';
-      const windup = e.kind==='archer'?.95:e.kind==='hammer'?1.05:e.kind==='spearman'?.65:boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
+      const windup = move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:e.kind==='archer'?.95:e.kind==='hammer'?1.05:e.kind==='spearman'?.65:boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
       e.attack = { move, elapsed: 0, duration: windup + (boss ? .55 : .32), impact: windup, hit: false, face: e.face, x: e.x, y: e.y };
+      if(move==='cross'){e.attack.x=h.x;e.attack.y=h.y;}
+      if(move==='fan'||move==='ring'||move==='cross'){this.message=move==='fan'?'玄弦・三路箭陣：換線或跳躍閃避':move==='ring'?'霜岳・震地環：貼近內圈或跳躍':'炎驍・十字斬：離開交叉警戒線';this.messageUntil=this.time+windup;}
       e.cooldown = boss ? (enraged ? 1.65 : 2.2) : 1.6 + index % 3 * .15; e.attacks++;
       return;
     }
@@ -363,6 +371,7 @@ export class Campaign {
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId});
     const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
+    if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !special && heroAttack && f.heroId === 'huangzhong';
     const first = bow && f.step !== 3 ? [...this.enemies, ...this.supplies]
       .filter(t => t.hp > 0 && inRange(a.x, a.y, t.x, t.y, a.face, reach))
