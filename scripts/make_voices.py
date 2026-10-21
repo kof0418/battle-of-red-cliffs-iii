@@ -1,24 +1,51 @@
-"""Original formant-synthesized battle cries, no recordings or cloned voices."""
-import math, wave, struct
+"""Original clean voiced battle cries; no sampled or cloned performer voices.
+
+Smooth harmonic source, fixed vowel resonances and gentle pitch articulation.
+No saturation, rapid pitch jitter or amplitude chopping (the old raspy sound).
+"""
+import math
+import wave
+import struct
 from pathlib import Path
-profiles={'guanyu':(112,.72,[760,1130,2500],1),'zhangfei':(83,.84,[680,1050,2350],1),'zhaoyun':(178,.55,[450,1800,2850],2),'huangzhong':(128,.74,[550,1350,2450],2),'weiyan':(150,.62,[820,1250,2650],1)}
-out=Path(__file__).resolve().parents[1]/'src/assets/voices'
-for name,(pitch,duration,formants,pulses) in profiles.items():
- rate=22050;data=[];phase=0
- harmonics=[]
- for k in range(1,45):
-  hz=k*pitch
-  weight=sum(math.exp(-.5*((hz-f)/bw)**2)*gain for f,bw,gain in zip(formants,[110,160,220],[1,.7,.35]))/math.sqrt(k)
-  harmonics.append((k,weight))
- for i in range(int(rate*duration)):
-  t=i/rate;p=t/duration
-  f=pitch*(1.14-.28*p+.025*math.sin(t*43)+.012*math.sin(t*137));phase+=2*math.pi*f/rate
-  value=sum(w*math.sin(k*phase) for k,w in harmonics)
-  envelope=min(1,t/.035)*min(1,(duration-t)/.10)*(1-.35*p)
-  if pulses==2:envelope*=.22+.78*abs(math.sin(p*math.pi*2))
-  value=math.tanh(value*1.8)*envelope
-  data.append(value)
- peak=max(abs(x) for x in data)
- with wave.open(str(out/(name+'.wav')),'wb') as w:
-  w.setparams((1,2,rate,0,'NONE','not compressed'));w.writeframes(b''.join(struct.pack('<h',int(x/peak*22000)) for x in data))
- print(name,len(data)/rate)
+
+# pitch, duration, vowel formants, ending pitch ratio
+profiles = {
+    'guanyu': (148, .46, [730, 1120, 2400], .92),
+    'zhangfei': (122, .48, [780, 1180, 2300], .88),
+    'zhaoyun': (205, .34, [560, 1720, 2600], 1.04),
+    'huangzhong': (166, .42, [610, 1280, 2450], .94),
+    'weiyan': (184, .36, [800, 1350, 2500], .90),
+}
+out = Path(__file__).resolve().parents[1] / 'src/assets/voices'
+out.mkdir(parents=True, exist_ok=True)
+rate = 22050
+for name, (pitch, duration, formants, ending) in profiles.items():
+    data, phase = [], 0
+    for i in range(int(rate * duration)):
+        t = i / rate
+        p = t / duration
+        # Small, smooth rise into the cry, then a controlled ending.
+        f = pitch * (1 + .065 * math.sin(math.pi * p) + (ending - 1) * p)
+        phase += 2 * math.pi * f / rate
+        value = 0
+        for k in range(1, 33):
+            hz = k * f
+            # Fixed formants retain an open vowel as pitch moves. Fundamental
+            # and low harmonics keep body, instead of a thin nasal buzz.
+            resonance = sum(g * math.exp(-.5 * ((hz - v) / bw) ** 2)
+                            for v, bw, g in zip(formants, [180, 240, 320], [1, .65, .16]))
+            weight = (.20 + 2.3 * resonance) / k ** 1.65
+            weight *= math.exp(-(hz / 3200) ** 2)
+            value += weight * math.sin(k * phase)
+        attack = math.sin(min(1, t / .035) * math.pi / 2) ** 2
+        release = math.sin(min(1, (duration - t) / .12) * math.pi / 2) ** 2
+        data.append(value * attack * release * (1 - .25 * p))
+    # Remove DC, retain headroom, and never distort or hard-limit the waveform.
+    mean = sum(data) / len(data)
+    data = [v - mean for v in data]
+    peak = max(abs(v) for v in data)
+    pcm = [round(v / peak * 21000) for v in data]
+    with wave.open(str(out / (name + '.wav')), 'wb') as w:
+        w.setparams((1, 2, rate, 0, 'NONE', 'not compressed'))
+        w.writeframes(struct.pack('<' + 'h' * len(pcm), *pcm))
+    print(name, 'seconds', duration, 'peak', max(map(abs, pcm)))

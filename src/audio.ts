@@ -80,8 +80,8 @@ export class Soundtrack {
   const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
   const buffer=this.voices.get(id);
   if(buffer){const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=buffer;gain.gain.value=.5;source.connect(gain);gain.connect(this.effects);this.notes.add(source);source.onended=()=>{this.notes.delete(source);source.disconnect();gain.disconnect();};source.start();}
-  else{const pitch={guanyu:112,zhangfei:83,zhaoyun:178,huangzhong:128,weiyan:150}[id];for(const harmonic of [5,8,12])this.note(pitch*harmonic,ctx.currentTime,.42,.045,'sine',this.effects,false,pitch*harmonic*.8);}
-  this.voiceUntil=ctx.currentTime+.85;
+  else{const pitch={guanyu:148,zhangfei:122,zhaoyun:205,huangzhong:166,weiyan:184}[id];for(const harmonic of [1,2,3])this.note(pitch*harmonic,ctx.currentTime,.30,.045/harmonic,'sine',this.effects,false,pitch*harmonic*.95);}
+  this.voiceUntil=ctx.currentTime+(buffer?.duration??.30)+.08;
   this.music?.gain.setTargetAtTime(this.preferences.music*.38,ctx.currentTime,.02);
  }
  pause() {
