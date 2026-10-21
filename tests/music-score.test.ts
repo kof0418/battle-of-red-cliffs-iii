@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {musicStep} from '../src/music-score.ts';import {HERO_IDS} from '../src/heroes.ts';
+test('three scores have unique arrangements, sixteen-bar development and faster boss tempos',()=>{
+ const signatures=[];for(const stage of [2,3,4]){const steps=Array.from({length:256},(_,i)=>musicStep(stage,false,i));signatures.push(JSON.stringify(steps));assert(musicStep(stage,true,0).interval<steps[0].interval);assert.notDeepEqual(steps[0].notes,steps[64].notes);assert.equal(steps[255].bar,15);assert.deepEqual(musicStep(stage,false,256),steps[0]);for(const step of steps)for(const note of step.notes){assert(Number.isFinite(note.duration)&&note.duration>0);assert(note.gain>0&&note.gain<.3);}}assert.equal(new Set(signatures).size,3);
+});
+test('five packaged battle cries are distinct valid PCM assets with headroom',()=>{
+ const voices=[];for(const id of HERO_IDS){const b=readFileSync(new URL(`../src/assets/voices/${id}.wav`,import.meta.url));assert.equal(b.toString('ascii',0,4),'RIFF');assert.equal(b.readUInt16LE(22),1);assert.equal(b.readUInt32LE(24),22050);let peak=0,energy=0;for(let i=44;i<b.length;i+=2){const v=b.readInt16LE(i);peak=Math.max(peak,Math.abs(v));energy+=v*v;}assert(peak>10000&&peak<30000);assert(energy>0);voices.push(b.toString('base64'));}assert.equal(new Set(voices).size,5);
+});

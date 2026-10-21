@@ -1,3 +1,5 @@
+import {musicStep} from './music-score.ts';
+import {HERO_IDS} from './heroes.ts';
 import type {HeroId} from './heroes.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from './preferences.ts';
 // Five original pentatonic phrases, synthesized locally. No sampled game music.
@@ -23,7 +25,9 @@ export class Soundtrack {
  private music?: GainNode;
  private effects?: GainNode;
  private preferences: Preferences = { ...DEFAULT_PREFERENCES };
- private notes = new Set<OscillatorNode>();
+ private notes = new Set<OscillatorNode|AudioBufferSourceNode>();
+ private voices=new Map<HeroId,AudioBuffer>();
+ private voiceUntil=0;
  private beat = 0;
  private next = 0;
  private theme = '';
@@ -32,9 +36,12 @@ export class Soundtrack {
   try {
    if (!this.context) {
     this.context = new AudioContext();
-    this.music = this.context.createGain(); this.music.connect(this.context.destination);
-    this.effects = this.context.createGain(); this.effects.connect(this.context.destination);
+    const master=this.context.createDynamicsCompressor?.();
+    if(master){master.threshold.value=-10;master.knee.value=16;master.ratio.value=5;master.attack.value=.006;master.release.value=.18;master.connect(this.context.destination);}
+    this.music = this.context.createGain(); this.music.connect(master??this.context.destination);
+    this.effects = this.context.createGain(); this.effects.connect(master??this.context.destination);
     this.configure(this.preferences);
+    if(typeof window!=='undefined')for(const id of HERO_IDS){const url=new URL(`./assets/voices/${id}.wav`,import.meta.url);void fetch(url).then(r=>{if(!r.ok)throw Error('voice');return r.arrayBuffer();}).then(b=>this.context!.decodeAudioData(b)).then(b=>this.voices.set(id,b)).catch(()=>{});}
    }
    void this.context.resume().catch(()=>{});
   } catch { /* Audio is optional. */ }
@@ -54,7 +61,7 @@ export class Soundtrack {
   envelope.gain.setValueAtTime(0,time); envelope.gain.linearRampToValueAtTime(gain,time+.008);
   envelope.gain.exponentialRampToValueAtTime(.0001,time+duration);
   oscillator.connect(envelope); envelope.connect(bus);
-  if(musical)this.notes.add(oscillator);
+  this.notes.add(oscillator);
   oscillator.onended=()=>{this.notes.delete(oscillator);oscillator.disconnect();envelope.disconnect();};
   oscillator.start(time); oscillator.stop(time+duration+.01);
  }
@@ -69,6 +76,14 @@ export class Soundtrack {
   this.note(frequency,this.context.currentTime,duration,.12,'triangle',this.effects,false);
   if(frequency<100)this.note(frequency*.5,this.context.currentTime,duration*1.5,.14,'sine',this.effects,false);
  }
+ specialVoice(id:HeroId){
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
+  const buffer=this.voices.get(id);
+  if(buffer){const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=buffer;gain.gain.value=.5;source.connect(gain);gain.connect(this.effects);this.notes.add(source);source.onended=()=>{this.notes.delete(source);source.disconnect();gain.disconnect();};source.start();}
+  else{const pitch={guanyu:112,zhangfei:83,zhaoyun:178,huangzhong:128,weiyan:150}[id];for(const harmonic of [5,8,12])this.note(pitch*harmonic,ctx.currentTime,.42,.045,'sine',this.effects,false,pitch*harmonic*.8);}
+  this.voiceUntil=ctx.currentTime+.85;
+  this.music?.gain.setTargetAtTime(this.preferences.music*.38,ctx.currentTime,.02);
+ }
  pause() {
   this.active=false;
   for(const note of this.notes) {try{note.stop();}catch{/* already ended */}}
@@ -79,9 +94,11 @@ export class Soundtrack {
   if (!playing || !context || context.state !== 'running') { if(this.active)this.pause(); return; }
   const theme=`${stage}:${boss}`;
   if(!this.active || theme!==this.theme) {this.pause();this.active=true;this.theme=theme;this.beat=0;this.next=context.currentTime+.03;}
-  const interval=boss?.19:.25;
+  this.music!.gain.setTargetAtTime(this.preferences.muted?0:this.preferences.music*(context.currentTime<this.voiceUntil?.38:1),context.currentTime,.08);
+  const interval=stage>=2?musicStep(stage,boss,this.beat).interval:boss?.19:.25;
   if(this.next<context.currentTime-.5)this.next=context.currentTime;
   while(this.next<context.currentTime+.10) {
+   if(stage>=2){for(const n of musicStep(stage,boss,this.beat).notes)this.note(440*2**((n.midi-69)/12),this.next,n.duration,n.gain,n.type,this.music!,true,n.end===undefined?undefined:440*2**((n.end-69)/12));this.next+=interval;this.beat++;continue;}
    const phrase=THEMES[stage%THEMES.length], pitch=phrase[this.beat%phrase.length];
    this.note(440*2**((pitch-69)/12),this.next,interval*.85,.055,'triangle',this.music!,true);
    if(this.beat%4===0)this.note(440*2**((phrase[0]-24-69)/12),this.next,interval*2,.09,'sine',this.music!,true);
