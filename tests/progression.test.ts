@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Campaign, attackHits, type Attack} from '../src/combat.ts';
 const idle={x:0,y:0};
 const tick=(m:Campaign)=>m.tick(1/60,idle);
-function finishStage(m:Campaign){m.wave=3;m.enemies=[];tick(m);}
+function finishStage(m:Campaign){m.wave=m.level.waves.length;m.enemies=[];tick(m);}
 
 test('first boss opens intermission, only second boss wins campaign',()=>{
  const m=new Campaign();m.start();m.score=1234;finishStage(m);assert.equal(m.status,'stage-clear');
@@ -15,15 +15,15 @@ test('continue restarts current wave with checkpoint score and only two credits'
  const m=new Campaign();m.start();m.enemies=[];m.hero.x=930;for(let i=0;i<70;i++)tick(m);
  assert.equal(m.wave,2);const checkpoint=m.checkpointScore;
  m.score+=500;m.kills+=2;m.hero.hp=0;tick(m);assert.equal(m.status,'lost');
- assert.ok(m.continueRun());assert.equal(m.wave,2);assert.equal(m.stage,0);assert.equal(m.hero.hp,160);assert.equal(m.score,checkpoint);assert.equal(m.kills,m.checkpointKills);assert.equal(m.continues,1);assert.ok(m.hero.inv>0);assert.equal(m.enemies.length,4);
+ assert.ok(m.continueRun());assert.equal(m.wave,2);assert.equal(m.stage,0);assert.equal(m.hero.hp,160);assert.equal(m.score,checkpoint);assert.equal(m.kills,m.checkpointKills);assert.equal(m.continues,1);assert.ok(m.hero.inv>0);assert.equal(m.enemies.length,m.level.waves[1].length);
  assert.equal(m.continueRun(),false);assert.equal(m.continues,1);
  m.hero.hp=0;tick(m);assert.ok(m.continueRun());assert.equal(m.continues,0);
  m.hero.hp=0;tick(m);assert.equal(m.continueRun(),false);assert.equal(m.status,'lost');
 });
 test('second-stage continue keeps second-stage roster and restores all supplies',()=>{
  const m=new Campaign();m.start();finishStage(m);m.nextStage();
- m.wave=2;m.spawn();assert.ok(m.enemies.some(e=>e.kind==='marshal'));
- m.hero.hp=0;tick(m);m.continueRun();assert.equal(m.stage,1);assert.equal(m.wave,3);assert.ok(m.enemies.some(e=>e.kind==='marshal'));assert.equal(m.supplies.length,1);assert.equal(m.pickups.length,0);
+ m.wave=m.level.waves.length-1;m.spawn();assert.ok(m.enemies.some(e=>e.kind==='marshal'));
+ m.hero.hp=0;tick(m);m.continueRun();assert.equal(m.stage,1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.enemies.some(e=>e.kind==='marshal'));assert.equal(m.supplies.length,1);assert.equal(m.pickups.length,0);
 });
 test('supply crate drops one medicine and healing respects depth, height and HP cap',()=>{
  const m=new Campaign();m.start();const b=m.supplies[0];m.hero.x=b.x-55;m.hero.y=b.y;

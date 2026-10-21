@@ -15,7 +15,7 @@ test('loaded battle advances identically after unpausing',()=>{
 });
 test('terminal and intermission states retain continue rules',()=>{
  const m=make();m.hero.hp=0;m.tick(1/60,{x:0,y:0});const n=restoreSave(captureSave(m));assert.equal(n.status,'lost');assert.ok(n.continueRun());assert.equal(n.continues,1);
- const s=make();s.wave=3;s.enemies=[];s.tick(1/60,{x:0,y:0});assert.ok(restoreSave(captureSave(s)).nextStage());
+ const s=make();s.wave=s.level.waves.length;s.enemies=[];s.tick(1/60,{x:0,y:0});assert.ok(restoreSave(captureSave(s)).nextStage());
 });
 test('schema, malformed files and oversized files rejected',()=>{
  assert.throws(()=>parseSave('not json'));assert.throws(()=>parseSave(' '.repeat(MAX_SAVE_BYTES+1)));

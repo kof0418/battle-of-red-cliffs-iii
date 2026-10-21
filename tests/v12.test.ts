@@ -13,7 +13,7 @@ test('both stage events warn before impact, rotate lanes and stop in boss arenas
  const warning=fieldEvent(0,1,4,0)!;assert.equal(warning.active,false);assert.equal(warning.impactAt,5.4);
  assert.equal(fieldEvent(0,1,5.5,0)?.active,true);assert.equal(fieldEvent(0,1,6,0),null);
  assert.notEqual(fieldEvent(0,1,11,0)?.y,warning.y);
- assert.equal(fieldEvent(1,2,4,0)?.kind,'fire');assert.equal(fieldEvent(1,3,5.4,0),null);
+ assert.equal(fieldEvent(1,2,4,0)?.kind,'fire');assert.equal(fieldEvent(1,6,5.4,0),null);
 });
 test('arrows threaten airborne heroes; fire can be jumped; dodge and lane escape work',()=>{
  const hero={x:300,y:370,z:60,inv:0,hp:160};

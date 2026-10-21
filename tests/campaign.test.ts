@@ -1,3 +1,4 @@
+import {LEVELS} from '../src/levels.ts';
 import { HERO_IDS } from '../src/heroes.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ test('boss alternates readable slam / charge and speeds up at half health',()=>{
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
  const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,970);
  m.hero.hp=80;m.enemies=[];m.tick(1/60,idle);assert.equal(m.hero.hp,115);advance(m,.3);assert.equal(m.hero.hp,115);
- advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
+ advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
 });
 test('zero health loses even if last enemy dies on the same frame',()=>{
  const m=isolated();m.wave=3;m.enemies=[];m.hero.hp=0;m.tick(1/60,idle);assert.equal(m.status,'lost');advance(m,1);assert.equal(m.status,'lost');
@@ -50,5 +51,5 @@ for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal co
   m.tick(1/60,input);
  }
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);
- assert.equal(m.stage,1);assert.equal(m.wave,3);assert.ok(m.score>18000);assert.equal(m.kills,21);
+ assert.equal(m.stage,1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills,LEVELS.flatMap(l=>l.waves.flat()).length);
 });
