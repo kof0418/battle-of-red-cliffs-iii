@@ -2,7 +2,6 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {ProfileStorage,PROFILE_KEY,exportProfile,parseBackup,MAX_BACKUP_BYTES} from '../legacy/profile.ts';
 import {ResumeCountdown} from '../legacy/countdown.ts';
-import {LESSONS} from '../src/experience.ts';
 import {Campaign} from '../src/combat.ts';
 import {captureSave,restoreSave} from '../legacy/save.ts';
 import {fieldEvent,fieldHits} from '../src/battlefield.ts';
@@ -36,5 +35,4 @@ test('resume countdown takes three seconds without advancing the loaded battle',
  const m=new Campaign();m.start();m.time=5.39;const loaded=restoreSave(captureSave(m)),clock=new ResumeCountdown();clock.start();
  for(let i=0;i<179;i++){assert.equal(clock.tick(1/60),false);assert.equal(loaded.time,5.39);assert.equal(loaded.paused,true);}
  clock.tick(1/60);clock.tick(1/60);assert.equal(clock.remaining,0);clock.start();clock.cancel();assert.equal(clock.remaining,0);
- assert.equal(LESSONS.length,6);
 });

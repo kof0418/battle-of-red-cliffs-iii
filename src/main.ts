@@ -5,7 +5,6 @@ import {THROWS} from './throws';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {UserSettings} from './user-settings';
-import {LESSONS} from './experience';
 const profileStorage = new UserSettings();
 import { FixedStep } from './fixed-step';
 import { ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, CONTROL_KEY, VALID_KEYS, parseBindings, remap, keyAction, PadInput, type Bindings, type Action } from './controls';
@@ -19,7 +18,6 @@ let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) 
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let settingsOpen = false;
 let pendingExit:'title'|'select'|null=null;
-let tutorialLaunch=false;
 let titleScreen = true;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
@@ -119,8 +117,7 @@ class Battle extends Phaser.Scene {
     const m = this.model;
     if (settingsOpen || titleScreen) return;
     if (m.status === 'ready') {
-      let seen=false;try{seen=profileStorage.getItem('red-banner-tutorial-v1')==='true';}catch{}
-      if(!seen){tutorialLaunch=true;openSettings();openTutorial();return;}m.start();
+      m.start();
     }
     else if (m.paused) this.resume();
     else if (m.status === 'stage-clear') { m.nextStage(); this.recorded = false; }
@@ -393,12 +390,11 @@ function openSettings() {
   document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
 }
 function closeSettings(resume=true) {
-  pendingExit=null;tutorialLaunch=false;
+  pendingExit=null;
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
   pressed.clear(); held.clear(); keyboardHeld.clear();command.reset(); current().pad.reset(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
-  document.querySelector<HTMLElement>('#tutorial-panel')!.hidden=true;tutorialStep=-1;
   if(resume && current().model.status==='playing' && current().model.paused)current().resume();
   current().draw();settingsReturnFocus?.focus();
 }
@@ -461,14 +457,13 @@ function requestExit(target:'title'|'select'){
  document.querySelector<HTMLButtonElement>('#restart-no')!.focus();
 }
 function cancelExit(){pendingExit=null;document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();}
-function leaveBattle(target:'title'|'select'){pendingExit=null;tutorialLaunch=false;suspend();closeSettings(false);titleScreen=target==='title';current().scene.restart({});}
+function leaveBattle(target:'title'|'select'){pendingExit=null;suspend();closeSettings(false);titleScreen=target==='title';current().scene.restart({});}
 function requestRestart(){requestExit('select');}
 document.querySelector('#restart-yes')!.addEventListener('click',()=>{if(pendingExit)leaveBattle(pendingExit);});
 document.querySelector('#restart-no')!.addEventListener('click',cancelExit);
 function menuControls(){if(pendingExit)return Array.from(document.querySelectorAll<HTMLElement>('#restart-confirm button'));return Array.from(document.querySelectorAll<HTMLElement>('#settings-panel input, #settings-panel select, #settings-panel button, #settings-panel summary')).filter(el=>!el.hasAttribute('disabled')&&el.getClientRects().length>0);}
 function handleMenuPad(actions:Set<string>){
  if(actions.has('jump')){if(pendingExit)cancelExit();else closeSettings();return;}
- if(tutorialStep>=0)for(const action of actions)practice(action);
  const controls=menuControls();if(!controls.length)return;
  let index=controls.indexOf(document.activeElement as HTMLElement);
  if(actions.has('up')||actions.has('down')){index=(Math.max(0,index)+(actions.has('down')?1:controls.length-1))%controls.length;controls[index].focus();controls[index].scrollIntoView({block:'nearest'});}
@@ -486,25 +481,6 @@ function renderHistory(){
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
  }
 }
-let tutorialStep=-1,practiceCount=0;
-function openTutorial(){document.querySelector<HTMLDetailsElement>('#options-details')!.open=true;tutorialStep=0;renderLesson();}
-function renderLesson(){
- const area=document.querySelector<HTMLElement>('#tutorial-panel')!;area.hidden=false;practiceCount=0;
- const lesson=LESSONS[tutorialStep];area.innerHTML=`<h3>${lesson.title}</h3><p>${lesson.text}</p><div class="practice-stage"><span class="practice-hero">將</span><span class="practice-target">敵</span></div><p id="practice-status">這是安全練習，不會改變戰役。可試按移動、攻擊、跳躍與閃身鍵。</p><button id="lesson-next">${tutorialStep===LESSONS.length-1?'完成教學':'下一步'}</button><button id="lesson-skip">略過教學</button>`;
- document.querySelector('#lesson-next')!.addEventListener('click',()=>{if(tutorialStep===LESSONS.length-1)finishTutorial();else{tutorialStep++;renderLesson();}});
- document.querySelector('#lesson-skip')!.addEventListener('click',finishTutorial);
- document.querySelector<HTMLButtonElement>('#lesson-next')!.focus();area.scrollIntoView({block:'start'});
-}
-function finishTutorial(){const launch=tutorialLaunch;try{profileStorage.setItem('red-banner-tutorial-v1','true');}catch{}closeSettings();if(launch&&current().model.status==='ready'){current().model.start();current().draw();}}
-function practice(action:string){
- if(tutorialStep<0||!['up','down','left','right','attack','jump','dodge'].includes(action))return;
- const hero=document.querySelector<HTMLElement>('.practice-hero');if(!hero)return;
- practiceCount++;hero.className=`practice-hero demo-${action}`;
- setText('#practice-status',`${ACTION_LABELS[action as Action]} ✓　已練習 ${practiceCount} 次；完成後可按下一步。`);
-}
-window.addEventListener('keydown',e=>{if(settingsOpen&&tutorialStep>=0&&!e.repeat){const a=keyAction(e.code,bindings);if(a){e.preventDefault();practice(a);}}});
-document.querySelector('#tutorial-open')!.addEventListener('click',openTutorial);
-
 document.querySelector('#title-start')!.addEventListener('click',()=>{titleScreen=false;current().draw();document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
 document.querySelector('#title-settings')!.addEventListener('click',openSettings);
 document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettings());
