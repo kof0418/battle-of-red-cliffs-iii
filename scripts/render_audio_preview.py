@@ -18,7 +18,3 @@ for label,steps in zip(['bamboo','snow','palace'],scores):
  with wave.open(str(out/(label+'.wav')),'wb') as w:
   w.setparams((1,2,rate,0,'NONE','not compressed'));w.writeframes(b''.join(struct.pack('<h',int(max(-.95,min(.95,v))*32767)) for v in audio))
  print(label,'seconds',round(duration,1),'peak',round(peak,3))
-parts=[]
-for id in ['guanyu','zhangfei','zhaoyun','huangzhong','weiyan']:
- with wave.open(str(Path(__file__).resolve().parents[1]/'src/assets/voices'/(id+'.wav')),'rb') as r:parts.append(r.readframes(r.getnframes()));parts.append(bytes(int(rate*.45)*2))
-with wave.open(str(out/'five-hero-cries.wav'),'wb') as w:w.setparams((1,2,rate,0,'NONE','not compressed'));w.writeframes(b''.join(parts))
