@@ -24,8 +24,8 @@ test('aerial escape if attack is not pressed before landing, no invisible held t
 test('paused battle freezes the escape deadline; autoattack does not punch',()=>{
  const {m}=setup();m.tryGrab({x:1,y:0});const time=m.time;m.paused=true;step(m,200);assert.equal(m.time,time);assert(m.grapple);m.paused=false;m.tick(1/60,{...idle,attack:true,grappleAttack:false});assert.equal(m.grapple?.hits,0);
 });
-test('active strikes, range and boss resistance; weakened stunned boss can be grabbed',()=>{
- const {m,e}=setup('guanyu','boss');assert(!m.tryGrab({x:1,y:0}));e.hp=100;e.stun=.2;assert(m.tryGrab({x:1,y:0}));
+test('active strikes and range block grabs; full-health idle bosses can be grabbed',()=>{
+ const {m,e}=setup('guanyu','boss');assert(m.tryGrab({x:1,y:0}));
  const a=setup();a.e.attack={move:'slash',elapsed:.5,duration:1,impact:.5,face:-1,x:428,y:412,hit:false};assert(!a.m.tryGrab({x:1,y:0}));a.e.attack=null;a.e.y=450;assert(!a.m.tryGrab({x:1,y:0}));
 });
 test('walking into enemy grabs; stun or death releases; lethal slam scores only once',()=>{

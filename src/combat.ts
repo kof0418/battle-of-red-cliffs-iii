@@ -1,3 +1,4 @@
+import {WEAPONS,crateLoot,isWeapon,type WeaponId,type LootId} from './loot.ts';
 import {THROWS,type Grapple} from './throws.ts';
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
@@ -33,23 +34,23 @@ export function comboStep(previous: number, last: number, now: number) {
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
 export type Move = 'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
-export interface Supply { id: number; x: number; y: number; hp: number; }
+export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
 }
-export interface Pickup { id: number; x: number; y: number; amount: number; }
+export interface Pickup { id: number; x: number; y: number; amount: number; loot?:LootId; }
 export interface Attack {
-  pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
+  weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  equipped?:{id:WeaponId;uses:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number };
+export type Effect = { type: 'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
@@ -68,6 +69,7 @@ export class Campaign {
   enemies: Fighter[] = [];
   supplies: Supply[] = [];
   pickups: Pickup[] = [];
+  projectiles:{id:number;x:number;y:number;face:number;remaining:number;damage:number}[]=[];
   stage = 0;
   continues = 2;
   continuesUsed = 0;
@@ -119,7 +121,9 @@ export class Campaign {
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= LEVELS.length - 1) return false;
+    const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++; this.wave = 0; this.hero = this.fighter('hero', 180, 412);
+    this.hero.hp=hp;this.hero.equipped=equipped;
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   /** Replay the current wave, rolling back its score and kills to prevent farming. */
@@ -132,7 +136,7 @@ export class Campaign {
     this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   private resetTransient() {
-    this.releaseGrapple(false);
+    this.releaseGrapple(false);this.projectiles=[];
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
@@ -143,8 +147,8 @@ export class Campaign {
     const base = arenaStart(this.wave)+330;
     const kinds = this.level.waves[this.wave - 1];
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 82, 370 + i % 3 * 49));
-    this.supplies = [{ id: ++this.serial, x: base + 240, y: 479, hp: 24 }];
-    this.pickups = [];
+    this.supplies = [{ id: ++this.serial, x: base + 240, y: (this.wave+this.stage)%2?499:354, hp: 24 }];
+    this.pickups = [];this.projectiles=[];
     this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　${this.level.sections[this.wave-1]} · ${this.stage === 0 ? '留意箭雨，移出框線' : this.stage===1?'火船來襲，跳躍避火':'留意伏兵與蓄力攻擊'}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
@@ -203,6 +207,7 @@ export class Campaign {
       }else if (a.elapsed >= a.impact && !a.hit) { a.hit = true; this.resolve(f, a); }
       if (a.elapsed >= a.duration) f.attack = null;
     }
+    this.updateProjectiles(dt);
     this.enemies.forEach((e, i) => this.ai(e, i, dt));
     // Gentle separation prevents enemies occupying exactly the same lane and pixel.
     for (let i = 0; i < this.enemies.length; i++) for (let j = i + 1; j < this.enemies.length; j++) {
@@ -227,7 +232,14 @@ export class Campaign {
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
     this.pickups = this.pickups.filter(p => {
-      if (h.hp >= h.max || !nearPickup(h, p)) return true;
+      if (!nearPickup(h,p)||h.attack||this.grapple||h.stun>0) return true;
+      if(p.loot&&isWeapon(p.loot)){
+        if(h.equipped)return true;
+        h.equipped={id:p.loot,uses:WEAPONS[p.loot].uses};
+        this.message=`拾取${WEAPONS[p.loot].name} · 攻擊使用`;this.messageUntil=this.time+2;
+        this.events.push({type:'equip',x:p.x,y:p.y});return false;
+      }
+      if(h.hp>=h.max)return true;
       const amount = Math.min(p.amount, h.max - h.hp); h.hp += amount;
       this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
     });
@@ -239,16 +251,28 @@ export class Campaign {
       }
       if (this.wave === this.level.waves.length) { this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
       else if (this.clearedAt < 0) {
-        this.clearedAt = this.time; h.hp = Math.min(h.max, h.hp + 35);
-        this.message = `破陣！獎勵 +${this.waveReward} · 氣血 +35　向右前進 →`; this.messageUntil = Infinity;
+        this.clearedAt = this.time;
+        this.message = `破陣！獎勵 +${this.waveReward}　向右前進 →`; this.messageUntil = Infinity;
       } else if (this.time - this.clearedAt > .8 && h.x > (this.arenaEnd-70)) this.spawn();
     }
   }
+  updateProjectiles(dt:number){
+    this.projectiles=this.projectiles.filter(p=>{
+      const distance=Math.min(p.remaining,640*dt),next=p.x+p.face*distance;
+      const target=this.enemies.filter(e=>e.hp>0&&e.z<=38&&Math.abs(e.y-p.y)<22&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12)
+        .sort((a,b)=>(a.x-b.x)*p.face)[0];
+      if(target){
+        if(target.inv<=0){target.inv=.2;target.stun=.32;target.attack=null;target.x=clamp(target.x+p.face*24,25,WORLD_WIDTH-30);this.grappleDamage(target,p.damage);this.freeze=.035;}
+        return false;
+      }
+      p.x=next;p.remaining-=distance;return p.remaining>0&&p.x>=0&&p.x<=WORLD_WIDTH;
+    });
+  }
   tryGrab(input:Input){
     const h=this.hero;if(this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||h.attack||h.z>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
-    // Ordinary enemies can be interrupted during windup, but not on impact or recovery.
+    // Soldiers and bosses can be grabbed during windup, but not on impact or recovery.
     // Filter approach direction before selecting: a closer enemy behind must not block a valid grab.
-    const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!isBoss(e.kind)&&!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=44&&Math.abs(e.y-h.y)<=26&&(!isBoss(e.kind)||(e.hp<=e.max*.5&&e.stun>0))&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
+    const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=44&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
     if(!target)return false;
     h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;target.grapplePose='held';target.face=-h.face;
@@ -335,8 +359,9 @@ export class Campaign {
   swing() {
     const h = this.hero;
     h.step = comboStep(h.step, h.last * 1000, this.time * 1000); h.last = this.time;
-    const s = this.slash(h.step);
-    h.attack = { move: 'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.face, x: h.x, y: h.y };
+    const weapon=h.equipped?.id,s=weapon?WEAPONS[weapon]:this.slash(h.step);
+    if(h.equipped&&--h.equipped.uses<=0)h.equipped=undefined;
+    h.attack = { ...(weapon?{weapon}:{}), move: 'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.face, x: h.x, y: h.y };
     this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
   ai(e: Fighter, index: number, dt: number) {
@@ -367,12 +392,13 @@ export class Campaign {
   resolve(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > 38 && a.move!=='special') return;
-    const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = special?SPECIALS[f.heroId!]:this.slash(f.step);
+    const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
+    if(heroAttack&&a.weapon==='knife'&&!special){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId});
     const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
-    const bow = !special && heroAttack && f.heroId === 'huangzhong';
+    const bow = !a.weapon && !special && heroAttack && f.heroId === 'huangzhong';
     const first = bow && f.step !== 3 ? [...this.enemies, ...this.supplies]
       .filter(t => t.hp > 0 && inRange(a.x, a.y, t.x, t.y, a.face, reach))
       .sort((x, y) => (x.x - y.x) * a.face)[0] : undefined;
@@ -406,7 +432,7 @@ export class Campaign {
         if (box.hp <= 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,box.x,box.y):inRange(a.x,a.y,box.x,box.y,a.face,s.reach))) continue;
         box.hp = Math.max(0, box.hp - s.damage);
         this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });
-        if (!box.hp) this.pickups.push({ id: ++this.serial, x: box.x, y: box.y, amount: 40 });
+        if (!box.hp) {const loot=box.loot??crateLoot(this.stage,this.wave);this.pickups.push({ id: ++this.serial, x: box.x, y: box.y, amount:loot==='bun'?25:loot==='meat'?40:0,loot });}
       }
       this.supplies = this.supplies.filter(box => box.hp > 0);
     }

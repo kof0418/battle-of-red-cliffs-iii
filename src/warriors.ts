@@ -1,3 +1,4 @@
+import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
 import {heroMotion} from './motion';
@@ -102,6 +103,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  poly(cloth,[w-5,-58,w+2,-56,hx+3,hy-3,hx+4,hy+5,hx-3,hy+7,w-7,-49]);
  line(light,2,[w-2,-55,hx-3,hy+2]);
  line(metal,6,[hx-6,hy,hx,hy+2]);line(edge,1,[hx-7,hy-2,hx,hy]);
+ if(heldWeapon(g,f,hx,hy,phase))return;
  if(zhang&&f.attack?.move==='special'){
   line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
  }else if(huang){

@@ -1,3 +1,4 @@
+import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
 /** Original pixel illustration: layered silk, lamellar armour and a sculpted crescent blade. */
@@ -60,6 +61,7 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  const angle=f.attack?angles[phase]:-.25, hx=f.attack?[12,15,25,27,17][phase]:17, hy=f.attack?(f.step===2?-43:-49):-48;
  poly(0x244d35,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
  line(0x779062,2,[14,-57,18,-52,hx,hy+2]);
+ if(heldWeapon(g,f,hx,hy,phase))return;
  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
  g.fillStyle(0x362b20).fillRect(-2,-36,5,87);
  g.fillStyle(0x8e7650).fillRect(-1,-36,2,87);
