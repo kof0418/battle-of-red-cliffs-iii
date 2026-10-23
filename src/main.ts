@@ -36,7 +36,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.3.3';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.3.4';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -291,7 +291,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'閃身 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.3.3\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.3.4\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
     this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！快按攻擊摔下':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
@@ -317,7 +317,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.3.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.3.4 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -343,7 +343,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.3.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.3.4' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血全回復` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 閃身　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);

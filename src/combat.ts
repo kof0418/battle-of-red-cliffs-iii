@@ -45,7 +45,7 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  mounted?:boolean; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -125,9 +125,9 @@ export class Campaign {
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= LEVELS.length - 1) return false;
-    const hp=this.hero.hp,equipped=this.hero.equipped,mounted=this.hero.mounted;
+    const hp=this.hero.hp,equipped=this.hero.equipped,mounted=this.hero.mounted,steed=this.hero.steed;
     this.stage++; this.wave = 0; this.hero = this.fighter('hero', 180, 412);
-    this.hero.hp=hp;this.hero.equipped=equipped;if(mounted)this.hero.mounted=true;
+    this.hero.hp=hp;this.hero.equipped=equipped;if(mounted){this.hero.mounted=true;this.hero.steed=steed;}
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   /** Replay the current wave, rolling back its score and kills to prevent farming. */
@@ -153,7 +153,7 @@ export class Campaign {
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 82, 370 + i % 3 * 49));
     this.supplies = [{ id: ++this.serial, x: base + 240, y: (this.wave+this.stage)%2?499:354, hp: 24 }];
     this.barrels=[{id:++this.serial,x:base+420,y:(this.wave+this.stage)%2?354:499,hp:24,loot:barrelLoot(this.stage,this.wave)}];
-    this.pickups = [];this.projectiles=[];this.horses=[];
+    this.pickups = [];this.projectiles=[];this.horses=this.horses.filter(h=>h.waiting);
     this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title}　${this.level.sections[this.wave-1]} · ${this.stage === 0 ? '留意箭雨，移出框線' : this.stage===1?'火船來襲，跳躍避火':'留意伏兵與蓄力攻擊'}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
@@ -186,7 +186,7 @@ export class Campaign {
       this.message='騎乘必殺 · 斬風刀波！';this.messageUntil=this.time+1.2;
     }
     this.horseQueued=false;
-    if(input.jump&&h.mounted){h.mounted=false;h.mountCooldown=1;h.attack=null;this.message='下馬';this.messageUntil=this.time+1;}
+    if(input.jump&&h.mounted)this.dismount(false);
     const occupied=!!this.grapple;
     if(this.grapple)this.updateGrapple(dt,input);
     if(this.specialQueued){this.specialQueued=false;this.special();}
@@ -237,7 +237,7 @@ export class Campaign {
     if(field && this.time-dt < field.impactAt && this.time >= field.impactAt) {
       this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
       if(fieldHits(field,h)) {
-        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;this.damageEquipment();
+        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;if(h.mounted)this.dismount(true);else this.damageEquipment();
         h.inv=.75;h.stun=.22;h.attack=null;this.hits=0;this.queuedUntil=0;
         this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
       }
@@ -272,6 +272,16 @@ export class Campaign {
       } else if (this.time - this.clearedAt > .8 && h.x > (this.arenaEnd-70)) this.spawn();
     }
   }
+  dismount(hit:boolean){
+    const h=this.hero;if(!h.mounted)return;
+    const horse=h.steed??{id:++this.serial,x:h.x,y:h.y,target:h.x,life:20,moving:false,falls:0};
+    horse.x=h.x;horse.y=h.y;horse.target=h.x;
+    if(hit)horse.falls=(horse.falls??0)+1;
+    horse.fleeing=(horse.falls??0)>=2;horse.waiting=!horse.fleeing;horse.moving=!!horse.fleeing;horse.life=20;
+    this.horses.push(horse);h.steed=undefined;h.mounted=false;h.mountCooldown=hit?1.8:1.2;h.attack=null;this.queuedUntil=0;this.horseQueued=false;
+    if(hit){h.z=28;h.vz=150;h.stun=.8;h.knockdown=.8;}
+    this.message=horse.fleeing?'第二次落馬！馬匹受驚跑走':hit?'落馬！馬匹留在原地，可再次上馬':'下馬，馬匹留在原地等待';this.messageUntil=this.time+3;
+  }
   damageEquipment(){
     const h=this.hero;if(!h.equipped||h.mounted)return;
     h.equipped.hits=(h.equipped.hits??0)+1;
@@ -279,16 +289,16 @@ export class Campaign {
   }
   summonHorses(){
     const start=clamp(this.hero.x-340,0,WORLD_WIDTH-960)+1020;
-    this.horses=[0,1,2].map(i=>({id:++this.serial,x:start+i*100,y:375+i*48,target:clamp(this.hero.x+100-i*65,60,this.arenaEnd-50),life:20,moving:true}));
+    this.horses=[...this.horses.filter(h=>h.waiting),...[0,1,2].map(i=>({id:++this.serial,x:start+i*100,y:375+i*48,target:clamp(this.hero.x+100-i*65,60,this.arenaEnd-50),life:20,moving:true,falls:0}))];
     this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬群自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;
   }
   updateHorses(dt:number){
     const h=this.hero;
     this.horses=this.horses.filter(horse=>{
-      horse.life-=dt;horse.moving=h.mounted===true||horse.x>horse.target;
-      if(horse.moving)horse.x=Math.max(h.mounted?-200:horse.target,horse.x-260*dt);
-      if(!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
-        h.mounted=true;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！攻擊揮刀 · 左右＋攻擊刀波 · 跳躍下馬';this.messageUntil=this.time+4;return false;
+      if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&(h.mounted===true||horse.x>horse.target));
+      if(horse.moving)horse.x=Math.max(h.mounted||horse.fleeing?-200:horse.target,horse.x-260*dt);
+      if(!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
+        h.mounted=true;h.steed=horse;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！攻擊揮刀 · 左右＋攻擊刀波 · 跳躍下馬';this.messageUntil=this.time+4;return false;
       }
       return horse.life>0&&horse.x>-100;
     });
@@ -453,7 +463,7 @@ export class Campaign {
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = f.step === 3 ? .065 : .035;
-      } else { this.damageEquipment();this.waveDamage += actual; this.hits = 0; this.queuedUntil = 0; }
+      } else { if(this.hero.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage += actual; this.hits = 0; this.queuedUntil = 0; }
       this.events.push({ type: 'hit', x: t.x, y: t.y - t.z - 38, value: damage, heavy: f.step === 3 || isBoss(f.kind), ...(heroAttack ? {heroId:f.heroId} : {}) });
       if (!t.hp) {
         this.score += heroAttack ? 100 : 0;
