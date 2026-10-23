@@ -25,9 +25,9 @@ for(const id of HERO_IDS)test(`${id}: mounted glaive and piercing wave damage en
 test('barrels sit at walls and supply both books and gongs',()=>{const seen=new Set();const m=new Campaign();m.start();for(let i=0;i<6;i++){const b=m.barrels[0];assert([354,499].includes(b.y));seen.add(b.loot);if(i<5)m.spawn();}assert.deepEqual([...seen].sort(),['book','gong']);});
 test('voluntary dismount waits indefinitely and preserves fall count across remounts',()=>{
  const m=setup();m.hero.mounted=true;m.dismount(false);const horse=m.horses[0];assert(horse.waiting);assert.equal(horse.falls,0);const x=horse.x;m.updateHorses(40);assert.equal(m.horses[0].x,x);
- m.hero.mountCooldown=0;m.updateHorses(0);assert(m.hero.mounted);assert.equal(m.hero.steed,horse);m.dismount(true);assert.equal(horse.falls,1);assert(horse.waiting);
- m.hero.mountCooldown=0;m.hero.z=0;m.hero.stun=0;m.updateHorses(0);assert(m.hero.mounted);m.dismount(false);assert.equal(horse.falls,1);
- m.hero.mountCooldown=0;m.updateHorses(0);m.dismount(true);assert.equal(horse.falls,2);assert(horse.fleeing);m.hero.mountCooldown=0;m.hero.z=0;m.hero.stun=0;m.updateHorses(0);assert(!m.hero.mounted);m.updateHorses(3);assert(!m.horses.includes(horse));
+ m.hero.x+=80;m.updateHorses(0);m.hero.x-=80;m.hero.mountCooldown=0;m.updateHorses(0);assert(m.hero.mounted);assert.equal(m.hero.steed,horse);m.dismount(true);assert.equal(horse.falls,1);assert(horse.waiting);
+ m.hero.x+=80;m.updateHorses(0);m.hero.x-=80;m.hero.mountCooldown=0;m.hero.z=0;m.hero.stun=0;m.updateHorses(0);assert(m.hero.mounted);m.dismount(false);assert.equal(horse.falls,1);
+ m.hero.x+=80;m.updateHorses(0);m.hero.x-=80;m.hero.mountCooldown=0;m.updateHorses(0);m.dismount(true);assert.equal(horse.falls,2);assert(horse.fleeing);m.hero.x+=80;m.updateHorses(0);m.hero.x-=80;m.hero.mountCooldown=0;m.hero.z=0;m.hero.stun=0;m.updateHorses(0);assert(!m.hero.mounted);m.updateHorses(3);assert(!m.horses.includes(horse));
 });
 test('enemy damaging hit throws rider; invulnerability prevents false falls',()=>{
  const m=setup();m.hero.mounted=true;const e=m.fighter('heavy',420,412);const a:Attack={move:'slash',elapsed:0,duration:1,impact:0,hit:false,face:-1,x:420,y:412};

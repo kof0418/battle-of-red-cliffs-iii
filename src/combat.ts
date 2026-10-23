@@ -72,7 +72,7 @@ export class Campaign {
   barrels:Supply[]=[];
   horses:Horse[]=[];
   pickups: Pickup[] = [];
-  projectiles:{id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;hits?:number[]}[]=[];
+  projectiles:{id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;piercing?:boolean;push?:number;hits?:number[]}[]=[];
   stage = 0;
   continues = 2;
   continuesUsed = 0;
@@ -284,7 +284,7 @@ export class Campaign {
     const horse=h.steed??{id:++this.serial,x:h.x,y:h.y,target:h.x,life:20,moving:false,falls:0};
     horse.x=h.x;horse.y=h.y;horse.target=h.x;
     if(hit)horse.falls=(horse.falls??0)+1;
-    horse.fleeing=(horse.falls??0)>=2;horse.waiting=!horse.fleeing;horse.moving=!!horse.fleeing;horse.life=20;
+    horse.fleeing=(horse.falls??0)>=2;horse.waiting=!horse.fleeing;horse.awaitSeparation=true;horse.moving=!!horse.fleeing;horse.life=20;
     this.horses.push(horse);h.steed=undefined;h.mounted=false;h.mountCooldown=hit?1.8:1.2;h.attack=null;this.queuedUntil=0;this.horseQueued=false;
     if(hit){h.z=28;h.vz=150;h.stun=.8;h.knockdown=.8;}
     this.message=horse.fleeing?'第二次落馬！馬匹受驚跑走':hit?'落馬！馬匹留在原地，可再次上馬':'下馬，馬匹留在原地等待';this.messageUntil=this.time+3;
@@ -304,7 +304,8 @@ export class Campaign {
     this.horses=this.horses.filter(horse=>{
       if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&(h.mounted===true||horse.x>horse.target));
       if(horse.moving)horse.x=Math.max(h.mounted||horse.fleeing?-200:horse.target,horse.x-260*dt);
-      if(!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
+      if(horse.awaitSeparation&&(Math.abs(horse.x-h.x)>60||Math.abs(horse.y-h.y)>36))horse.awaitSeparation=false;
+      if(!horse.awaitSeparation&&!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
         h.mounted=true;h.steed=horse;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！攻擊揮刀 · 左右＋攻擊刀波 · 跳躍下馬';this.messageUntil=this.time+4;return false;
       }
       return horse.life>0&&horse.x>-100;
@@ -312,16 +313,26 @@ export class Campaign {
   }
   updateProjectiles(dt:number){
     this.projectiles=this.projectiles.filter(p=>{
-      const distance=Math.min(p.remaining,(p.wave?560:640)*dt),next=p.x+p.face*distance;
-      const targets=this.enemies.filter(e=>e.hp>0&&e.z<=38&&Math.abs(e.y-p.y)<(p.wave?38:22)&&!p.hits?.includes(e.id)&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12)
-        .sort((a,b)=>(a.x-b.x)*p.face);
-      for(const target of targets){
+      const distance=Math.min(p.remaining,(p.arrow?850:p.wave?560:640)*dt),next=p.x+p.face*distance;
+      const targets:(Fighter|Supply)[]=[...this.enemies,...(p.arrow?[...this.supplies,...this.barrels]:[])];
+      const contacts=targets.filter(e=>e.hp>0&&(!('z' in e)||e.z<=38)&&Math.abs(e.y-p.y)<(p.wave?38:22)&&!p.hits?.includes(e.id)&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12).sort((a,b)=>(a.x-b.x)*p.face);
+      for(const target of contacts){
         (p.hits??=[]).push(target.id);
-        if(target.inv<=0){target.inv=.2;target.stun=p.wave?.55:.32;target.attack=null;target.x=clamp(target.x+p.face*(p.wave?40:24),25,WORLD_WIDTH-30);this.grappleDamage(target,p.damage);this.freeze=.035;}
-        if(!p.wave)return false;
+        if(!('kind' in target)){
+          target.hp=Math.max(0,target.hp-p.damage);this.events.push({type:'crate',x:target.x,y:target.y-12});
+          if(!target.hp){const loot=target.loot??crateLoot(this.stage,this.wave);this.pickups.push({id:++this.serial,x:target.x,y:target.y,loot,amount:loot==='bun'?25:loot==='meat'?40:0});}
+        }else if(target.inv<=0){
+          target.inv=.2;
+          if(!p.arrow||!isBoss(target.kind)){target.stun=p.wave?.55:.32;target.attack=null;}
+          target.x=clamp(target.x+p.face*(p.push??(p.wave?40:24)),25,WORLD_WIDTH-30);
+          if(p.arrow)this.score+=Math.floor(Math.min(target.hp,p.damage)*Math.min(this.hits,20)*.5);
+          this.grappleDamage(target,p.damage);this.freeze=p.piercing?.065:.035;
+        }
+        if(!p.wave&&!p.piercing)return false;
       }
       p.x=next;p.remaining-=distance;return p.remaining>0&&p.x>=0&&p.x<=WORLD_WIDTH;
     });
+    this.supplies=this.supplies.filter(b=>b.hp>0);this.barrels=this.barrels.filter(b=>b.hp>0);
   }
   tryGrab(input:Input){
     const h=this.hero;if(h.mounted||this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||h.attack||h.z>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
@@ -454,12 +465,8 @@ export class Campaign {
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !f.mounted && !a.weapon && !special && heroAttack && f.heroId === 'huangzhong';
-    const first = bow && f.step !== 3 ? [...this.enemies, ...this.supplies,...this.barrels]
-      .filter(t => t.hp > 0 && inRange(a.x, a.y, t.x, t.y, a.face, reach))
-      .sort((x, y) => (x.x - y.x) * a.face)[0] : undefined;
-    if (bow) this.events.push({ type: 'arrow', x: a.x, y: a.y - 40, value: a.face * (first ? Math.abs(first.x - a.x) : reach), heavy: f.step === 3 });
+    if(bow){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
-      if (bow && first && t.id !== first.id) continue;
       if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):attackHits(a, t, reach))) continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
@@ -483,7 +490,6 @@ export class Campaign {
     }
     if (heroAttack) {
       for (const box of [...this.supplies,...this.barrels]) {
-        if (bow && first && box.id !== first.id) continue;
         if (box.hp <= 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,box.x,box.y):inRange(a.x,a.y,box.x,box.y,a.face,s.reach))) continue;
         box.hp = Math.max(0, box.hp - s.damage);
         this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });

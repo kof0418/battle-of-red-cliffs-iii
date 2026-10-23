@@ -20,20 +20,20 @@ test('heroes have different actual movement, hit damage and timing',()=>{
  const a=new Campaign('zhangfei'),b=new Campaign('zhaoyun');a.start();b.start();
  a.tick(.03,{x:1,y:0});b.tick(.03,{x:1,y:0});assert.ok(b.hero.x>a.hero.x);
  assert.ok(a.slash(3).damage>b.slash(3).damage);assert.ok(a.slash(1).duration>b.slash(1).duration);
- const hits=HERO_IDS.map(id=>{const m=new Campaign(id);m.start();m.enemies=[m.fighter('heavy',230,412)];m.swing();m.resolve(m.hero,m.hero.attack!);return 90-m.enemies[0].hp;});
+ const hits=HERO_IDS.map(id=>{const m=new Campaign(id);m.start();m.enemies=[m.fighter('heavy',230,412)];m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);return 90-m.enemies[0].hp;});
  assert.deepEqual(hits,[17,22,14,14,18,20]);
 });
 test('Huang Zhong arrows hit the nearest target, respect lanes, and third shot pierces',()=>{
  const m=new Campaign('huangzhong');m.start();m.supplies=[];
  const front=m.fighter('heavy',350,412),back=m.fighter('heavy',420,412),off=m.fighter('heavy',300,465);
- m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);
- assert.ok(front.hp<90);assert.equal(back.hp,90);assert.equal(off.hp,90);assert.ok(m.events.some(e=>e.type==='arrow'));
- front.inv=0;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);
+ m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,90);m.updateProjectiles(.3);
+ assert.ok(front.hp<90);assert.equal(back.hp,90);assert.equal(off.hp,90);assert.equal(m.projectiles.length,0);
+ front.inv=0;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.4);
  assert.ok(back.hp<90);assert.equal(off.hp,90);
 });
 test('a crate blocks ordinary arrows and can be destroyed from range',()=>{
  const m=new Campaign('huangzhong');m.start();const box=m.supplies[0];box.x=300;box.y=412;
- const e=m.fighter('heavy',400,412);m.enemies=[e];m.swing();m.resolve(m.hero,m.hero.attack!);
+ const e=m.fighter('heavy',400,412);m.enemies=[e];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(box.hp,24);m.updateProjectiles(.2);
  assert.ok(box.hp<24);assert.equal(e.hp,90);
- m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(m.supplies.length,0);assert.equal(m.pickups.length,1);
+ m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);assert.equal(m.supplies.length,0);assert.equal(m.pickups.length,1);
 });
