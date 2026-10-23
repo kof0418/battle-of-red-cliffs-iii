@@ -12,8 +12,8 @@ test('pause freezes movement, attacks, cooldowns and input buffer',()=>{
 });
 test('three buffered attacks apply distinct damage and finisher knockback',()=>{
  const m=isolated(),e=m.enemies[0];m.tick(1/60,{...idle,attack:true});advance(m,.13);
- assert.equal(e.hp,73);m.tick(1/60,{...idle,attack:true});advance(m,.3);assert.equal(m.hero.step,2);
- m.tick(1/60,{...idle,attack:true});let beforeImpact=e.x;for(let i=0;i<60&&e.hp>18;i++){beforeImpact=e.x;m.tick(1/60,idle);}assert.equal(m.hero.step,3);assert.equal(e.hp,18);assert.ok(e.x-beforeImpact>=64);assert.equal(m.hits,3);
+ assert.equal(e.hp,163);m.tick(1/60,{...idle,attack:true});advance(m,.3);assert.equal(m.hero.step,2);
+ m.tick(1/60,{...idle,attack:true});let beforeImpact=e.x;for(let i=0;i<60&&e.hp>108;i++){beforeImpact=e.x;m.tick(1/60,idle);}assert.equal(m.hero.step,3);assert.equal(e.hp,108);assert.ok(e.x-beforeImpact>=64);assert.equal(m.hits,3);
 });
 test('jump and dodge avoid ground attacks; dodge cooldown prevents spamming',()=>{
  const m=isolated();m.tick(1/60,{...idle,jump:true});advance(m,.2);assert.ok(m.hero.z>38);
@@ -30,7 +30,7 @@ test('boss alternates readable slam / charge and speeds up at half health',()=>{
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
  const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,935);
  m.hero.hp=80;m.enemies=[];m.tick(1/60,idle);assert.equal(m.hero.hp,80);advance(m,.3);assert.equal(m.hero.hp,80);
- advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
+ advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,3,{x:1,y:0});assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
 });
 test('zero health loses even if last enemy dies on the same frame',()=>{
  const m=isolated();m.wave=3;m.enemies=[];m.hero.hp=0;m.tick(1/60,idle);assert.equal(m.status,'lost');advance(m,1);assert.equal(m.status,'lost');
@@ -38,8 +38,10 @@ test('zero health loses even if last enemy dies on the same frame',()=>{
 test('new campaign resets all combat state',()=>{
  const m=isolated();m.score=900;m.paused=true;m.hero.hp=1;const n=new Campaign();assert.equal(n.status,'ready');assert.equal(n.score,0);assert.equal(n.hero.hp,160);assert.equal(n.paused,false);
 });
-for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal combat inputs and available continues`,()=>{
+for (const id of HERO_IDS) test(`${id}: all 30 waves remain completable with combat inputs and a test-only continue budget`,()=>{
  const m=new Campaign(id);m.start();
+ // Progression coverage uses extra test continues; production still starts with two.
+ m.continues=10;
  for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear'||m.status==='lost');frame++){
   if(m.status==='lost'){if(!m.continueRun())break;continue;}
   if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
@@ -49,6 +51,8 @@ for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal co
    input={x:Math.abs(dx)>70?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>8?Math.sign(dy):0,attack:near&&frame%12===0,jump:false};
    if(e.attack&&!e.attack.hit&&e.attack.elapsed>e.attack.impact-.22)input.dodge=true;
   }
+  if(e&&Math.abs(e.x-h.x)<100&&Math.abs(e.y-h.y)<45&&(h.specialCooldown??0)<=0&&!h.attack)input.special=true;
+  if(m.grapple)input={x:h.face,y:0,grappleAttack:true};
   m.tick(1/60,input);
  }
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);

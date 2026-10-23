@@ -21,11 +21,11 @@ test('food stays at full health; weapons pick up at full health and do not heal 
  m.hero.hp=100;tick(m);assert.equal(m.hero.hp,140);assert.equal(m.pickups.length,1);
 });
 test('all five heroes use picked melee weapons, including Huang Zhong; swings do not consume durability',()=>{
- for(const id of HERO_IDS)for(const weapon of ['hammer','sword','axe'] as WeaponId[]){const m=setup();m.hero.heroId=id;m.hero.equipped={id:weapon,uses:1};const e=m.fighter('heavy',470,412);m.enemies=[e];m.swing();assert.equal(m.hero.equipped?.id,weapon);m.resolve(m.hero,m.hero.attack!);assert.equal(e.hp,90-WEAPONS[weapon].damage);assert(!m.events.some(e=>e.type==='arrow'));assert.equal(m.hero.attack?.weapon,weapon);}
+ for(const id of HERO_IDS)for(const weapon of ['hammer','sword','axe'] as WeaponId[]){const m=setup();m.hero.heroId=id;m.hero.equipped={id:weapon,uses:1};const e=m.fighter('heavy',470,412);m.enemies=[e];m.swing();assert.equal(m.hero.equipped?.id,weapon);m.resolve(m.hero,m.hero.attack!);assert.equal(e.hp,180-WEAPONS[weapon].damage);assert(!m.events.some(e=>e.type==='arrow'));assert.equal(m.hero.attack?.weapon,weapon);}
 });
 test('knife travels before hitting, strikes nearest target once, respects lanes and pause',()=>{
- for(const face of [-1,1]){const m=setup();m.hero.face=face;m.hero.equipped={id:'knife',uses:1};const front=m.fighter('heavy',400+face*150,412),back=m.fighter('heavy',400+face*230,412),off=m.fighter('heavy',400+face*80,460);m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,90);assert.equal(m.projectiles.length,1);m.hero.attack=null;
- const x=m.projectiles[0].x;m.paused=true;tick(m,20);assert.equal(m.projectiles[0].x,x);m.paused=false;tick(m,20);assert.equal(front.hp,52);assert.equal(back.hp,90);assert.equal(off.hp,90);assert.equal(m.projectiles.length,0);}
+ for(const face of [-1,1]){const m=setup();m.hero.face=face;m.hero.equipped={id:'knife',uses:1};const front=m.fighter('heavy',400+face*150,412),back=m.fighter('heavy',400+face*230,412),off=m.fighter('heavy',400+face*80,460);m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,180);assert.equal(m.projectiles.length,1);m.hero.attack=null;
+ const x=m.projectiles[0].x;m.paused=true;tick(m,20);assert.equal(m.projectiles[0].x,x);m.paused=false;tick(m,20);assert.equal(front.hp,142);assert.equal(back.hp,180);assert.equal(off.hp,180);assert.equal(m.projectiles.length,0);}
 });
 test('all heroes can grab and throw all five full-health bosses, with post-throw cooldown',()=>{
  for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:1,y:0,grappleAttack:true});tick(m,42);assert.equal(m.grapple,null);assert(e.hp<e.max);assert((e.grappleCooldown??0)>0);}
@@ -37,5 +37,5 @@ test('all bosses support immediate aerial throws; active attacks still cannot be
  for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];e.attack={move:'slam',x:428,y:412,face:-1,elapsed:.7,impact:.7,duration:1.2,hit:false};assert(!m.tryGrab({x:1,y:0}));e.attack.elapsed=.1;assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{...idle,jump:true});tick(m,8);assert(e.z>m.hero.z&&m.hero.z>0);m.tick(1/60,{...idle,grappleAttack:true});tick(m,42);assert.equal(m.grapple,null);assert.equal(e.z,0);assert(e.hp<e.max);}
 });
 test('knives expire at maximum range, cannot hit high targets and cannot damage twice',()=>{
- const m=setup();m.enemies=[];const e=m.fighter('heavy',480,412);e.z=70;m.enemies=[e];m.projectiles=[{id:900,x:420,y:412,face:1,remaining:620,damage:38}];m.updateProjectiles(.1);assert.equal(e.hp,90);for(let i=0;i<10;i++)m.updateProjectiles(.1);assert.equal(m.projectiles.length,0);
+ const m=setup();m.enemies=[];const e=m.fighter('heavy',480,412);e.z=70;m.enemies=[e];m.projectiles=[{id:900,x:420,y:412,face:1,remaining:620,damage:38}];m.updateProjectiles(.1);assert.equal(e.hp,180);for(let i=0;i<10;i++)m.updateProjectiles(.1);assert.equal(m.projectiles.length,0);
 });

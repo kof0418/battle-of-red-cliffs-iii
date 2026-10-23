@@ -33,9 +33,9 @@ for(const id of HERO_IDS)test(`${id}: high jumps cannot hit ground foes or crate
  const m=new Campaign(id);m.start();m.hero.z=65;
  m.enemies=[m.fighter('heavy',230,412)];m.supplies=[{id:999,x:240,y:412,hp:24}];
  m.swing();m.resolve(m.hero,m.hero.attack!);
- assert.equal(m.enemies[0].hp,90);assert.equal(m.supplies[0].hp,24);
+ assert.equal(m.enemies[0].hp,180);assert.equal(m.supplies[0].hp,24);
  assert.equal(attackHits({...m.hero.attack!,face:-1,x:230},m.hero,90),false);
- m.hero.z=0;m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.1);assert.ok(m.enemies[0].hp<90);
+ m.hero.z=0;m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.1);assert.ok(m.enemies[0].hp<180);
 });
 test('landing interrupts attacks and prevents immediate repeated jumps; recovery survives saves',()=>{
  const m=new Campaign();m.start();m.hero.z=1;m.hero.vz=-100;m.swing();

@@ -28,7 +28,7 @@ test('unknown imported properties cannot override model methods',()=>{
  const s=parseSave(mutate(s=>{s.run.tick='bad';s.run.__proto__={polluted:true};s.run.hero.extra='ignored';}));const n=restoreSave(s);assert.equal(typeof n.tick,'function');assert.equal((n.hero as any).extra,undefined);assert.equal(({} as any).polluted,undefined);
 });
 test('snapshot is independent of later game mutations',()=>{
- const m=make(),s=captureSave(m);m.hero.hp=1;m.enemies[0].hp=1;assert.equal(s.run.hero.hp,160);assert.equal(s.run.enemies[0].hp,48);
+ const m=make(),s=captureSave(m);m.hero.hp=1;m.enemies[0].hp=1;assert.equal(s.run.hero.hp,160);assert.equal(s.run.enemies[0].hp,96);
 });
 test('restored ids stay unique across new waves',()=>{
  const m=restoreSave(captureSave(make()));m.paused=false;m.spawn();const ids=[m.hero,...m.enemies,...m.supplies].map(x=>x.id);assert.equal(new Set(ids).size,ids.length);
