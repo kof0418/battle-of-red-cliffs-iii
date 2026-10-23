@@ -33,6 +33,7 @@ export class Soundtrack {
  private preferences: Preferences = { ...DEFAULT_PREFERENCES };
  private notes = new Set<OscillatorNode>();
  private impactUntil=0;
+ private lastHit=-Infinity;
  private beat = 0;
  private next = 0;
  private theme = '';
@@ -74,6 +75,13 @@ export class Soundtrack {
   const v=weaponVoice(id,hit,heavy);
   this.note(v.pitch,this.context.currentTime,v.duration,v.gain,v.type,this.effects,false,v.end);
   if(hit)this.note(heavy?54:90,this.context.currentTime,.09,.08,'sine',this.effects,false,35);
+ }
+ hitImpact(heavy=false) {
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
+  const now=ctx.currentTime;if(now-this.lastHit<.035)return;this.lastHit=now;
+  this.note(heavy?155:210,now,heavy?.19:.12,.19,'sine',this.effects,false,42);
+  this.note(heavy?510:760,now,.045,.055,'square',this.effects,false,120);
+  this.note(heavy?1240:1680,now,.065,.04,'triangle',this.effects,false,330);
  }
  effect(frequency: number, duration: number) {
   if (!this.context || !this.effects || this.preferences.muted) return;

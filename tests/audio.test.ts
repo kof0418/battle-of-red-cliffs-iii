@@ -20,7 +20,8 @@ test('music starts only after unlock, pauses scheduled voices, resumes and appli
   const weaponCount=nodes.length;a.weapon('huangzhong');a.weapon('zhangfei',true,true);assert.equal(nodes.length,weaponCount+3);
   a.specialImpact('guanyu');assert.equal(nodes.length,weaponCount+10);assert.ok(buses[0].gain.value<.2);a.pause();assert.ok(nodes.every(n=>n.stopped));
   for(const stage of [2,3,4]){const before=nodes.length;a.update(stage,true,true);assert(nodes.length>before);a.pause();}
+  const impactCount=nodes.length;a.hitImpact(true);assert.equal(nodes.length,impactCount+3);a.hitImpact();assert.equal(nodes.length,impactCount+3);
   a.configure({...DEFAULT_PREFERENCES,muted:true});assert.equal(buses[0].gain.value,0);assert.equal(buses[1].gain.value,0);
-  const mutedCount=nodes.length;a.weapon('guanyu',true);a.specialImpact('zhangfei');assert.equal(nodes.length,mutedCount);
+  const mutedCount=nodes.length;a.weapon('guanyu',true);a.specialImpact('zhangfei');a.hitImpact();assert.equal(nodes.length,mutedCount);
  }finally{Object.defineProperty(globalThis,'AudioContext',{value:original,configurable:true,writable:true});}
 });

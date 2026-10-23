@@ -54,3 +54,8 @@ for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal co
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);
  assert.equal(m.stage,LEVELS.length-1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills,LEVELS.flatMap(l=>l.waves.flat()).length);
 });
+test('hit streak starts at one, refreshes on enemy contact, expires and pauses with combat',()=>{
+ const m=isolated();const e=m.enemies[0];m.grappleDamage(e,1);assert.equal(m.hits,1);
+ advance(m,1);m.grappleDamage(e,1);assert.equal(m.hits,2);m.paused=true;advance(m,3);assert.equal(m.hits,2);m.paused=false;
+ advance(m,1.8);assert.equal(m.hits,0);m.grappleDamage(e,1);assert.equal(m.hits,1);assert.equal(m.bestCombo,2);
+});
