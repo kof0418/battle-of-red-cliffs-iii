@@ -20,8 +20,8 @@ test('food stays at full health; weapons pick up at full health and do not heal 
  m.pickups.push({id:802,x:400,y:412,amount:0,loot:'axe'});tick(m);assert.equal(m.hero.equipped?.id,'sword');assert.equal(m.pickups.length,2);
  m.hero.hp=100;tick(m);assert.equal(m.hero.hp,140);assert.equal(m.pickups.length,1);
 });
-test('all five heroes use picked melee weapons, including Huang Zhong; final use still hits',()=>{
- for(const id of HERO_IDS)for(const weapon of ['hammer','sword','axe'] as WeaponId[]){const m=setup();m.hero.heroId=id;m.hero.equipped={id:weapon,uses:1};const e=m.fighter('heavy',470,412);m.enemies=[e];m.swing();assert.equal(m.hero.equipped,undefined);m.resolve(m.hero,m.hero.attack!);assert.equal(e.hp,90-WEAPONS[weapon].damage);assert(!m.events.some(e=>e.type==='arrow'));assert.equal(m.hero.attack?.weapon,weapon);}
+test('all five heroes use picked melee weapons, including Huang Zhong; swings do not consume durability',()=>{
+ for(const id of HERO_IDS)for(const weapon of ['hammer','sword','axe'] as WeaponId[]){const m=setup();m.hero.heroId=id;m.hero.equipped={id:weapon,uses:1};const e=m.fighter('heavy',470,412);m.enemies=[e];m.swing();assert.equal(m.hero.equipped?.id,weapon);m.resolve(m.hero,m.hero.attack!);assert.equal(e.hp,90-WEAPONS[weapon].damage);assert(!m.events.some(e=>e.type==='arrow'));assert.equal(m.hero.attack?.weapon,weapon);}
 });
 test('knife travels before hitting, strikes nearest target once, respects lanes and pause',()=>{
  for(const face of [-1,1]){const m=setup();m.hero.face=face;m.hero.equipped={id:'knife',uses:1};const front=m.fighter('heavy',400+face*150,412),back=m.fighter('heavy',400+face*230,412),off=m.fighter('heavy',400+face*80,460);m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,90);assert.equal(m.projectiles.length,1);m.hero.attack=null;

@@ -1,3 +1,4 @@
+import {drawGlaive} from './horse-art';
 import type Phaser from 'phaser';
 import type {WeaponId,LootId} from './loot';
 import type {Fighter} from './combat';
@@ -17,6 +18,7 @@ export function drawWeapon(g:Phaser.GameObjects.Graphics,id:WeaponId,x:number,y:
  g.restore();
 }
 export function heldWeapon(g:Phaser.GameObjects.Graphics,f:Fighter,x:number,y:number,phase:number){
+ if(f.mounted){drawGlaive(g,x,y,phase,!!f.attack);return true;}
  const id=f.attack?.weapon??f.equipped?.id;if(!id||f.attack?.move==='special')return false;
  const angle=f.attack?[-1.15,-.8,.1,.7,-.3][phase]:-.6;
  drawWeapon(g,id,x,y,1,angle);
@@ -26,7 +28,12 @@ export function heldWeapon(g:Phaser.GameObjects.Graphics,f:Fighter,x:number,y:nu
 }
 export function drawLoot(g:Phaser.GameObjects.Graphics,id:LootId,x:number,y:number){
  g.fillStyle(0xf4d181,.16).fillEllipse(x,y+11,42,14);
- if(id==='meat'){
+ if(id==='book'){
+  g.fillStyle(0x263e49).fillRect(x-16,y-12,32,24);g.fillStyle(0xe4d3a2).fillRect(x-12,y-9,25,19);g.fillStyle(0x496b79).fillRect(x-15,y-12,5,24);
+  g.lineStyle(2,0x9f7950);for(let i=0;i<3;i++)g.lineBetween(x-5,y-5+i*5,x+9,y-5+i*5);
+ }else if(id==='gong'){
+  g.lineStyle(2,0xc4a15d).strokeEllipse(x,y-9,18,13);g.fillStyle(0x91612a).fillCircle(x,y+2,16);g.fillStyle(0xe3bc64).fillCircle(x,y,14);g.lineStyle(2,0x9a672a).strokeCircle(x,y,10);g.fillStyle(0xf5d583).fillCircle(x,y,5);
+ }else if(id==='meat'){
   g.lineStyle(7,0xe7dbc0).lineBetween(x+1,y+2,x+18,y+10);g.fillStyle(0xf4ead4).fillCircle(x+19,y+8,5).fillCircle(x+16,y+13,5);
   g.fillStyle(0x703529).fillEllipse(x-5,y-1,31,24);g.fillStyle(0xb56536).fillEllipse(x-7,y-4,25,18);g.fillStyle(0xe2a35b).fillRect(x-15,y-9,11,4);
   g.lineStyle(2,0x6e3928).lineBetween(x-8,y-10,x-3,y+3).lineBetween(x-1,y-8,x+4,y+3);

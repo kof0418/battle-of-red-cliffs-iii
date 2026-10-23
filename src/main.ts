@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {drawHorse} from './horse-art';
 import {drawLoot,drawWeapon} from './loot-art';
 import {WEAPONS} from './loot';
 import {WORLD_WIDTH,LEVELS} from './levels';
@@ -35,7 +36,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.3.2';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.3.3';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -43,7 +44,8 @@ import { drawBackground } from './background';
 
 const held = new Set<string>(), pressed = new Set<string>();
 const command=new CommandInput();
-function queueAction(action:string){const m=current()?.model;if(m?.grapple){command.reset();if(action==='attack'){const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));if(keys.includes('left')||held.has('left'))pressed.add('throw-left');else if(keys.includes('right')||held.has('right'))pressed.add('throw-right');}pressed.add(action);return;}if(m?.status==='playing'&&!m.paused&&!settingsOpen&&command.press(action,performance.now()))pressed.add('command-special');else pressed.add(action);}
+const horseCommand=new CommandInput('left','right');
+function queueAction(action:string){const m=current()?.model;if(m?.grapple){command.reset();horseCommand.reset();if(action==='attack'){const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));if(keys.includes('left')||held.has('left'))pressed.add('throw-left');else if(keys.includes('right')||held.has('right'))pressed.add('throw-right');}pressed.add(action);return;}if(m?.status==='playing'&&!m.paused&&!settingsOpen&&(m.hero.mounted?horseCommand:command).press(action,performance.now()))pressed.add(m.hero.mounted?'horse-special':'command-special');else pressed.add(action);}
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
 function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v14loot')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
@@ -66,7 +68,7 @@ class Battle extends Phaser.Scene {
     this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
     this.autoAttackAt = 0;setText('#command-feedback','');
     document.querySelector('#sound')!.textContent = `聲音：${muted ? '關' : '開'}`;
-    held.clear(); pressed.clear();command.reset();
+    held.clear(); pressed.clear();command.reset();horseCommand.reset();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, 540);
     this.supplies = this.add.graphics().setDepth(349.5);
     this.danger = this.add.graphics().setDepth(349);
@@ -105,6 +107,7 @@ class Battle extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
+      if(preview==='horses'){this.model.start();this.model.hero.x=450;this.model.hero.mounted=true;this.model.enemies=[];this.model.pickups=[{id:800,x:300,y:475,amount:0,loot:'book'},{id:801,x:380,y:475,amount:0,loot:'gong'}];this.model.summonHorses();this.model.paused=true;}
       if(preview==='loot'){this.model.start();this.model.hero.x=450;this.model.hero.equipped={id:'axe',uses:14};this.model.supplies=[{id:700,x:300,y:354,hp:24},{id:701,x:720,y:499,hp:24}];this.model.pickups=(['meat','bun','knife','sword','hammer','axe'] as const).map((loot,i)=>({id:710+i,x:250+i*100,y:475,amount:loot==='meat'?40:loot==='bun'?25:0,loot}));this.model.enemies=[];this.model.paused=true;}
       if(preview==='grapple'||preview==='grapple-collision'){document.body.classList.add('touch-controls');this.model.start();this.model.hero.x=400;this.model.hero.y=412;const e=this.model.fighter('heavy',428,412);e.cooldown=10;this.model.enemies=[e];this.model.supplies=[];if(preview==='grapple-collision'){for(const offset of [55,90]){const t=this.model.fighter('heavy',400+offset,412);t.stun=10;this.model.enemies.push(t);}}this.model.tryGrab({x:1,y:0});this.model.paused=true;}
       if(preview==='expanded'||preview==='expanded-river'){this.model.stage=preview==='expanded-river'?1:0;this.model.wave=3;this.model.status='playing';this.model.spawn();this.model.hero.x=2950;this.model.paused=true;}
@@ -156,7 +159,7 @@ class Battle extends Phaser.Scene {
     const input: Input = {
       x: Number(this.actionDown('right') || pad.held.has('right') || held.has('right')) - Number(this.actionDown('left') || pad.held.has('left') || held.has('left')),
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
-      throwX: pressed.delete('throw-left')?-1:pressed.delete('throw-right')?1:undefined, grappleAttack: pressed.has('attack'), attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('command-special'),
+      throwX: pressed.delete('throw-left')?-1:pressed.delete('throw-right')?1:undefined, grappleAttack: pressed.has('attack'), attack: pressed.delete('attack') || autoAttack, jump: pressed.delete('jump'), dodge: pressed.delete('dodge'), special: pressed.delete('command-special'),horseSpecial:pressed.delete('horse-special'),
     };
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
       m.tick(dt, stepInput);
@@ -177,7 +180,12 @@ class Battle extends Phaser.Scene {
     this.draw();
   }
   effect(e: Effect) {
-    if(e.type==='grapple-hit'||e.type==='grab-air'){setText('#command-feedback',e.type==='grab-air'?'空中抓住敵人':`抓住打擊${e.value}/2`);
+    if(e.type==='weapon-drop'){
+      const fx=this.add.graphics().setPosition(e.x,e.y-40).setDepth(e.y+1);drawWeapon(fx,e.weapon!,0,0,.8);this.tweens.add({targets:fx,y:e.y,angle:110,alpha:0,duration:600,onComplete:()=>fx.destroy()});tone(130,.15);
+    }else if(e.type==='gong'||e.type==='mount'||e.type==='blade-wave'||e.type==='book'){
+      if(e.type==='blade-wave'||e.type==='gong')soundtrack.specialImpact('guanyu');else tone(e.type==='book'?780:280,.2);
+      if(e.type==='book'){const label=this.add.text(e.x,e.y-45,'兵書 +1500',{fontSize:'20px',color:'#ffdc8c',stroke:'#27332e',strokeThickness:3}).setDepth(8000);this.tweens.add({targets:label,y:label.y-35,alpha:0,duration:850,onComplete:()=>label.destroy()});}
+    }else if(e.type==='grapple-hit'||e.type==='grab-air'){setText('#command-feedback',e.type==='grab-air'?'空中抓住敵人':`抓住打擊${e.value}/2`);
     }else if(e.type==='grab'||e.type==='escape'||e.type==='throw'){setText('#command-feedback',e.type==='throw'?`${THROWS[e.heroId!].name}命中`:e.type==='grab'?'抓住敵人':'敵人掙脫');tone(e.type==='throw'?70:180,.12);if(e.type==='throw'){const dust=this.add.ellipse(e.x,e.y,80,18,0xe2c18c,.7).setDepth(e.y+1);this.tweens.add({targets:dust,scaleX:1.8,alpha:0,duration:320,onComplete:()=>dust.destroy()});}
     }else if(e.type==='special-start'){setText('#command-feedback',`使出${SPECIALS[e.heroId!].name}`);soundtrack.specialImpact(e.heroId!);
     }else if(e.type==='special') {
@@ -237,8 +245,15 @@ class Battle extends Phaser.Scene {
       supply.fillStyle(0x465051).fillRect(box.x-28,box.y-33,56,6).fillRect(box.x-28,box.y-12,56,6);
       if(box.hp<24)supply.lineStyle(3,0x2b241e).lineBetween(box.x-5,box.y-44,box.x+6,box.y-25).lineBetween(box.x+6,box.y-25,box.x-3,box.y-8);
     }
+    for(const barrel of m.barrels){
+      const x=barrel.x,y=barrel.y;supply.fillStyle(0x583d29).fillRoundedRect(x-23,y-53,46,53,12);supply.fillStyle(0x997144).fillEllipse(x,y-48,46,15);
+      supply.lineStyle(2,0x442f23);for(const dx of [-13,-3,9])supply.lineBetween(x+dx,y-40,x+dx,y-4);
+      supply.lineStyle(5,0x66726c).strokeEllipse(x,y-35,46,12).strokeEllipse(x,y-9,46,12);
+      if(barrel.hp<24)supply.lineStyle(3,0x252c25).lineBetween(x-4,y-45,x+6,y-23).lineBetween(x+6,y-23,x-3,y-3);
+    }
+    for(const horse of m.horses)drawHorse(supply,horse.x,horse.y,-1,m.time,horse.moving);
     for(const item of m.pickups)drawLoot(supply,item.loot??'bun',item.x,item.y-13+Math.sin(m.time*5)*3);
-    for(const p of m.projectiles)drawWeapon(supply,'knife',p.x,p.y-38,p.face,0);
+    for(const p of m.projectiles){if(p.wave){supply.lineStyle(10,0xf5d78c,.55).beginPath().arc(p.x,p.y-37,44,p.face>0?-1.2:1.9,p.face>0?1.2:4.3).strokePath();supply.lineStyle(3,0xfff8d6,.95).beginPath().arc(p.x,p.y-37,49,p.face>0?-1.2:1.9,p.face>0?1.2:4.3).strokePath();}else drawWeapon(supply,'knife',p.x,p.y-38,p.face,0);}
     for (const f of [m.hero, ...m.enemies]) {
       live.add(f.id);
       let actor = this.actors.get(f.id); if (!actor) { actor = new Actor(this, f.id); this.actors.set(f.id, actor); }
@@ -275,8 +290,8 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - m.hero.dodgeCooldown / .95), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
-    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' ×'+m.hero.equipped.uses:'閃身 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.3.2\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'閃身 '+bindings.dodge.slice(3)}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.3.3\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
     this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！快按攻擊摔下':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／閃身') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
@@ -302,7 +317,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.3.2 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.3.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -328,7 +343,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.3.2' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.3.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血全回復` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 閃身　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -350,7 +365,7 @@ document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
 function suspend() {
   soundtrack.pause();
   current()?.clock.reset(); current()?.pad.reset(); keyboardHeld.clear();
-  held.clear(); pressed.clear();command.reset();
+  held.clear(); pressed.clear();command.reset();horseCommand.reset();
   const scene = game.scene.getScene('Battle') as Battle;
   if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
 }
@@ -394,7 +409,7 @@ function closeSettings(resume=true) {
   pendingExit=null;
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
-  pressed.clear(); held.clear(); keyboardHeld.clear();command.reset(); current().pad.reset(); current().draw();
+  pressed.clear(); held.clear(); keyboardHeld.clear();command.reset();horseCommand.reset(); current().pad.reset(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
   if(resume && current().model.status==='playing' && current().model.paused)current().resume();
   current().draw();settingsReturnFocus?.focus();

@@ -1,3 +1,4 @@
+import {drawHorse} from './horse-art';
 import {specialMotion} from './special-motion';
 import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
@@ -23,7 +24,7 @@ export class Actor {
     const motion=champion&&f.attack?heroMotion(f.heroId!,f.step,phase):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
-    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
+    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
     this.body.setAngle((f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?f.throwSpin??0:f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-24:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
     // Rotate thrown bodies around the torso rather than their feet.
     if(f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
@@ -34,9 +35,10 @@ export class Actor {
     }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}`;
+    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
+    if(f.mounted)drawHorse(g,0,38,1,time,f.moving);
     if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); this.grip(f);return; }
     if (champion) { drawWarrior(g,f,frame,phase);
       if(special&&f.heroId==='weiyan'){

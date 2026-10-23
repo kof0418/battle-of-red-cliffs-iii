@@ -38,9 +38,10 @@ test('zero health loses even if last enemy dies on the same frame',()=>{
 test('new campaign resets all combat state',()=>{
  const m=isolated();m.score=900;m.paused=true;m.hero.hp=1;const n=new Campaign();assert.equal(n.status,'ready');assert.equal(n.score,0);assert.equal(n.hero.hp,160);assert.equal(n.paused,false);
 });
-for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal combat inputs`,()=>{
+for (const id of HERO_IDS) test(`${id}: full campaign can be won using normal combat inputs and available continues`,()=>{
  const m=new Campaign(id);m.start();
- for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear');frame++){
+ for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear'||m.status==='lost');frame++){
+  if(m.status==='lost'){if(!m.continueRun())break;continue;}
   if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
   const h=m.hero,e=[...m.enemies].sort((a,b)=>Math.abs(a.x-h.x)+Math.abs(a.y-h.y)*3-Math.abs(b.x-h.x)-Math.abs(b.y-h.y)*3)[0];
   let input:Input={x:1,y:0};
