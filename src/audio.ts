@@ -88,18 +88,33 @@ export class Soundtrack {
   this.note(frequency,this.context.currentTime,duration,.12,'triangle',this.effects,false);
   if(frequency<100)this.note(frequency*.5,this.context.currentTime,duration*1.5,.14,'sine',this.effects,false);
  }
- specialImpact(id:HeroId){
-  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
+ specialImpact(id:HeroId,mounted=false){
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted||this.preferences.effects<=0)return;
   const v=SPECIAL_IMPACTS[id],now=ctx.currentTime;
-  // Inharmonic resonances produce a metal strike rather than a pitched voice.
-  for(const [index,ratio] of [1,1.47,2.09,2.56,3.71].entries()){
-   this.note(v.metal*ratio,now,v.decay/(1+index*.42),.065/(1+index*.75),'sine',this.effects,false);
-  }
-  this.note(v.body,now,.13,.14,'sine',this.effects,false,36);
-  this.note(v.metal*3,now,.045,.025,'triangle',this.effects,false,v.metal*.55);
-  this.impactUntil=now+.20;
-  this.music?.gain.setTargetAtTime(this.preferences.music*.72,now,.01);
+  // Low impact, descending blade rush and inharmonic metal tail: no voices.
+  this.note(v.body*1.6,now,.30,.20,'sine',this.effects,false,32);
+  this.note(72,now+.025,.48,.12,'sine',this.effects,false,29);
+  this.note(v.metal*2.2,now,.17,.045,'sawtooth',this.effects,false,95);
+  for(const [index,ratio] of [1,1.47,2.09,2.56].entries())
+   this.note(v.metal*ratio,now+.025,v.decay*1.5/(1+index*.45),.065/(1+index),'triangle',this.effects,false,v.metal*ratio*.78);
+  for(const [i,delay] of [.12,.24].entries())
+   this.note(v.body*.9,now+delay,.20,.065/(i+1),'sine',this.effects,false,35);
+  if(mounted){this.note(125,now+.08,.4,.15,'sine',this.effects,false,30);this.note(1800,now,.3,.045,'triangle',this.effects,false,120);}
+  this.impactUntil=now+.65;
+  this.music?.gain.setTargetAtTime(this.preferences.music*.48,now,.015);
  }
+ specialStrike(id:HeroId,final=false){
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted||this.preferences.effects<=0)return;
+  const v=SPECIAL_IMPACTS[id],now=ctx.currentTime;
+  this.note(v.body*(final?1.1:1.6),now,final?.32:.16,final?.20:.12,'sine',this.effects,false,final?30:45);
+  this.note(v.metal*1.47,now,final?.22:.10,.055,'triangle',this.effects,false,v.metal*.4);
+  if(final)this.note(v.metal*2.56,now+.065,.24,.035,'sine',this.effects,false,v.metal);
+ }
+ gong(){
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted)return;
+  for(const [i,ratio] of [1,1.47,2.09].entries())this.note(460*ratio,ctx.currentTime,.5/(i+1),.07/(i+1),'sine',this.effects,false);
+ }
+
  pause() {
   this.active=false;
   for(const note of this.notes) {try{note.stop();}catch{/* already ended */}}
@@ -110,7 +125,7 @@ export class Soundtrack {
   if (!playing || !context || context.state !== 'running') { if(this.active)this.pause(); return; }
   const theme=`${stage}:${boss}`;
   if(!this.active || theme!==this.theme) {this.pause();this.active=true;this.theme=theme;this.beat=0;this.next=context.currentTime+.03;}
-  this.music!.gain.setTargetAtTime(this.preferences.muted?0:this.preferences.music*(context.currentTime<this.impactUntil?.72:1),context.currentTime,.08);
+  this.music!.gain.setTargetAtTime(this.preferences.muted?0:this.preferences.music*(context.currentTime<this.impactUntil?.48:1),context.currentTime,.08);
   const interval=stage>=2?musicStep(stage,boss,this.beat).interval:boss?.19:.25;
   if(this.next<context.currentTime-.5)this.next=context.currentTime;
   while(this.next<context.currentTime+.10) {

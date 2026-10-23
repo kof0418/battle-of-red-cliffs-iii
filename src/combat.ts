@@ -442,7 +442,7 @@ export class Campaign {
     const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = a.move==='mounted'?MOUNT_SLASH:a.move==='wave'?MOUNT_WAVE:special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
     if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
     if(heroAttack&&a.move==='wave'){this.projectiles.push({id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
-    if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId});
+    if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
     const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
