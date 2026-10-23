@@ -3,7 +3,7 @@ export type Action = typeof ACTIONS[number];
 export type Bindings = Record<Action,string>;
 export const CONTROL_KEY = 'red-banner-controls-v1';
 export const DEFAULT_BINDINGS: Bindings = {up:'KeyW',down:'KeyS',left:'KeyA',right:'KeyD',attack:'KeyJ',jump:'KeyK',dodge:'KeyL',pause:'KeyP'};
-export const ACTION_LABELS: Record<Action,string> = {up:'向上',down:'向下',left:'向左',right:'向右',attack:'攻擊',jump:'跳躍',dodge:'閃身',pause:'暫停'};
+export const ACTION_LABELS: Record<Action,string> = {up:'向上',down:'向下',left:'向左',right:'向右',attack:'攻擊',jump:'跳躍',dodge:'衝撞',pause:'暫停'};
 export const VALID_KEYS = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ').filter(k=>k!=='R').map(k=>'Key'+k);
 export function parseBindings(raw: unknown): Bindings {
  if(!raw || typeof raw!=='object')return {...DEFAULT_BINDINGS};

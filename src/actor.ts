@@ -1,3 +1,4 @@
+import {drawHeavyInfantry} from './heavy-infantry';
 import {drawHorse} from './horse-art';
 import {specialMotion} from './special-motion';
 import {drawWarrior} from './warriors';
@@ -18,7 +19,7 @@ export class Actor {
   }
   draw(f: Fighter, time: number) {
     const champion = f.kind === 'hero' ? HEROES[f.heroId ?? 'guanyu'] : undefined;
-    const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.heroId === 'zhangfei' ? 1.24 : 1.12;
+    const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
     const motion=champion&&f.attack?heroMotion(f.heroId!,f.step,phase):null;
@@ -46,6 +47,7 @@ export class Actor {
         g.lineStyle(9,0x504b48).lineBetween(-6,-26,12+extension,-48);g.lineStyle(7,0x151f23).lineBetween(12+extension,-48,24+extension,-54);
         g.lineStyle(2,0xe7c188).lineBetween(13+extension,-51,24+extension,-57);
       }this.grip(f);return; }
+    if(f.kind==='brute'||f.kind==='mauler'){drawHeavyInfantry(g,f,frame);return;}
     const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;

@@ -28,7 +28,7 @@ test('boss alternates readable slam / charge and speeds up at half health',()=>{
  e.attack=null;e.cooldown=0;e.hp=e.max/2;m.tick(1/60,idle);assert.equal(e.attack?.move,'charge');assert.ok(e.attack!.impact<normal);
 });
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
- const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,970);
+ const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,935);
  m.hero.hp=80;m.enemies=[];m.tick(1/60,idle);assert.equal(m.hero.hp,80);advance(m,.3);assert.equal(m.hero.hp,80);
  advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,1);assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
 });

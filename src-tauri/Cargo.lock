@@ -3763,7 +3763,7 @@ dependencies = [
 
 [[package]]
 name = "three-kingdoms-battle"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "rfd",
  "serde_json",

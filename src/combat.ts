@@ -6,8 +6,10 @@ import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS, WORLD_WIDTH, ARENA_ENDS, arenaStart } from './levels.ts';
 import { fieldEvent, fieldHits } from './battlefield.ts';
 /** Pure combat rules, in seconds and world pixels. */
-export type Kind = 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
+export type Kind = 'brute' | 'mauler' | 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
 export const stats = {
+  brute:{hp:80,speed:67,damage:14},
+  mauler:{hp:120,speed:32,damage:19},
   hero: { hp: 160, speed: 180, damage: 17 },
   soldier: { hp: 48, speed: 62, damage: 8 },
   raider: { hp: 38, speed: 104, damage: 6 },
@@ -73,6 +75,10 @@ export class Campaign {
   horses:Horse[]=[];
   pickups: Pickup[] = [];
   projectiles:{id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;piercing?:boolean;push?:number;hits?:number[]}[]=[];
+  cameraLeft=0;
+  private dashHits=new Set<number>();
+  get enemyLeft(){return this.cameraLeft-90;}
+  get enemyRight(){return this.cameraLeft+1050;}
   stage = 0;
   continues = 2;
   continuesUsed = 0;
@@ -147,6 +153,8 @@ export class Campaign {
   }
   spawn() {
     this.wave++; this.clearedAt = -1;
+    this.cameraLeft=clamp(this.arenaEnd-970,0,WORLD_WIDTH-960);
+    this.hero.x=clamp(this.hero.x,this.cameraLeft+25,this.cameraLeft+935);
     this.waveStarted = this.time; this.waveDamage = 0; this.waveReward = -1;
     this.checkpointScore = this.score; this.checkpointKills = this.kills;
     const base = arenaStart(this.wave)+330;
@@ -189,7 +197,7 @@ export class Campaign {
     }
     this.horseQueued=false;
     if(this.dropQueued&&h.equipped&&!h.mounted&&!this.grapple&&h.stun<=0&&h.z===0){
-      const weapon=h.equipped;this.pickups.push({id:++this.serial,x:clamp(h.x+h.face*65,25,this.arenaEnd-30),y:h.y,amount:0,loot:weapon.id,weaponHits:weapon.hits??0,availableAt:this.time+.7});
+      const weapon=h.equipped;this.pickups.push({id:++this.serial,x:clamp(h.x+h.face*65,this.cameraLeft+28,this.cameraLeft+930),y:h.y,amount:0,loot:weapon.id,weaponHits:weapon.hits??0,availableAt:this.time+.7});
       h.equipped=undefined;h.attack=null;this.queuedUntil=0;this.specialQueued=false;input={...input,attack:false,jump:false,special:false};this.message='放下武器，可再次拾取';this.messageUntil=this.time+1.5;
     }
     this.dropQueued=false;
@@ -202,10 +210,18 @@ export class Campaign {
     if (input.dodge && !h.mounted && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
       h.dashX = length ? input.x / length : h.face; h.dashY = length ? input.y / length : 0;
+      this.dashHits.clear();if(h.dashX)h.face=Math.sign(h.dashX);
       h.dodge = .22; h.dodgeCooldown = .95; h.inv = .28; h.attack = null; this.queuedUntil = 0;
       this.events.push({ type: 'dodge', x: h.x, y: h.y });
     }
-    if (h.dodge > 0) { h.dodge -= dt; h.x += h.dashX * 410 * dt; h.y += h.dashY * 245 * dt; }
+    if (h.dodge > 0) {
+      const fromX=h.x,fromY=h.y;h.dodge -= dt;h.x+=h.dashX*410*dt;h.y+=h.dashY*245*dt;
+      h.x=clamp(h.x,this.cameraLeft+25,this.enemies.length?this.cameraLeft+935:WORLD_WIDTH-30);h.y=clamp(h.y,350,503);
+      for(const e of this.enemies){
+        if(e.hp<=0||e.z>38||e.inv>0||this.dashHits.has(e.id)||Math.abs(e.y-(fromY+h.y)/2)>30||e.x<Math.min(fromX,h.x)-48||e.x>Math.max(fromX,h.x)+48)continue;
+        this.dashHits.add(e.id);e.attack=null;e.stun=.4;e.inv=.22;e.x=clamp(e.x+h.face*(isBoss(e.kind)?30:65),this.enemyLeft,this.enemyRight);this.grappleDamage(e,Math.round(14*this.champion.damage));this.freeze=.025;
+      }
+    }
     else if (h.stun <= 0 && !casting) {
       if (input.jump && !h.mounted && h.z === 0) { h.vz = 360; this.events.push({ type: 'jump', x: h.x, y: h.y }); }
       if (this.queuedUntil > this.time && !h.attack) { this.swing(); this.queuedUntil = 0; }
@@ -217,8 +233,8 @@ export class Campaign {
     }
     if(!occupied && !h.attack && h.stun<=0 && h.z===0 && h.dodge<=0 && !input.attack && !input.special && (input.x||input.y))this.tryGrab(input);
     // Each arena opens only after its defenders fall.
-    const right = this.arenaEnd;
-    h.x = clamp(h.x, 25, this.enemies.length ? right : WORLD_WIDTH-30); h.y = clamp(h.y, 350, 503);
+    if(!this.enemies.length)this.cameraLeft=Math.max(this.cameraLeft,clamp(h.x-340,0,WORLD_WIDTH-960));
+    h.x=clamp(h.x,this.cameraLeft+25,this.enemies.length?this.cameraLeft+935:WORLD_WIDTH-30);h.y=clamp(h.y,350,503);
     for (const f of [h, ...this.enemies]) {
       if (f.hp <= 0 || !f.attack) continue;
       const a = f.attack; a.elapsed += dt;
@@ -295,7 +311,7 @@ export class Campaign {
     if(h.equipped.hits>=2){this.events.push({type:'weapon-drop',x:h.x,y:h.y,weapon:h.equipped.id});h.equipped=undefined;this.message='武器脫手損壞！';this.messageUntil=this.time+1.4;}
   }
   summonHorses(){
-    const start=clamp(this.hero.x-340,0,WORLD_WIDTH-960)+1020;
+    const start=this.cameraLeft+1020;
     this.horses=[...this.horses.filter(h=>h.waiting),{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
     this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;
   }
@@ -324,13 +340,13 @@ export class Campaign {
         }else if(target.inv<=0){
           target.inv=.2;
           if(!p.arrow||!isBoss(target.kind)){target.stun=p.wave?.55:.32;target.attack=null;}
-          target.x=clamp(target.x+p.face*(p.push??(p.wave?40:24)),25,WORLD_WIDTH-30);
+          target.x=clamp(target.x+p.face*(p.push??(p.wave?40:24)),this.enemyLeft,this.enemyRight);
           if(p.arrow)this.score+=Math.floor(Math.min(target.hp,p.damage)*Math.min(this.hits,20)*.5);
           this.grappleDamage(target,p.damage);this.freeze=p.piercing?.065:.035;
         }
         if(!p.wave&&!p.piercing)return false;
       }
-      p.x=next;p.remaining-=distance;return p.remaining>0&&p.x>=0&&p.x<=WORLD_WIDTH;
+      p.x=next;p.remaining-=distance;return p.remaining>0&&p.x>=this.enemyLeft&&p.x<=this.enemyRight;
     });
     this.supplies=this.supplies.filter(b=>b.hp>0);this.barrels=this.barrels.filter(b=>b.hp>0);
   }
@@ -350,14 +366,14 @@ export class Campaign {
     const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
     h.grapplePose=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
     if(e){e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=1.2;
-      if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,25,WORLD_WIDTH-30);}}
+      if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,this.enemyLeft,this.enemyRight);}}
     this.grapple=null;
     if(escape){h.stun=Math.max(h.stun,.2);this.message='接招太慢，敵人掙脫！';this.messageUntil=this.time+1.3;this.events.push({type:'escape',x:h.x,y:h.y});}
   }
   grappleDamage(e:Fighter,amount:number){
     const actual=Math.min(e.hp,amount);e.hp-=actual;this.score+=actual*10;this.hits++;this.bestCombo=Math.max(this.bestCombo,this.hits);this.hitDeadline=this.time+1.7;
     this.events.push({type:'hit',x:e.x,y:e.y-e.z-38,value:actual,heroId:this.hero.heroId,heavy:amount>20});
-    if(e.hp<=0){this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:e.x,y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});if(this.grapple?.target===e.id)this.releaseGrapple(false);}
+    if(e.hp<=0){this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:clamp(e.x,this.cameraLeft+30,this.cameraLeft+930),y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});if(this.grapple?.target===e.id)this.releaseGrapple(false);}
   }
   updateGrapple(dt:number,input:Input){
     const state=this.grapple!,h=this.hero,e=this.enemies.find(e=>e.id===state.target);if(!e){this.releaseGrapple(false);return;}
@@ -365,7 +381,7 @@ export class Campaign {
     const fresh=input.grappleAttack??input.attack;
     if(state.phase==='hold'){
       if(this.time>state.deadline||this.time-state.started>8){this.releaseGrapple(true);return;}
-      e.x=clamp(h.x+h.face*27,25,WORLD_WIDTH-30);e.y=h.y;e.z=0;
+      e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.z=0;
       if(fresh){
         if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
         else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,7);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
@@ -373,10 +389,10 @@ export class Campaign {
       }
       if(input.jump&&state.phase==='hold'){state.phase='jump';state.elapsed=0;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});}
     }else if(state.phase==='jump'){
-      state.elapsed+=dt;h.z=Math.sin(Math.min(1,state.elapsed/1.05)*Math.PI)*78;e.z=h.z+24;e.x=clamp(h.x+h.face*24,25,WORLD_WIDTH-30);e.y=h.y;
+      state.elapsed+=dt;h.z=Math.sin(Math.min(1,state.elapsed/1.05)*Math.PI)*78;e.z=h.z+24;e.x=clamp(h.x+h.face*24,this.enemyLeft,this.enemyRight);e.y=h.y;
       if(fresh){this.beginThrow(h.face,true);}else if(state.elapsed>=1.05){h.z=0;this.releaseGrapple(true);}
     }else{
-      state.elapsed+=dt;const spec=THROWS[h.heroId!],limit=this.arenaEnd;
+      state.elapsed+=dt;const spec=THROWS[h.heroId!],limit=this.enemyRight;
       // First pull the enemy to the shoulder, then release into an accelerating fall.
       const lift=Math.min(1,state.elapsed/.18),flight=Math.max(0,Math.min(1,(state.elapsed-.18)/.42));
       const shoulder=h.x+state.direction*12,previousX=e.x;
@@ -385,7 +401,7 @@ export class Campaign {
         e.x=state.startX+(shoulder-state.startX)*lift;
         e.z=state.startZ+(72-state.startZ)*lift;e.throwSpin=-state.direction*65*lift;
       }else{
-        e.x=clamp(shoulder+state.direction*spec.distance*flight,25,limit);
+        e.x=clamp(shoulder+state.direction*spec.distance*flight,this.enemyLeft,limit);
         e.z=72*(1-flight)+Math.sin(flight*Math.PI)*30;
         e.throwSpin=state.direction*(-65+155*flight);
       }
@@ -395,7 +411,7 @@ export class Campaign {
           if(other.id===e.id||other.hp<=0||other.inv>0||state.collisions?.includes(other.id)||Math.abs(other.y-e.y)>26||Math.abs(other.z-e.z)>90||other.x<Math.min(previousX,e.x)-24||other.x>Math.max(previousX,e.x)+24)continue;
           (state.collisions??=[]).push(other.id);
           other.attack=null;other.stun=Math.max(other.stun,1);other.knockdown=.8;other.inv=.35;
-          other.x=clamp(other.x+state.direction*18,25,limit);
+          other.x=clamp(other.x+state.direction*18,this.enemyLeft,limit);
           this.grappleDamage(other,24);
         }
       }
@@ -432,15 +448,16 @@ export class Campaign {
   ai(e: Fighter, index: number, dt: number) {
     if (this.grapple?.target===e.id || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
+    if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.moving=true;return;}
     e.face = dx >= 0 ? 1 : -1;
     const boss = isBoss(e.kind), enraged = boss && e.hp <= e.max / 2;
-    const reach = e.kind==='archer'?340:e.kind==='spearman'?130:e.kind==='hammer'?96:boss ? 115 : e.kind === 'heavy' ? 74 : 60;
+    const reach = e.kind==='archer'?340:e.kind==='spearman'?130:(e.kind==='hammer'||e.kind==='mauler')?96:e.kind==='brute'?82:boss ? 115 : e.kind === 'heavy' ? 74 : 60;
     const activeAttackers = this.enemies.filter(f => f.attack).length;
     if (e.cooldown <= 0 && activeAttackers < 2 && Math.abs(dy) < 27 && Math.abs(dx) < (boss ? 250 : reach)) {
-      let move: Move = e.kind==='archer'?'shot':e.kind==='hammer'?'slam':'slash';
+      let move: Move = e.kind==='archer'?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';
       if (boss) move = e.kind==='hunter'?(['fan','charge','fan'] as Move[])[e.attacks%3]:e.kind==='frostlord'?(['ring','slam','ring'] as Move[])[e.attacks%3]:e.kind==='regent'?(['cross','sweep','charge'] as Move[])[e.attacks%3]:e.kind === 'marshal' ? (['sweep', 'charge', 'slam'] as Move[])[e.attacks % 3] : e.attacks % 2 === 0 ? 'slam' : 'charge';
       if ((move === 'slam' && Math.abs(dx) > 125) || (move === 'sweep' && Math.abs(dx) > 160)) move = 'charge';
-      const windup = move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:e.kind==='archer'?.95:e.kind==='hammer'?1.05:e.kind==='spearman'?.65:boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
+      const windup = move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:e.kind==='archer'?.95:e.kind==='mauler'?1.15:e.kind==='brute'?.58:e.kind==='hammer'?1.05:e.kind==='spearman'?.65:boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
       e.attack = { move, elapsed: 0, duration: windup + (boss ? .55 : .32), impact: windup, hit: false, face: e.face, x: e.x, y: e.y };
       if(move==='cross'){e.attack.x=h.x;e.attack.y=h.y;}
       if(move==='fan'||move==='ring'||move==='cross'){this.message=move==='fan'?'玄弦・三路箭陣：換線或跳躍閃避':move==='ring'?'霜岳・震地環：貼近內圈或跳躍':'炎驍・十字斬：離開交叉警戒線';this.messageUntil=this.time+windup;}
@@ -451,7 +468,7 @@ export class Campaign {
     const targetY = clamp(h.y + laneOffset, 352, 500), speed = stats[e.kind].speed * (enraged ? 1.25 : 1);
     const moveX = e.kind==='archer'&&Math.abs(dx)<160?-Math.sign(dx):Math.abs(dx)>reach-8?Math.sign(dx):0;
     const moveY = Math.abs(targetY - e.y) > 3 ? Math.sign(targetY - e.y) : 0;
-    e.x = clamp(e.x + moveX * speed * dt, 25, WORLD_WIDTH-30); e.y = clamp(e.y + moveY * speed * .65 * dt, 350, 503);
+    e.x = clamp(e.x + moveX * speed * dt, this.enemyLeft, this.enemyRight); e.y = clamp(e.y + moveY * speed * .65 * dt, 350, 503);
     e.moving = !!(moveX || moveY);
   }
   resolve(f: Fighter, a: Attack) {
@@ -461,7 +478,7 @@ export class Campaign {
     if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
     if(heroAttack&&a.move==='wave'){this.projectiles.push({id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
-    const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145: f.kind === 'heavy' ? 88 : 73;
+    const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145:f.kind==='brute'?85: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !f.mounted && !a.weapon && !special && heroAttack && f.heroId === 'huangzhong';
@@ -473,7 +490,7 @@ export class Campaign {
       t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
       if (!isBoss(t.kind) || special) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
-      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), 25, WORLD_WIDTH-30);
+      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = f.step === 3 ? .065 : .035;
@@ -483,7 +500,7 @@ export class Campaign {
         this.score += heroAttack ? 100 : 0;
         if (heroAttack) {
           this.kills++;
-          if (t.kind === 'heavy') this.pickups.push({ id: ++this.serial, x: t.x, y: t.y, amount: 25 });
+          if (t.kind === 'heavy') this.pickups.push({ id: ++this.serial, x: clamp(t.x,this.cameraLeft+30,this.cameraLeft+930), y: t.y, amount: 25 });
         }
         this.events.push({ type: 'death', x: t.x, y: t.y });
       }
@@ -497,6 +514,6 @@ export class Campaign {
       }
       this.supplies = this.supplies.filter(box => box.hp > 0);this.barrels=this.barrels.filter(box=>box.hp>0);
     }
-    if (a.move === 'charge') f.x = clamp(a.x + a.face * 190, 25, WORLD_WIDTH-30);
+    if (a.move === 'charge') f.x = clamp(a.x + a.face * 190, this.enemyLeft, this.enemyRight);
   }
 }
