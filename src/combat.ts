@@ -35,11 +35,11 @@ export function comboStep(previous: number, last: number, now: number) {
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
 export type Move = 'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
-export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; }
+export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
 }
-export interface Pickup { id: number; x: number; y: number; amount: number; loot?:LootId; }
+export interface Pickup { id: number; x: number; y: number; amount: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export interface Attack {
   weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
@@ -50,7 +50,7 @@ export interface Fighter {
   step: number; last: number; attack: Attack | null; moving: boolean;
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
-export interface Input { x: number; y: number; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
+export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
 export type Effect = { type: 'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
@@ -101,6 +101,7 @@ export class Campaign {
   queuedUntil = 0;
   private specialQueued = false;
   private horseQueued=false;
+  private dropQueued=false;
   freeze = 0;
   clearedAt = -1;
   private serial = 0;
@@ -125,9 +126,9 @@ export class Campaign {
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= LEVELS.length - 1) return false;
-    const hp=this.hero.hp,equipped=this.hero.equipped,mounted=this.hero.mounted,steed=this.hero.steed;
+    const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++; this.wave = 0; this.hero = this.fighter('hero', 180, 412);
-    this.hero.hp=hp;this.hero.equipped=equipped;if(mounted){this.hero.mounted=true;this.hero.steed=steed;}
+    this.hero.hp=hp;this.hero.equipped=equipped;
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   /** Replay the current wave, rolling back its score and kills to prevent farming. */
@@ -142,7 +143,7 @@ export class Campaign {
   private resetTransient() {
     this.releaseGrapple(false);this.projectiles=[];this.horses=[];
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
-    this.specialQueued = false;this.horseQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
+    this.specialQueued = false;this.horseQueued=false;this.dropQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
   spawn() {
     this.wave++; this.clearedAt = -1;
@@ -163,6 +164,7 @@ export class Campaign {
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
     // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
+    if(input.dropWeapon||(input.attack&&input.jump))this.dropQueued=true;
     if(input.horseSpecial&&this.hero.mounted)this.horseQueued=true;
     if (input.special && !this.grapple) this.specialQueued = true;
     if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
@@ -186,6 +188,11 @@ export class Campaign {
       this.message='騎乘必殺 · 斬風刀波！';this.messageUntil=this.time+1.2;
     }
     this.horseQueued=false;
+    if(this.dropQueued&&h.equipped&&!h.mounted&&!this.grapple&&h.stun<=0&&h.z===0){
+      const weapon=h.equipped;this.pickups.push({id:++this.serial,x:clamp(h.x+h.face*65,25,this.arenaEnd-30),y:h.y,amount:0,loot:weapon.id,weaponHits:weapon.hits??0,availableAt:this.time+.7});
+      h.equipped=undefined;h.attack=null;this.queuedUntil=0;this.specialQueued=false;input={...input,attack:false,jump:false,special:false};this.message='放下武器，可再次拾取';this.messageUntil=this.time+1.5;
+    }
+    this.dropQueued=false;
     if(input.jump&&h.mounted)this.dismount(false);
     const occupied=!!this.grapple;
     if(this.grapple)this.updateGrapple(dt,input);
@@ -246,12 +253,12 @@ export class Campaign {
     // Death takes precedence over simultaneous final clearance.
     if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
     this.pickups = this.pickups.filter(p => {
-      if (!nearPickup(h,p)||h.attack||this.grapple||h.stun>0) return true;
+      if ((p.availableAt??0)>this.time||!nearPickup(h,p)||h.attack||this.grapple||h.stun>0) return true;
       if(p.loot==='book'){this.score+=1500;this.message='兵書 +1500 分';this.messageUntil=this.time+2;this.events.push({type:'book',x:p.x,y:p.y,value:1500});return false;}
-      if(p.loot==='gong'){this.summonHorses();return false;}
+      if(p.loot==='gong'){if(h.mounted)return true;this.summonHorses();return false;}
       if(p.loot&&isWeapon(p.loot)){
         if(h.equipped||h.mounted)return true;
-        h.equipped={id:p.loot,uses:WEAPONS[p.loot].uses,hits:0};
+        h.equipped={id:p.loot,uses:WEAPONS[p.loot].uses,hits:p.weaponHits??0};
         this.message=`拾取${WEAPONS[p.loot].name} · 攻擊使用`;this.messageUntil=this.time+2;
         this.events.push({type:'equip',x:p.x,y:p.y});return false;
       }

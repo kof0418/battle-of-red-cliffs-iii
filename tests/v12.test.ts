@@ -36,10 +36,10 @@ test('event can defeat hero, does not damage cleared arenas and continue resets 
  const safe=hazard();safe.enemies=[];safe.tick(1/60,idle);assert.equal(safe.hero.hp,160);
  const fire=hazard(1);fire.hero.z=60;fire.tick(1/60,idle);assert.equal(fire.hero.hp,160);
 });
-test('five motion profiles and weapon envelopes differ with contact aligned to impact',()=>{
+test('six motion profiles and weapon envelopes differ with contact aligned to impact',()=>{
  assert.equal(attackPhase(.09,.10,.3),1);assert.equal(attackPhase(.10,.10,.3),2);assert.equal(attackPhase(.29,.10,.3),4);
- const poses=HERO_IDS.map(id=>JSON.stringify(heroMotion(id,1,2)));assert.equal(new Set(poses).size,5);
- const sounds=HERO_IDS.map(id=>JSON.stringify(weaponVoice(id,false,false)));assert.equal(new Set(sounds).size,5);
+ const poses=HERO_IDS.map(id=>JSON.stringify(heroMotion(id,1,2)));assert.equal(new Set(poses).size,6);
+ const sounds=HERO_IDS.map(id=>JSON.stringify(weaponVoice(id,false,false)));assert.equal(new Set(sounds).size,6);
  for(const id of HERO_IDS){assert.ok(weaponVoice(id,true,true).duration>weaponVoice(id,false,false).duration);assert.ok(Number.isFinite(heroMotion(id,3,4).lean));}
 });
 test('v1.1 saves retain score and wave statistics but do not mix with v1.2 records',()=>{

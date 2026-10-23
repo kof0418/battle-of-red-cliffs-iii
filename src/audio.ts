@@ -11,6 +11,7 @@ const THEMES = [
 ];
 export function weaponVoice(id:HeroId,hit:boolean,heavy:boolean) {
  const voices={
+  lubu:{pitch:260,end:48,duration:.19,type:'triangle'},
   guanyu:{pitch:210,end:65,duration:.16,type:'triangle'},
   zhangfei:{pitch:95,end:38,duration:.20,type:'sawtooth'},
   zhaoyun:{pitch:670,end:190,duration:.075,type:'triangle'},
@@ -20,6 +21,7 @@ export function weaponVoice(id:HeroId,hit:boolean,heavy:boolean) {
  const v=voices[id];return {...v,pitch:v.pitch*(hit?.65:1)*(heavy?.8:1),duration:v.duration*(heavy?1.25:1),gain:hit?.065:.035};
 }
 export const SPECIAL_IMPACTS = {
+ lubu:{metal:360,body:92,decay:.46},
  guanyu:{metal:460,body:110,decay:.42}, // Heavy blade clang.
  zhangfei:{metal:290,body:78,decay:.28}, // Deep, blunt metal impact.
  zhaoyun:{metal:880,body:145,decay:.25}, // Bright spear-point clash.

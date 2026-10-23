@@ -1,6 +1,7 @@
 import type { HeroId } from './heroes.ts';
 /** Five impact-aligned poses: preparation, wind-up, contact, follow-through, recovery. */
 const MOTION:Record<HeroId,{x:number[];y:number[];lean:number[]}>={
+ lubu:{x:[3,7,39,43,17],y:[-64,-70,-32,-18,-40],lean:[-10,-12,14,15,0]},
  guanyu:{x:[6,10,32,37,17],y:[-63,-57,-33,-20,-40],lean:[-8,-5,10,13,0]},
  zhangfei:{x:[1,6,29,35,15],y:[-65,-68,-25,-17,-40],lean:[-12,-8,17,12,0]},
  zhaoyun:{x:[4,0,43,33,17],y:[-39,-39,-38,-38,-40],lean:[-7,-10,16,9,0]},

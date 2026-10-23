@@ -5,12 +5,12 @@ import {heroMotion} from './motion';
 
 /** Original layered pixel silhouettes. Gameplay geometry remains in combat.ts. */
 export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number){
- const id=f.heroId!,zhang=id==='zhangfei',zhao=id==='zhaoyun',huang=id==='huangzhong';
- const cloth=zhang?0x854a32:zhao?0x496f81:huang?0x867046:0x713e50;
- const light=zhang?0xbb7b4b:zhao?0xa4c2ce:huang?0xc1a365:0xae7080;
- const metal=zhao?0x8ea7aa:zhang?0x675e4b:huang?0x777359:0x666d69;
- const edge=zhao?0xe0e5d5:0xc8ae75,skin=zhang?0xb67a50:huang?0xbd956b:0xd2a47c;
- const w=zhang?19:zhao?13:15;
+ const id=f.heroId!,lu=id==='lubu',zhang=id==='zhangfei',zhao=id==='zhaoyun',huang=id==='huangzhong';
+ const cloth=lu?0x8f302f:zhang?0x854a32:zhao?0x496f81:huang?0x867046:0x713e50;
+ const light=lu?0xdb8855:zhang?0xbb7b4b:zhao?0xa4c2ce:huang?0xc1a365:0xae7080;
+ const metal=lu?0x65575c:zhao?0x8ea7aa:zhang?0x675e4b:huang?0x777359:0x666d69;
+ const edge=lu?0xf0cc79:zhao?0xe0e5d5:0xc8ae75,skin=zhang?0xb67a50:huang?0xbd956b:0xd2a47c;
+ const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
  const stride=f.z>0?6:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0;
@@ -66,6 +66,16 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   g.fillStyle(0xad7647).fillRect(-10,-82,23,3);
   poly(0x172321,[-8,-68,-3,-67,2,-69,7,-65,11,-67,12,-58,8,-51,5,-54,1,-49,-3,-54,-7,-52,-11,-60]);
   for(let i=0;i<4;i++)line(0x4c4938,1,[-7+i*4,-64,-5+i*4,-55]);
+ }else if(lu){
+  // Gold crown and two long pheasant feathers, original silhouette.
+  poly(0x251f2a,[-11,-79,-12,-89,-7,-95,7,-95,13,-86,12,-78]);
+  poly(0xb28b49,[-12,-83,-10,-91,-4,-88,0,-99,5,-89,11,-92,13,-82]);
+  line(0xffdf8d,2,[-10,-84,1,-87,11,-84]);g.fillStyle(0xb83832).fillCircle(1,-88,3);
+  line(0x973a33,4,[-4,-94,-12,-115,-26-tail,-128,-38-tail,-124,-36,-113]);
+  line(0xe9b465,1,[-4,-95,-13,-114,-26-tail,-125,-36-tail,-122]);
+  line(0x80312f,4,[6,-94,13,-116,25+tail,-132,37+tail,-131,43,-119]);
+  line(0xe9b465,1,[6,-95,14,-114,26+tail,-129,37+tail,-128]);
+  line(0x252029,2,[-4,-66,3,-64,7,-66]);
  }else if(zhao){
   // Silver ridged helmet and a long pale-blue horsehair plume.
   poly(0x233b43,[-11,-77,-12,-86,-6,-95,3,-99,12,-89,14,-78,7,-81,-2,-80]);
@@ -114,6 +124,19 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   if(!f.attack||phase<2){line(0xc8b58a,2,[bx-draw-8,hy,bx+37,hy]);poly(0xe1e5d2,[bx+37,hy-3,bx+44,hy,bx+37,hy+3]);}
   line(cloth,7,[-w+4,-53,-4,hy+10,bx-draw,hy]);
   g.fillStyle(skin).fillRect(bx-draw-3,hy-2,6,5);
+ }else if(lu){
+  const angle=f.attack?[-.8,-1,.12,.55,-.5][phase]:-.6;
+  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
+  g.fillStyle(0x442e2b).fillRect(-42,-3,113,6);g.fillStyle(0xd6ad62).fillRect(-42,-3,113,2);
+  for(const x of [-35,40,61])g.fillStyle(0xf0cf83).fillRect(x,-4,4,8);
+  poly(0xb8ced0,[66,-4,86,-7,106,0,85,5,66,3]);
+  poly(0xf3ead1,[69,-3,86,-5,106,0,83,0]);
+  // Opposing crescent blades distinguish the Fangtian halberd from a spear.
+  poly(0x8fa5ae,[65,-2,61,-17,72,-29,69,-17,79,-10,84,-6]);
+  poly(0xe4dfbd,[61,-17,72,-29,68,-16,79,-10,75,-9,65,-14]);
+  poly(0x8fa5ae,[65,2,61,17,72,29,69,17,79,10,84,6]);
+  line(0xf2dfac,2,[61,17,72,29,69,17,79,10]);
+  poly(0xaf3932,[55,3,51,19,40,26,47,12,48,3]);g.restore();
  }else if(zhang||zhao){
   const angle=f.attack?(zhao?0:[-.65,-.8,.14,.35,-.2][phase]):-.65;
   const vx=Math.cos(angle),vy=Math.sin(angle);
