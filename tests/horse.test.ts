@@ -9,9 +9,9 @@ test('two damaging hits drop equipment; invulnerability does not count',()=>{
  m.hero.inv=0;m.hero.x=400;m.resolve(e,a);assert.equal(m.hero.equipped,undefined);assert(m.events.some(e=>e.type==='weapon-drop'));assert.equal(m.pickups.length,0);
 });
 test('knife is consumed at release, not during windup',()=>{const m=setup();m.hero.equipped={id:'knife',uses:1};m.swing();assert(m.hero.equipped);m.resolve(m.hero,m.hero.attack!);assert.equal(m.hero.equipped,undefined);assert.equal(m.projectiles.length,1);});
-test('book scores once at full health; gong summons three horses from the right',()=>{
+test('book scores once at full health; gong summons one horse from the right',()=>{
  const m=setup();m.pickups=[{id:900,x:400,y:412,loot:'book',amount:0}];m.tick(1/60,idle);assert.equal(m.score,1500);m.tick(1/60,idle);assert.equal(m.score,1500);
- m.pickups=[{id:901,x:400,y:412,loot:'gong',amount:0}];m.tick(1/60,idle);assert.equal(m.horses.length,3);assert(m.horses.every(h=>h.x>1000));
+ m.pickups=[{id:901,x:400,y:412,loot:'gong',amount:0}];m.tick(1/60,idle);assert.equal(m.horses.length,1);assert(m.horses.every(h=>h.x>1000));
  const x=m.horses[0].x;m.paused=true;m.tick(1,idle);assert.equal(m.horses[0].x,x);m.paused=false;
  m.hero.x=m.horses[0].target;m.hero.y=m.horses[0].y;for(let i=0;i<240;i++)m.updateHorses(1/60);assert.equal(m.hero.mounted,true);
  m.tick(1/60,{...idle,jump:true});assert.equal(m.hero.mounted,false);assert((m.hero.mountCooldown??0)>0);

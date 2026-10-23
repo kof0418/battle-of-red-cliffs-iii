@@ -289,8 +289,8 @@ export class Campaign {
   }
   summonHorses(){
     const start=clamp(this.hero.x-340,0,WORLD_WIDTH-960)+1020;
-    this.horses=[...this.horses.filter(h=>h.waiting),...[0,1,2].map(i=>({id:++this.serial,x:start+i*100,y:375+i*48,target:clamp(this.hero.x+100-i*65,60,this.arenaEnd-50),life:20,moving:true,falls:0}))];
-    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬群自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;
+    this.horses=[...this.horses.filter(h=>h.waiting),{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
+    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;
   }
   updateHorses(dt:number){
     const h=this.hero;
