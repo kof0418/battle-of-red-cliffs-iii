@@ -3,6 +3,10 @@
 import argparse
 import hashlib
 import json
+import plistlib
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 import zipfile
 
@@ -10,6 +14,7 @@ root = Path(__file__).resolve().parents[1]
 version = json.loads((root / 'package.json').read_text())['version']
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, default=root / 'release')
+parser.add_argument('--mac-app', type=Path, help='Optional built Apple Silicon .app; uses ditto to preserve its signature and executable permissions.')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 if not (root / 'dist/index.html').is_file():
@@ -25,9 +30,25 @@ with zipfile.ZipFile(web, 'w', zipfile.ZIP_DEFLATED) as archive:
     files = list((root / 'dist').rglob('*')) + [root / p for p in ['scripts/play.py', 'play.command', 'play.cmd', 'QUICKSTART.md']]
     for path in files:
         if path.is_file(): archive.write(path, Path('red-banner-web') / path.relative_to(root))
-for path in (source, web):
+artifacts = [source, web]
+if args.mac_app:
+    app = args.mac_app.resolve()
+    with (app / 'Contents/Info.plist').open('rb') as f:
+        info = plistlib.load(f)
+    if info['CFBundleShortVersionString'] != version:
+        raise SystemExit('Mac App version does not match the source release.')
+    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
+    mac = args.output.resolve() / f'Red-Cliffs-III-v{version}-macOS-arm64.zip'
+    with tempfile.TemporaryDirectory(dir=args.output) as temp:
+        folder = Path(temp) / f'Red-Cliffs-III-v{version}-macOS-arm64'
+        folder.mkdir()
+        subprocess.run(['ditto', str(app), str(folder / app.name)], check=True)
+        shutil.copy2(root / 'MACOS.md', folder / 'MACOS.md')
+        subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(folder), str(mac)], check=True)
+    artifacts.append(mac)
+for path in artifacts:
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None
-checksums = '\n'.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}' for path in (source, web)) + '\n'
+checksums = '\n'.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}' for path in artifacts) + '\n'
 (args.output / f'SHA256SUMS-v{version}.txt').write_text(checksums)
-print(f'Created {source.name}, {web.name} and SHA256SUMS-v{version}.txt')
+print('Created '+', '.join(p.name for p in artifacts)+f' and SHA256SUMS-v{version}.txt')

@@ -1,14 +1,12 @@
 [package]
 name = "three-kingdoms-battle"
-version = "1.7.0"
+version = "1.8.0"
 edition = "2021"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 
-rfd = "0.15"
-serde_json = "1"
 
 # Keep macro dylibs intact: older Rust strip can misalign LINKEDIT on new macOS.
 [profile.release]

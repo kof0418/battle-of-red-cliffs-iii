@@ -1,0 +1,19 @@
+{
+  "done": true,
+  "beforePause": {
+    "active": 51,
+    "music": 11,
+    "effects": 40,
+    "peak": 57,
+    "rejected": 1107,
+    "created": 2043
+  },
+  "afterPause": {
+    "active": 0,
+    "music": 0,
+    "effects": 0,
+    "peak": 57,
+    "rejected": 1107,
+    "created": 2043
+  }
+}

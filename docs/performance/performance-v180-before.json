@@ -1,0 +1,80 @@
+{
+  "done": true,
+  "samples": [
+    {
+      "cycle": 1,
+      "stage": 1,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 1.373,
+      "resources": {
+        "children": 72,
+        "textures": 64,
+        "actors": 7,
+        "heapBytes": 43048003
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 2,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 1.056,
+      "resources": {
+        "children": 48,
+        "textures": 64,
+        "actors": 7,
+        "heapBytes": 50431896
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 3,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 1.163,
+      "resources": {
+        "children": 73,
+        "textures": 48,
+        "actors": 7,
+        "heapBytes": 46765515
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 4,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.883,
+      "resources": {
+        "children": 48,
+        "textures": 44,
+        "actors": 7,
+        "heapBytes": 47520431
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 5,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.5,
+      "over33ms": 0,
+      "renderCPUms": 0.696,
+      "resources": {
+        "children": 55,
+        "textures": 44,
+        "actors": 7,
+        "heapBytes": 50598590
+      }
+    }
+  ]
+}

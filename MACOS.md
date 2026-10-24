@@ -1,17 +1,17 @@
-# 赤旌 v1.3.0 · Mac 版
+# 赤壁之戰三 v1.8.0 · Mac 版
 
-適用 Apple Silicon（M1 或更新）、macOS 12 以上。
+適用 Apple Silicon（M1 或更新）、macOS 12 以上；Intel 與 Windows 本次不提供。
 
-1. 解壓縮 `Red-Banner-v1.3.0-macOS-arm64.zip`。
-2. 將 `Red Banner.app` 拖到「應用程式」，或直接從解壓縮資料夾開啟。
-3. 選關羽、張飛、趙雲、黃忠或魏延，點出陣。首次會開啟教學，可略過。
+1. 解壓縮 `Red-Cliffs-III-v1.8.0-macOS-arm64.zip`。
+2. 開啟其中的「赤壁之戰三.app」，也可將 App 拖至「應用程式」。
+3. 按「開始遊戲」，選擇關羽、張飛、趙雲、黃忠、魏延或呂布，再按出陣。
 
-完全離線執行，不需要伺服器、Node.js 或 Python。預設 WASD／方向鍵移動、J 連擊、K／空白跳躍、L 閃身、P 暫停、Esc 設定；R 重開需確認。按鍵可自訂。
+內容與 Web v1.8.0 同步，六將、五關、30 陣。完全離線執行，不需要伺服器、Node.js、Python 或網路素材服務。
 
-每 5 秒自動保存；設定頁另有三個手動槽。載入戰鬥後按繼續，三秒倒數再開始。退出前可按保存並暫停。
+WASD／方向鍵移動、J 攻擊、K／空白鍵跳躍、L 衝撞、P／Esc 暫停。必殺技為下、上、再新按攻擊；騎馬刀波為左、右、再新按攻擊。按鍵可在暫停選單重設。暫停選單可切換原生全螢幕；切離視窗會自動暫停，回來後手動繼續。
 
-設定頁的「匯出全部資料」使用原生檔案視窗，包含存檔、設定與歷史戰績；「選擇完整備份」驗證後還需確認才還原。Web 與 Mac 的儲存獨立，可用備份搬移。升級保留既有資料；降版不會看到新版後續進度。
+沒有戰鬥存檔或操作教學；關閉、返回選將或主選單需重新出征。只保留操作設定、音量與通關戰績。Web 與 Mac 的本機資料各自獨立。
 
-本包為 ad-hoc 簽署，未完成 Apple Developer ID 簽署與公證；跨機器網路下載可能受到 Gatekeeper 阻擋。未製作 Intel 或 Windows 版本。實體手把尚未完成硬體驗證。
+此包使用 ad-hoc 簽署，已驗證簽章完整性；沒有 Apple Developer ID 簽署或公證，跨機器下載後可能受到 macOS Gatekeeper 阻擋。本機已實際開啟驗證選將、戰鬥、暫停及原生全螢幕切換；其他 Mac、實體手把與 iOS／Android 裝置未做硬體驗證。
 
-77 項遊戲／資料測試與 4 項 Rust 測試通過；本版已實測教學按鍵反應、原生完整備份匯出與還原。詳見 RELEASE-v1.3.md。
+重新建置：安裝 Node.js 22.18+、Rust 與 macOS 開發工具後，執行 `npm ci`，再執行 `npm run desktop:build:mac`。輸出位於 `src-tauri/target/aarch64-apple-darwin/release/bundle/macos/`。開發用 `npm run desktop:dev`。
