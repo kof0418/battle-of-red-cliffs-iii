@@ -5,7 +5,7 @@ import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
 import Phaser from 'phaser';
-import {attackPhase,heroMotion} from './motion';
+import {attackPhase,heroMotion,aerialMotion,grappleMotion} from './motion';
 import { isBoss, type Fighter } from './combat';
 /** Reused graphics object with quantized 12 fps poses; no per-frame object allocation. */
 export class Actor {
@@ -22,13 +22,14 @@ export class Actor {
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
-    const motion=champion&&f.attack?heroMotion(f.heroId!,f.step,phase):null;
+    const motion=champion&&f.attack?(f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0):heroMotion(f.heroId!,f.step,phase)):null;
+    const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
-    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0))).setDepth(f.y).setScale(s * f.face, s);
-    this.body.setAngle((f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?f.throwSpin??0:f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-24:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : f.stun > 0 ? -f.face * 13 : (motion?.lean ?? 0)*f.face);
+    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0)+(grip?.crouch??motion?.crouch??0))).setDepth(f.y+(grip?.5:0)).setScale(s * f.face, s);
+    this.body.setAngle((f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?(grip?grip.lean*f.face:f.throwSpin??0):f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-5:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : (f.throwRecovery??0)>0?f.face*6:f.stun > 0 ? -f.face * 13 : (grip?.lean??motion?.lean??0)*f.face);
     // Rotate thrown bodies around the torso rather than their feet.
-    if(f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
+    if(f.grapplePose==='held'||f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
       const angle=this.body.angle*Math.PI/180,center=42*s;
       this.body.x-=Math.sin(angle)*center;
       this.body.y+=center*(Math.cos(angle)-1);
@@ -36,17 +37,17 @@ export class Actor {
     }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}`;
+    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if(f.mounted)drawHorse(g,0,38,1,time,f.moving);
-    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); this.grip(f);return; }
+    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
     if (champion) { drawWarrior(g,f,frame,phase);
       if(special&&f.heroId==='weiyan'){
         const extension=Math.sin(Math.min(1,f.attack!.elapsed/.58)*Math.PI)*28;
         g.lineStyle(9,0x504b48).lineBetween(-6,-26,12+extension,-48);g.lineStyle(7,0x151f23).lineBetween(12+extension,-48,24+extension,-54);
         g.lineStyle(2,0xe7c188).lineBetween(13+extension,-51,24+extension,-57);
-      }this.grip(f);return; }
+      }return; }
     if(f.kind==='brute'||f.kind==='mauler'){drawHeavyInfantry(g,f,frame);return;}
     const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
@@ -69,6 +70,12 @@ export class Actor {
     if(f.kind==='regent'){g.fillStyle(0xd8ad55).fillRect(-12,-77,26,12);g.fillTriangle(-12,-77,-12,-88,-3,-77).fillTriangle(4,-77,11,-91,14,-77);g.lineStyle(5,0xe3d6aa).lineBetween(-20,-44,-48,-71);}
     if (f.kind === 'marshal') { g.fillStyle(0xb7d3cc).fillTriangle(-9, -69, -18, -91, 0, -71).fillTriangle(7, -69, 15, -91, 0, -71); }
     if (f.kind === 'boss') { g.fillStyle(0xe0bd74).fillTriangle(-12, -65, -22, -79, -7, -68).fillTriangle(11, -65, 19, -81, 5, -68); }
+    if(['held','air-held','thrown'].includes(f.grapplePose??'')){
+      // A captive cannot keep swinging a weapon or shield through the grabbing arms.
+      g.lineStyle(7,color).lineBetween(-12,-48,-18,-29).lineBetween(12,-48,17,-28);
+      g.fillStyle(0xe2b588).fillRect(-21,-31,7,7).fillRect(14,-30,7,7);
+      g.fillStyle(0x17251f).fillRect(-20,-96,40,4);g.fillStyle(boss?0xd97856:0xd5ab70).fillRect(-20,-96,40*f.hp/f.max,4);return;
+    }
     // Each slash has a distinct silhouette: forward cut, rising cut, sweeping finisher.
     const attacking = !!f.attack;
     const y = motion ? motion.y : attacking ? (f.step === 2 ? [-26, -31, -59, -48][step] : [-53, -38, -28, -42][step]) : -40;
@@ -110,13 +117,6 @@ export class Actor {
     }
     if (f.attack && !f.attack.hit && f.kind !== 'hero') g.fillStyle(0xffc163).fillTriangle(-4, -89, 4, -89, 0, -79);
     if (f.kind !== 'hero') { g.fillStyle(0x17251f).fillRect(-20, -96, 40, 4); g.fillStyle(boss ? 0xd97856 : 0xd5ab70).fillRect(-20, -96, 40 * f.hp / f.max, 4); }
-  }
-  private grip(f:Fighter){
-    if(f.grapplePose==='hold'||f.grapplePose==='air'||f.grapplePose==='throw'){
-      const g=this.ink,air=f.grapplePose==='air'||f.grapplePose==='throw',color=HEROES[f.heroId??'guanyu'].color;
-      g.lineStyle(9,color).lineBetween(8,-53,30,air?-78:-49);g.lineStyle(6,0xd3ad7d).lineBetween(25,air?-72:-50,33,air?-80:-50);
-      g.lineStyle(7,color).lineBetween(-9,-49,22,air?-69:-40);g.fillStyle(0xd3ad7d).fillRect(20,air?-72:-43,8,6);
-    }
   }
   fall(scene:Phaser.Scene) {
     this.shadow.destroy();

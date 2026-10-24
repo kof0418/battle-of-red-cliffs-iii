@@ -1,7 +1,8 @@
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
-import {heroMotion} from './motion';
+import {heroMotion,aerialMotion,grappleMotion} from './motion';
+import {drawGrip} from './grip-art';
 
 /** Original layered pixel silhouettes. Gameplay geometry remains in combat.ts. */
 export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number){
@@ -13,7 +14,9 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const stride=f.z>0?6:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0;
+ const action=f.attack?.move==='aerial'?aerialMotion(id,f.vz<0):f.attack?heroMotion(id,f.step,phase):null;
+ const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress):null;
+ const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
  poly(0x1c2a2b,[-w,-61,-w-8,-52,-w-13-tail,-15,-w+2,-24,-3,-56]);
  poly(cloth,[-w,-58,-w-5,-50,-w-9-tail,-22,-w,-29,-5,-55]);
@@ -24,7 +27,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0xc1a271,2,[-24,-54,-16,-51]);
   for(let i=0;i<3;i++){const x=-23+i*4;line(0xa88c61,1,[x,-49,x+6,-77-i*2]);poly(0xd9d3b8,[x+5,-71-i*2,x+3,-78-i*2,x+8,-75-i*2,x+6,-69-i*2]);}
  }
- for(const [x,d] of [[-10,stride],[8,-stride]]){
+ for(const [x,d] of [[-10-spread,stride],[8+spread,-stride]]){
   poly(0x222d2b,[x-6,-29,x+5,-29,x+5,-8+d,x-5,-7+d]);
   g.fillStyle(metal).fillRect(x-4,-21,7,11);g.fillStyle(edge).fillRect(x-4,-21,2,10);
   poly(0x142020,[x-6,-10+d,x+5,-10+d,x+7,-4+d,x+11,-1+d,x+11,2+d,x-7,2+d]);
@@ -107,7 +110,8 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   poly(0x252a29,[-4,-65,2,-66,7,-64,9,-65,7,-58,1,-55,-3,-59]);
   line(0x625542,1,[1,-63,3,-59]);
  }
- const m=f.attack?.move==='special'&&zhang?{x:[12,22,44,40,17][phase],y:-44}:f.attack?heroMotion(id,f.step,phase):{x:17,y:-43};
+ if(drawGrip(g,f))return;
+ const m=f.attack?.move==='special'&&zhang?{x:[12,22,44,40,17][phase],y:-44}:action??{x:17,y:-43};
  const hx=m.x,hy=m.y-5;
  // Sleeve and bracer follow the hand rather than stretching a rectangular arm.
  poly(cloth,[w-5,-58,w+2,-56,hx+3,hy-3,hx+4,hy+5,hx-3,hy+7,w-7,-49]);
@@ -117,15 +121,16 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  if(zhang&&f.attack?.move==='special'){
   line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
  }else if(huang){
+  g.save();if(f.attack?.move==='aerial'){g.translateCanvas(hx,hy);g.rotateCanvas(.65);g.translateCanvas(-hx,-hy);}
   const bx=hx+7,draw=f.attack?[6,17,0,2,0][phase]:0;
   line(0x3e3021,5,[bx-2,hy-30,bx+9,hy-21,bx+14,hy,bx+9,hy+21,bx-2,hy+30]);
   line(0xc9a76b,2,[bx-2,hy-30,bx+7,hy-20,bx+11,hy,bx+7,hy+20,bx-2,hy+30]);
   line(0xe4dbbd,1,[bx-2,hy-30,bx-draw,hy,bx-2,hy+30]);
-  if(!f.attack||phase<2){line(0xc8b58a,2,[bx-draw-8,hy,bx+37,hy]);poly(0xe1e5d2,[bx+37,hy-3,bx+44,hy,bx+37,hy+3]);}
+  if((!f.attack||phase<2)&&f.attack?.move!=='aerial'){line(0xc8b58a,2,[bx-draw-8,hy,bx+37,hy]);poly(0xe1e5d2,[bx+37,hy-3,bx+44,hy,bx+37,hy+3]);}
   line(cloth,7,[-w+4,-53,-4,hy+10,bx-draw,hy]);
-  g.fillStyle(skin).fillRect(bx-draw-3,hy-2,6,5);
+  g.fillStyle(skin).fillRect(bx-draw-3,hy-2,6,5);g.restore();
  }else if(lu){
-  const angle=f.attack?[-.8,-1,.12,.55,-.5][phase]:-.6;
+  const angle=action?.angle??-.6;
   g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
   g.fillStyle(0x442e2b).fillRect(-42,-3,113,6);g.fillStyle(0xd6ad62).fillRect(-42,-3,113,2);
   for(const x of [-35,40,61])g.fillStyle(0xf0cf83).fillRect(x,-4,4,8);
@@ -138,7 +143,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0xf2dfac,2,[61,17,72,29,69,17,79,10]);
   poly(0xaf3932,[55,3,51,19,40,26,47,12,48,3]);g.restore();
  }else if(zhang||zhao){
-  const angle=f.attack?(zhao?0:[-.65,-.8,.14,.35,-.2][phase]):-.65;
+  const angle=action?.angle??-.65;
   const vx=Math.cos(angle),vy=Math.sin(angle);
   line(cloth,7,[-w+3,-53,hx-22*vx,hy-22*vy]);
   g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
@@ -156,7 +161,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   g.restore();
   g.fillStyle(skin).fillRect(hx-24*vx-2,hy-24*vy-2,6,5);
  }else{
-  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(f.attack?[.65,.9,-.6,-1,-.3][phase]:-.55);
+  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(action?.angle??-.55);
   g.fillStyle(0x49302a).fillRect(-8,-2,16,5);g.lineStyle(2,edge).strokeCircle(-11,1,4);
   g.fillStyle(edge).fillRect(7,-6,4,13);
   poly(0x51666b,[11,-3,39,-6,54,-12,50,-1,37,5,11,4]);
@@ -166,6 +171,6 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  g.fillStyle(0x754e38).fillRect(hx-2,hy-2,7,7);g.fillStyle(skin).fillRect(hx-2,hy-2,6,4);g.fillStyle(0xe7c397).fillRect(hx-2,hy-2,5,1);
  if(f.attack&&phase>=2&&phase<=3&&!huang){
   if(zhao){g.lineStyle(2,0xc7eaf0,.7).lineBetween(hx+15,hy,hx+85,hy);}
-  else {const r=zhang?66:39;g.lineStyle(f.step===3?5:3,zhang?0xf0cf95:0xefbca7,.7).beginPath().arc(18,-38,r,-1.6,.5).strokePath();}
+  else {const r=lu?78:zhang?66:39;g.lineStyle(f.step===3?5:3,zhang?0xf0cf95:0xefbca7,.7).beginPath().arc(18,-38,r,-1.6,.5).strokePath();}
  }
 }

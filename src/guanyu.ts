@@ -1,3 +1,5 @@
+import {heroMotion,aerialMotion,grappleMotion} from './motion';
+import {drawGrip} from './grip-art';
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
@@ -5,11 +7,13 @@ import type {Fighter} from './combat';
 export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number) {
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:walk;
+ const action=f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase):null;
+ const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress):null;
+ const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
  poly(0x142c28,[-11,-64,-22,-58,-29-frame%3,-18,-14,-24,-6,-48]);
  poly(0x295441,[-15,-60,-23,-51,-26-frame%3,-24,-19,-29,-12,-48]);
- for(const [x,d] of [[-11,stride],[7,-stride]]){
+ for(const [x,d] of [[-11-spread,stride],[7+spread,-stride]]){
   poly(0x182522,[x-5,-29,x+6,-27,x+5,-7+d,x-5,-6+d]);
   g.fillStyle(0x3b4840).fillRect(x-3,-22,4,12);
   poly(0x101c1b,[x-6,-10+d,x+5,-11+d,x+7,-4+d,x+12,-2+d,x+12,2+d,x-7,2+d]);
@@ -57,8 +61,8 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  line(0x6b6b52,1,[1,-63,3,-50,3+sway,-35]);
  line(0x343f36,2,[8,-61,7,-49,5+sway,-36]);
  // Two-handed grip and rotating polearm: wind-up, contact and follow-through.
- const angles=f.step===2?[1.0,.7,-.7,-1.0,-.25]:f.step===3?[-1.2,-.8,.25,.65,-.25]:[-.9,-.6,.05,.35,-.25];
- const angle=f.attack?angles[phase]:-.25, hx=f.attack?[12,15,25,27,17][phase]:17, hy=f.attack?(f.step===2?-43:-49):-48;
+ if(drawGrip(g,f))return;
+ const angle=action?.angle??-.25,hx=action?.x??17,hy=action?.y??-48;
  poly(0x244d35,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
  line(0x779062,2,[14,-57,18,-52,hx,hy+2]);
  if(heldWeapon(g,f,hx,hy,phase))return;
