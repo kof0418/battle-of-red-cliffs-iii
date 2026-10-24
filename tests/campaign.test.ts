@@ -30,7 +30,7 @@ test('boss alternates readable slam / charge and speeds up at half health',()=>{
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
  const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,935);
  m.hero.hp=80;m.enemies=[];m.tick(1/60,idle);assert.equal(m.hero.hp,80);advance(m,.3);assert.equal(m.hero.hp,80);
- advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.hero.x=1800;advance(m,3,{x:1,y:0});assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
+ advance(m,1);assert.equal(m.wave,2);m.enemies=[];m.pending=[];m.hero.x=1800;advance(m,3,{x:1,y:0});assert.equal(m.wave,3);m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.tick(1/60,idle);assert.equal(m.status,'stage-clear');
 });
 test('zero health loses even if last enemy dies on the same frame',()=>{
  const m=isolated();m.wave=3;m.enemies=[];m.hero.hp=0;m.tick(1/60,idle);assert.equal(m.status,'lost');advance(m,1);assert.equal(m.status,'lost');
@@ -38,8 +38,8 @@ test('zero health loses even if last enemy dies on the same frame',()=>{
 test('new campaign resets all combat state',()=>{
  const m=isolated();m.score=900;m.paused=true;m.hero.hp=1;const n=new Campaign();assert.equal(n.status,'ready');assert.equal(n.score,0);assert.equal(n.hero.hp,160);assert.equal(n.paused,false);
 });
-for (const id of HERO_IDS) test(`${id}: all 30 waves remain completable on standard with the production two-continue budget`,()=>{
- const m=new Campaign(id);m.start();
+for(const seed of [0,1,2,3])for (const id of HERO_IDS) test(`${id} roster ${seed}: all 30 waves remain completable on standard with the production two-continue budget`,()=>{
+ const m=new Campaign(id,'normal',seed);m.start();
  assert.equal(m.continues,2);
  for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear'||m.status==='lost');frame++){
   if(m.status==='lost'){if(!m.continueRun())break;continue;}

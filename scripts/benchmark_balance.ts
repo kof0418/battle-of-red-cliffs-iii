@@ -1,9 +1,9 @@
 import {Campaign,type Input} from '../src/combat.ts';
 import {HERO_IDS} from '../src/heroes.ts';
 // Repeatable offensive/defensive regression strategy, not a human difficulty estimate.
-const results=[];
+const results=[];const seed=Number(process.argv[2]??0);
 for(const id of HERO_IDS){
- const m=new Campaign(id);m.start();m.continues=10;let frames=0;
+ const m=new Campaign(id,'normal',seed);m.start();m.continues=10;let frames=0;
  for(;frames<60*1200;frames++){
   if(m.status==='lost'){if(!m.continueRun())break;continue;}
   if(m.status==='stage-clear'){m.nextStage();continue;}
@@ -14,6 +14,6 @@ for(const id of HERO_IDS){
   if(e&&Math.abs(e.x-h.x)<100&&Math.abs(e.y-h.y)<45&&(h.specialCooldown??0)<=0&&!h.attack)input.special=true;
   if(m.grapple)input={x:h.face,y:0,grappleAttack:true};m.tick(1/60,input);
  }
- results.push({hero:m.champion.name,result:m.status,seconds:Math.round(frames/60),continuesUsed:m.continuesUsed,kills:m.kills,score:m.score});
+ results.push({hero:m.champion.name,result:m.status,seconds:Math.round(frames/60),continuesUsed:m.continuesUsed,kills:m.kills,score:m.score,grades:m.stageResults.map(r=>r.grade)});
 }
 console.log(JSON.stringify(results,null,2));

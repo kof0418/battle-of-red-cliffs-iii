@@ -7,7 +7,7 @@ function finishStage(m:Campaign){m.wave=m.level.waves.length;m.enemies=[];tick(m
 
 test('first boss opens intermission, only final boss wins campaign',()=>{
  const m=new Campaign();m.start();m.score=1234;finishStage(m);assert.equal(m.status,'stage-clear');
- const earned=m.score;assert.equal(earned,3234);const t=m.time;tick(m);assert.equal(m.time,t);assert.equal(m.stage,0);
+ const earned=m.score;assert.equal(earned,3234+m.stageResults[0].bonus);const t=m.time;tick(m);assert.equal(m.time,t);assert.equal(m.stage,0);
  assert.ok(m.nextStage());assert.equal(m.stage,1);assert.equal(m.wave,1);assert.equal(m.score,earned);assert.equal(m.hero.hp,160);
  assert.equal(m.nextStage(),false);finishStage(m);assert.equal(m.status,'stage-clear');while(m.nextStage())finishStage(m);assert.equal(m.status,'won');assert.equal(m.nextStage(),false);
 });
@@ -15,7 +15,7 @@ test('continue restarts current wave with checkpoint score and only two credits'
  const m=new Campaign();m.start();m.enemies=[];m.hero.x=930;for(let i=0;i<70;i++)tick(m);
  assert.equal(m.wave,2);const checkpoint=m.checkpointScore;
  m.score+=500;m.kills+=2;m.hero.hp=0;tick(m);assert.equal(m.status,'lost');
- assert.ok(m.continueRun());assert.equal(m.wave,2);assert.equal(m.stage,0);assert.equal(m.hero.hp,160);assert.equal(m.score,checkpoint);assert.equal(m.kills,m.checkpointKills);assert.equal(m.continues,1);assert.ok(m.hero.inv>0);assert.equal(m.enemies.length,m.level.waves[1].length);
+ assert.ok(m.continueRun());assert.equal(m.wave,2);assert.equal(m.stage,0);assert.equal(m.hero.hp,160);assert.equal(m.score,checkpoint);assert.equal(m.kills,m.checkpointKills);assert.equal(m.continues,1);assert.ok(m.hero.inv>0);assert.equal(m.remainingEnemies,m.level.waves[1].length);
  assert.equal(m.continueRun(),false);assert.equal(m.continues,1);
  m.hero.hp=0;tick(m);assert.ok(m.continueRun());assert.equal(m.continues,0);
  m.hero.hp=0;tick(m);assert.equal(m.continueRun(),false);assert.equal(m.status,'lost');
