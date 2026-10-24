@@ -37,7 +37,7 @@ export class Actor {
     }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
+    const key = `${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if(f.mounted)drawHorse(g,0,38,1,time,f.moving);
@@ -104,7 +104,11 @@ export class Actor {
       g.lineStyle(4, 0x765b3f).lineBetween(handX + 4, y - 20, handX + 4, y + 35);
       g.fillStyle(0xd0ddd1).fillTriangle(handX + 6, y - 20, handX + 27, y - 35, handX + 7, y - 1);
     }
-    if (f.kind === 'heavy') { g.fillStyle(0x344e55).fillRect(-25, -43, 16, 31); g.lineStyle(2, 0xc8b680).strokeRect(-25, -43, 16, 31); }
+    if (f.kind === 'heavy') {
+      const guarding=(f.guard??0)>0,x=guarding?9:-25,y=guarding?-54:-43,w=guarding?23:16,height=guarding?42:31;
+      g.fillStyle(0x344e55).fillRect(x,y,w,height);g.lineStyle(guarding?3:2,guarding?0xffdc8e:0xc8b680).strokeRect(x,y,w,height);
+      if(guarding){g.lineStyle(2,0xc4d8cb).lineBetween(x+4,y+8,x+w-4,y+8);g.fillStyle(0xd5b277).fillCircle(x+w/2,y+height/2,4);}
+    }
     if (attacking && f.kind === 'hero' && f.heroId !== 'huangzhong' && phase >= 2 && phase <= 3) {
       if(f.heroId==='zhaoyun') {
         g.lineStyle(3,0xc7f0f1,.8).lineBetween(22,-39,94,-39);
@@ -115,7 +119,10 @@ export class Actor {
       g.lineStyle(2, 0xffffdd, .9).beginPath().arc(18, -32, radius + 7, start + .2, start + 1.8).strokePath();
     }
     }
-    if (f.attack && !f.attack.hit && f.kind !== 'hero') g.fillStyle(0xffc163).fillTriangle(-4, -89, 4, -89, 0, -79);
+    if (f.attack && f.kind !== 'hero') {
+      if(!f.attack.hit){g.fillStyle(0xffc163).fillTriangle(-4,-89,4,-89,0,-79);g.fillStyle(0x25352d).fillRect(-20,-106,40,3);g.fillStyle(0xffd98b).fillRect(-20,-106,40*Math.min(1,f.attack.elapsed/f.attack.impact),3);}
+      else if(boss){g.lineStyle(2,0x94e3ca).strokeCircle(0,-86,6);}
+    }
     if (f.kind !== 'hero') { g.fillStyle(0x17251f).fillRect(-20, -96, 40, 4); g.fillStyle(boss ? 0xd97856 : 0xd5ab70).fillRect(-20, -96, 40 * f.hp / f.max, 4); }
   }
   fall(scene:Phaser.Scene) {

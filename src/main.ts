@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {DIFFICULTIES,bossPhase} from './tactics';
 import {drawHorse} from './horse-art';
 import {drawLoot,drawWeapon} from './loot-art';
 import {WEAPONS} from './loot';
@@ -16,7 +17,7 @@ try { bindings = parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY) ??
 const keyboardHeld = new Set<string>();
 import { Soundtrack } from './audio';
 import { readPreferences, PREFERENCES_KEY } from './preferences';
-import { parseRecords, recordVictory, RECORDS_KEY, type Records } from './records';
+import { parseRecords, recordVictory, recordsKey, bestKey, type Records } from './records';
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let settingsOpen = false;
@@ -24,7 +25,7 @@ let pendingExit:'title'|'select'|null=null;
 let titleScreen = true;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
-try { records = parseRecords(JSON.parse(profileStorage.getItem(RECORDS_KEY) ?? '{}')); } catch { /* optional storage */ }
+try { records = parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty)) ?? '{}')); } catch { /* optional storage */ }
 window.addEventListener('pointerdown', () => soundtrack.unlock(), { capture: true });
 window.addEventListener('keydown', () => soundtrack.unlock(), { capture: true });
 import { HEROES, HERO_IDS, type HeroId } from './heroes';
@@ -36,7 +37,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.4.5';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.5.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -48,10 +49,10 @@ const horseCommand=new CommandInput('left','right');
 function queueAction(action:string){const m=current()?.model;if(m?.grapple){command.reset();horseCommand.reset();if(action==='attack'){const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));if(keys.includes('left')||held.has('left'))pressed.add('throw-left');else if(keys.includes('right')||held.has('right'))pressed.add('throw-right');}pressed.add(action);return;}if(m?.status==='playing'&&!m.paused&&!settingsOpen&&(m.hero.mounted?horseCommand:command).press(action,performance.now()))pressed.add(m.hero.mounted?'horse-special':'command-special');else pressed.add(action);}
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
-function readBest() { try { const n = Number(profileStorage.getItem('red-banner-best-v14loot')); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+function readBest() { try { const n = Number(profileStorage.getItem(bestKey(preferences.difficulty))); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
 class Battle extends Phaser.Scene {
   private posePreview=false;
-  model = new Campaign(selectedHero); actors = new Map<number, Actor>();
+  model = new Campaign(selectedHero,preferences.difficulty); actors = new Map<number, Actor>();
   hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
   supplies!: Phaser.GameObjects.Graphics; backdrop?: Phaser.GameObjects.Container; drawnStage = -1;
   label!: Phaser.GameObjects.Text; healthLabel!: Phaser.GameObjects.Text; stageLabel!: Phaser.GameObjects.Text; scoreLabel!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
@@ -64,7 +65,7 @@ class Battle extends Phaser.Scene {
   constructor() { super('Battle'); }
   create() {
     this.portraits=createPortraits(this);this.portraitFrame=-1;this.selectionKey='';this.shellKey='';
-    this.model = new Campaign(selectedHero); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
+    this.model = new Campaign(selectedHero,preferences.difficulty); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
     this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
     this.autoAttackAt = 0;setText('#command-feedback','');
@@ -120,6 +121,12 @@ class Battle extends Phaser.Scene {
           if(i)this.model.enemies.push(f);
         });
         this.model.message='六將動作檢查';this.model.messageUntil=99;
+      }
+      if(preview==='tactics'){
+        this.posePreview=true;this.model.stage=4;this.model.start();this.model.wave=6;this.model.hero.x=280;this.model.supplies=[];this.model.barrels=[];
+        const boss=this.model.fighter('regent',500,412);boss.hp=boss.max*.25;boss.attack={move:'cross',elapsed:.5,duration:1.47,impact:.87,hit:false,face:-1,x:280,y:412};
+        const shield=this.model.fighter('heavy',710,430);shield.guard=.6;shield.face=-1;
+        const raider=this.model.fighter('raider',160,365);raider.moving=true;this.model.enemies=[boss,shield,raider];this.model.paused=true;this.model.message='十字斬 · 離開交叉線';this.model.messageUntil=99;
       }
       if(preview==='transition'){this.model.start();this.model.enemies=[];this.model.hero.x=850;this.model.cameraLeft=510;this.model.clearedAt=0;this.model.time=2;}
       if(preview==='infantry'){this.model.start();this.model.hero.x=280;this.model.enemies=[this.model.fighter('brute',500,410),this.model.fighter('mauler',680,435)];this.model.enemies.forEach(e=>e.cooldown=100);this.model.paused=true;}
@@ -188,11 +195,11 @@ class Battle extends Phaser.Scene {
     if ((m.status === 'won' || m.status === 'lost') && !this.recorded) {
       if(m.status === 'won' && m.ranked) {
         records = recordVictory(records, m.hero.heroId ?? 'guanyu', m.score, m.rank);
-        try { profileStorage.setItem(RECORDS_KEY, JSON.stringify(records)); } catch { /* session record still available */ }
+        try { profileStorage.setItem(recordsKey(m.difficulty), JSON.stringify(records)); } catch { /* session record still available */ }
         tone(740, .35);
       }
       this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
-      try { profileStorage.setItem('red-banner-best-v14loot', String(this.best)); } catch { /* Storage is optional. */ }
+      try { profileStorage.setItem(bestKey(m.difficulty), String(this.best)); } catch { /* Storage is optional. */ }
     }
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = m.cameraLeft;
@@ -244,6 +251,9 @@ class Battle extends Phaser.Scene {
     } else if (e.type === 'death' || e.type === 'dodge' || e.type === 'crate') {
       const dust = this.add.ellipse(e.x, e.y, 40, 10, 0xd5b97c, .6).setDepth(e.y);
       this.tweens.add({ targets: dust, scaleX: 2, scaleY: 2, alpha: 0, duration: 300, onComplete: () => dust.destroy() });
+    } else if(e.type==='block'||e.type==='guard-break'){
+      tone(e.type==='block'?620:140,e.type==='block'?.07:.18);
+      const ring=this.add.circle(e.x,e.y,e.type==='block'?12:22,0xffdc8e,.2).setStrokeStyle(2,0xffdc8e).setDepth(e.y+100);this.tweens.add({targets:ring,scale:1.6,alpha:0,duration:180,onComplete:()=>ring.destroy()});
     } else if (e.type === 'swing') soundtrack.weapon(e.heroId ?? 'guanyu',false,e.value===3);
     else if(e.type==='volley'||e.type==='fire')tone(e.type==='fire'?65:480,.16);
     else if (e.type === 'jump') tone(300, .07);
@@ -294,7 +304,8 @@ class Battle extends Phaser.Scene {
     }
     for (const e of m.enemies) {
       const a = e.attack; if (!a || a.hit) continue;
-      const pulse = Math.floor(m.time * 10) % 2 ? .34 : .20;
+      const progress=Math.min(1,a.elapsed/a.impact),pulse=.12+progress*.2;
+      d.fillStyle(0xffd58b,.95).fillRect(e.x-22,e.y-112,44*progress,3);
       d.fillStyle(0xe77948, pulse); d.lineStyle(2, 0xffb568, .85);
       if(a.move==='fan'){for(const slope of [-.3,0,.3]){d.lineStyle(20,0xe4b85b,.16).lineBetween(a.x,a.y,a.x+a.face*330,a.y+slope*330);d.lineStyle(2,0xffd78b,.9).lineBetween(a.x,a.y,a.x+a.face*330,a.y+slope*330);}}
       else if(a.move==='ring'){d.lineStyle(106,0x99dbe6,.20).strokeCircle(a.x,a.y,101);d.lineStyle(2,0xd8f1ed,.9).strokeCircle(a.x,a.y,48).strokeCircle(a.x,a.y,155);}
@@ -310,7 +321,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.4.5\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.5.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
     this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : '');
@@ -318,7 +329,7 @@ class Battle extends Phaser.Scene {
     if(m.hits>0){const remaining=Phaser.Math.Clamp((m.hitDeadline-m.time)/1.7,0,1);g.fillStyle(0x20312d,.95).fillRect(780,171,140,6);g.fillStyle(remaining<.3?0xe77754:0xf9d38a).fillRect(780,171,140*remaining,6);}
 
     const boss = m.enemies.find(e => isBoss(e.kind));
-    this.bossLabel.setText(boss ? `${m.level.boss}${boss.hp <= boss.max / 2 ? ' · 怒勢' : ''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
+    this.bossLabel.setText(boss ? `${m.level.boss} · ${['試探','變招','決戰'][bossPhase(boss.hp,boss.max)]}${boss.attack?.hit?' · 收招可反擊':''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
     if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
     const state = m.paused && !(import.meta.env.DEV&&this.posePreview) ? 'paused' : m.status;
     const overlayKey=state;
@@ -338,7 +349,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.4.5 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.5.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -364,7 +375,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.4.5' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.5.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血全回復` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -422,6 +433,7 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#mute-all')!.checked = preferences.muted;
   document.querySelector<HTMLInputElement>('#reduce-motion')!.checked = preferences.reducedMotion;
   document.querySelector<HTMLInputElement>('#auto-attack')!.checked = preferences.autoAttack;
+  const difficulty=document.querySelector<HTMLSelectElement>('#difficulty')!;difficulty.value=preferences.difficulty;difficulty.disabled=current().model.status!=='ready';
   renderControls(); renderHistory();
   refreshVolumeLabels(); current().draw();
   document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
@@ -435,6 +447,13 @@ function closeSettings(resume=true) {
   if(resume && current().model.status==='playing' && current().model.paused)current().resume();
   current().draw();settingsReturnFocus?.focus();
 }
+document.querySelector<HTMLSelectElement>('#difficulty')!.addEventListener('change',event=>{
+  const value=(event.target as HTMLSelectElement).value;
+  if(current().model.status!=='ready'||!(value in DIFFICULTIES))return;
+  preferences.difficulty=value as typeof preferences.difficulty;current().model.difficulty=preferences.difficulty;
+  try{records=parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty))??'{}'));}catch{records={};}
+  current().best=readBest();current().selectionKey='';savePreferences();renderHistory();
+});
 function refreshVolumeLabels() {
   setText('#music-value', `${Math.round(preferences.music*100)}%`);
   setText('#effects-value', `${Math.round(preferences.effects*100)}%`);
@@ -512,7 +531,7 @@ function handleMenuPad(actions:Set<string>){
 }
 function renderHistory(){
  const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
- for(const [version,key] of [['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command'],['摔技版','v13grapple'],['雙關擴充','v13expanded'],['五關戰役','v13five'],['武器補給','v14loot']]){
+ for(const [version,key] of [['1.5.0 休閒','v150-easy'],['1.5.0 標準','v14loot'],['1.5.0 挑戰','v150-hard'],['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command'],['摔技版','v13grapple'],['雙關擴充','v13expanded'],['五關戰役','v13five']]){
   const title=document.createElement('p');title.textContent=`v${version}`;area.append(title);
   let rows:Records={};try{rows=parseRecords(JSON.parse(profileStorage.getItem(`red-banner-records-${key}`)??'{}'));}catch{}
   const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);

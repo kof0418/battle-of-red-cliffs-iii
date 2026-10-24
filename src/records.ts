@@ -1,3 +1,4 @@
+import type {Difficulty} from './tactics.ts';
 import { HERO_IDS, isHeroId, type HeroId } from './heroes.ts';
 export type Rank = 'S' | 'A' | 'B';
 export type Records = Partial<Record<HeroId,{score:number;rank:Rank}>>;
@@ -16,3 +17,6 @@ export function recordVictory(records: Records, id: HeroId, score: number, rank:
  const old = records[id], ranks = {S:3,A:2,B:1};
  return {...records, [id]: {score:Math.max(score,old?.score ?? 0), rank:old && ranks[old.rank] > ranks[rank] ? old.rank : rank}};
 }
+
+export function recordsKey(difficulty:Difficulty){return difficulty==='normal'?RECORDS_KEY:`red-banner-records-v150-${difficulty}`;}
+export function bestKey(difficulty:Difficulty){return difficulty==='normal'?'red-banner-best-v14loot':`red-banner-best-v150-${difficulty}`;}

@@ -24,7 +24,7 @@ test('all five heroes use picked melee weapons, including Huang Zhong; swings do
  for(const id of HERO_IDS)for(const weapon of ['hammer','sword','axe'] as WeaponId[]){const m=setup();m.hero.heroId=id;m.hero.equipped={id:weapon,uses:1};const e=m.fighter('heavy',470,412);m.enemies=[e];m.swing();assert.equal(m.hero.equipped?.id,weapon);m.resolve(m.hero,m.hero.attack!);assert.equal(e.hp,180-WEAPONS[weapon].damage);assert(!m.events.some(e=>e.type==='arrow'));assert.equal(m.hero.attack?.weapon,weapon);}
 });
 test('knife travels before hitting, strikes nearest target once, respects lanes and pause',()=>{
- for(const face of [-1,1]){const m=setup();m.hero.face=face;m.hero.equipped={id:'knife',uses:1};const front=m.fighter('heavy',400+face*150,412),back=m.fighter('heavy',400+face*230,412),off=m.fighter('heavy',400+face*80,460);m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,180);assert.equal(m.projectiles.length,1);m.hero.attack=null;
+ for(const face of [-1,1]){const m=setup();m.hero.face=face;m.hero.equipped={id:'knife',uses:1};const front=m.fighter('heavy',400+face*150,412),back=m.fighter('heavy',400+face*230,412),off=m.fighter('heavy',400+face*80,460);m.enemies=[back,off,front];m.enemies.forEach(e=>e.guardCooldown=99);m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,180);assert.equal(m.projectiles.length,1);m.hero.attack=null;
  const x=m.projectiles[0].x;m.paused=true;tick(m,20);assert.equal(m.projectiles[0].x,x);m.paused=false;tick(m,20);assert.equal(front.hp,142);assert.equal(back.hp,180);assert.equal(off.hp,180);assert.equal(m.projectiles.length,0);}
 });
 test('all heroes can grab and throw all five full-health bosses, with post-throw cooldown',()=>{

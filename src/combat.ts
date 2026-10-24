@@ -1,3 +1,4 @@
+import {DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
 import {AERIALS,descendingContact} from './aerial.ts';
 import {MOUNT_SLASH,MOUNT_WAVE,type Horse} from './horse.ts';
 import {WEAPONS,crateLoot,barrelLoot,isWeapon,type WeaponId,type LootId} from './loot.ts';
@@ -48,13 +49,13 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
+export type Effect = { type: 'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
@@ -112,7 +113,9 @@ export class Campaign {
   freeze = 0;
   clearedAt = -1;
   private serial = 0;
-  constructor(heroId: HeroId = 'guanyu') { this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
+  difficulty:Difficulty;
+  constructor(heroId: HeroId = 'guanyu',difficulty:Difficulty='normal') { this.difficulty=difficulty;this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
+  get attackLimit(){return DIFFICULTIES[this.difficulty].attackers;}
   get champion() { return HEROES[this.hero.heroId ?? 'guanyu']; }
   selectHero(id: HeroId) { if (this.status !== 'ready') return false; this.hero.heroId = id; return true; }
   slash(step: number) {
@@ -183,6 +186,8 @@ export class Campaign {
     const h = this.hero;
     for (const f of [h, ...this.enemies]) {
       if(f.throwRecovery!==undefined){f.throwRecovery=Math.max(0,f.throwRecovery-dt);if(!f.throwRecovery)delete f.throwRecovery;}
+      if(f.guard!==undefined)f.guard=Math.max(0,f.guard-dt);
+      if(f.guardCooldown!==undefined)f.guardCooldown=Math.max(0,f.guardCooldown-dt);
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
       if(f.knockdown!==undefined)f.knockdown=Math.max(0,f.knockdown-dt);
       f.grappleCooldown=Math.max(0,(f.grappleCooldown??0)-dt);
@@ -221,7 +226,7 @@ export class Campaign {
       h.x=clamp(h.x,this.cameraLeft+25,this.cameraLeft+935);h.y=clamp(h.y,350,503);
       for(const e of this.enemies){
         if(e.hp<=0||e.z>38||e.inv>0||this.dashHits.has(e.id)||Math.abs(e.y-(fromY+h.y)/2)>30||e.x<Math.min(fromX,h.x)-48||e.x>Math.max(fromX,h.x)+48)continue;
-        this.dashHits.add(e.id);e.attack=null;e.stun=.4;e.inv=.22;e.x=clamp(e.x+h.face*(isBoss(e.kind)?30:65),this.enemyLeft,this.enemyRight);this.grappleDamage(e,Math.round(14*this.champion.damage));this.freeze=.025;
+        this.dashHits.add(e.id);this.breakGuard(e);e.attack=null;e.stun=Math.max(e.stun,.4);e.inv=.22;e.x=clamp(e.x+h.face*(isBoss(e.kind)?30:65),this.enemyLeft,this.enemyRight);this.grappleDamage(e,Math.round(14*this.champion.damage));this.freeze=.025;
       }
     }
     else if (h.stun <= 0 && !casting) {
@@ -344,8 +349,9 @@ export class Campaign {
           target.hp=Math.max(0,target.hp-p.damage);this.events.push({type:'crate',x:target.x,y:target.y-12});
           if(!target.hp){const loot=target.loot??crateLoot(this.stage,this.wave);this.pickups.push({id:++this.serial,x:target.x,y:target.y,loot,amount:loot==='bun'?25:loot==='meat'?40:0});}
         }else if(target.inv<=0){
+          if(this.blocked(target,p.x,p.y,!!p.piercing||!!p.wave)){if(!p.wave&&!p.piercing)return false;continue;}
           target.inv=.2;
-          if(!p.arrow||!isBoss(target.kind)){target.stun=p.wave?.55:.32;target.attack=null;}
+          if(!p.arrow||!isBoss(target.kind)||target.attack?.hit){target.stun=Math.max(target.stun,p.wave?.55:.32);target.attack=null;}
           target.x=clamp(target.x+p.face*(p.push??(p.wave?40:24)),this.enemyLeft,this.enemyRight);
           if(p.arrow)this.score+=Math.floor(Math.min(target.hp,p.damage)*Math.min(this.hits,20)*.5);
           this.grappleDamage(target,p.damage);this.freeze=p.piercing?.065:.035;
@@ -363,7 +369,7 @@ export class Campaign {
     const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=44&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
     if(!target)return false;
-    h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;target.grapplePose='held';target.face=-h.face;
+    h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;if(target.guard!==undefined)target.guard=0;target.grapplePose='held';target.face=-h.face;
     this.grapple={target:target.id,hits:0,deadline:this.time+2.8,started:this.time,phase:'hold',elapsed:0,direction:h.face,air:false,startX:h.x,startZ:0};
     this.queuedUntil=0;this.specialQueued=false;this.message='抓住！跳＋攻擊空中摔，或左右＋攻擊';this.messageUntil=this.time+1.5;
     this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});return true;
@@ -477,28 +483,63 @@ export class Campaign {
     if (this.grapple?.target===e.id || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
     if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.moving=true;return;}
+    if((e.guard??0)>0)return;
     e.face = dx >= 0 ? 1 : -1;
-    const boss = isBoss(e.kind), enraged = boss && e.hp <= e.max / 2;
-    const reach = e.kind==='archer'?340:e.kind==='spearman'?130:(e.kind==='hammer'||e.kind==='mauler')?96:e.kind==='brute'?82:boss ? 115 : e.kind === 'heavy' ? 74 : 60;
-    const activeAttackers = this.enemies.filter(f => f.attack).length;
-    if (e.cooldown <= 0 && activeAttackers < 2 && Math.abs(dy) < 27 && Math.abs(dx) < (boss ? 250 : reach)) {
-      let move: Move = e.kind==='archer'?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';
-      if (boss) move = e.kind==='hunter'?(['fan','charge','fan'] as Move[])[e.attacks%3]:e.kind==='frostlord'?(['ring','slam','ring'] as Move[])[e.attacks%3]:e.kind==='regent'?(['cross','sweep','charge'] as Move[])[e.attacks%3]:e.kind === 'marshal' ? (['sweep', 'charge', 'slam'] as Move[])[e.attacks % 3] : e.attacks % 2 === 0 ? 'slam' : 'charge';
-      if ((move === 'slam' && Math.abs(dx) > 125) || (move === 'sweep' && Math.abs(dx) > 160)) move = 'charge';
-      const windup = move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:e.kind==='archer'?.95:e.kind==='mauler'?1.15:e.kind==='brute'?.58:e.kind==='hammer'?1.05:e.kind==='spearman'?.65:boss ? (enraged ? .64 : .85) : e.kind === 'heavy' ? .7 : .48;
-      e.attack = { move, elapsed: 0, duration: windup + (boss ? .55 : .32), impact: windup, hit: false, face: e.face, x: e.x, y: e.y };
-      if(move==='cross'){e.attack.x=h.x;e.attack.y=h.y;}
-      if(move==='fan'||move==='ring'||move==='cross'){this.message=move==='fan'?'玄弦・三路箭陣：換線或跳躍閃避':move==='ring'?'霜岳・震地環：貼近內圈或跳躍':'炎驍・十字斬：離開交叉警戒線';this.messageUntil=this.time+windup;}
-      e.cooldown = boss ? (enraged ? 1.65 : 2.2) : 1.6 + index % 3 * .15; e.attacks++;
-      return;
+    const boss=isBoss(e.kind),phase=boss?bossPhase(e.hp,e.max):0;
+    const ranged=e.kind==='archer',spear=e.kind==='spearman';
+    const reach=ranged?340:spear?130:(e.kind==='hammer'||e.kind==='mauler')?96:e.kind==='brute'?82:boss?250:e.kind==='heavy'?74:60;
+    // Shields commit to a short stance; they cannot turn or attack while guarding.
+    if(e.kind==='heavy'&&(e.guardCooldown??0)<=0&&e.cooldown>.3&&Math.abs(dx)<150&&Math.abs(dy)<40&&frontalGuard(e.face,e.x,e.y,h.x,h.y)){
+      e.guard=.65;e.guardCooldown=2.8;return;
     }
-    const laneOffset = e.cooldown > .25 ? (index % 3 - 1) * 28 : 0;
-    const targetY = clamp(h.y + laneOffset, 352, 500), speed = stats[e.kind].speed * (enraged ? 1.25 : 1);
-    const moveX = e.kind==='archer'&&Math.abs(dx)<160?-Math.sign(dx):Math.abs(dx)>reach-8?Math.sign(dx):0;
-    const moveY = Math.abs(targetY - e.y) > 3 ? Math.sign(targetY - e.y) : 0;
-    e.x = clamp(e.x + moveX * speed * dt, this.enemyLeft, this.enemyRight); e.y = clamp(e.y + moveY * speed * .65 * dt, 350, 503);
-    e.moving = !!(moveX || moveY);
+    // Bowmen and spearmen step back instead of firing or stabbing at point blank range.
+    const retreat=(ranged&&Math.abs(dx)<145)||(spear&&e.cooldown>0&&Math.abs(dx)<82);
+    const preferred=e.id%2?1:-1,side=h.x+preferred*110<this.cameraLeft+15||h.x+preferred*110>this.cameraLeft+945?-preferred:preferred,signed=(e.x-h.x)*side;
+    const flanking=e.kind==='raider'&&signed<80&&(signed < -25||Math.abs(dy)>35);
+    const activeAttackers=this.enemies.filter(f=>f.hp>0&&f.attack).length;
+    const bossReady=!boss&&this.enemies.some(f=>isBoss(f.kind)&&f.hp>0&&f.stun<=0&&!f.attack&&f.cooldown<=0&&Math.abs(f.x-h.x)<250);
+    const slots=this.attackLimit-(bossReady?1:0);
+    if(!retreat&&!flanking&&e.cooldown<=0&&activeAttackers<slots&&Math.abs(dy)<27&&Math.abs(dx)<reach){
+      let move:Move=ranged?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';
+      const plan=boss?bossPlan(e.kind,e.hp,e.max,e.attacks):null;
+      if(plan)move=plan.move;
+      // Far-away slams become a separately telegraphed charge, never an invisible extended hit.
+      if((move==='slam'&&Math.abs(dx)>125)||(move==='sweep'&&Math.abs(dx)>160))move='charge';
+      const windup=plan?.windup??(ranged?.95:e.kind==='mauler'?1.15:e.kind==='brute'?.58:e.kind==='hammer'?1.05:spear?.65:e.kind==='heavy'?.7:.48);
+      const recovery=plan?.recovery??.32;
+      e.attack={move,elapsed:0,duration:windup+recovery,impact:windup,hit:false,face:e.face,x:e.x,y:e.y};
+      if(move==='cross'){e.attack.x=h.x;e.attack.y=h.y;}
+      if(boss){this.message=move==='fan'?'三路箭陣 · 換線或跳躍':move==='ring'?'震地環 · 內圈安全或跳躍':move==='cross'?'十字斬 · 離開交叉線':move==='charge'?'突進 · 移出前方警戒線':move==='sweep'?'橫掃 · 拉開距離或跳躍':'重砸 · 離開地面警戒圈';this.messageUntil=this.time+windup;}
+      e.cooldown=plan?windup+recovery+plan.gap:1.6+index%3*.15;e.attacks++;return;
+    }
+    const speed=stats[e.kind].speed*(1+phase*.1);
+    let targetY=h.y,moveX=0;
+    if(flanking){
+      targetY=clamp(h.y+(h.y<390?55:h.y>465?-55:side*55),352,500);
+      if(Math.abs(targetY-e.y)<22)moveX=Math.sign(h.x+side*100-e.x);
+    }else if(retreat){moveX=-Math.sign(dx||e.face);}
+    else{
+      const waiting=activeAttackers>=slots&&e.cooldown>.2;
+      const stop=ranged?210:spear?112:waiting?105:reach-8;
+      moveX=Math.abs(dx)>stop?Math.sign(dx):0;
+      // Finish the flank by joining the player's lane before closing for a hit.
+      if(e.kind==='raider'&&signed>=60&&Math.abs(dy)>27)moveX=0;
+      if(waiting)targetY=clamp(h.y+(index%2?36:-36),352,500);
+    }
+    const moveY=Math.abs(targetY-e.y)>3?Math.sign(targetY-e.y):0;
+    e.x=clamp(e.x+moveX*speed*dt,this.cameraLeft+15,this.cameraLeft+945);e.y=clamp(e.y+moveY*speed*.65*dt,350,503);e.moving=!!(moveX||moveY);
   }
+  breakGuard(e:Fighter){
+    if((e.guard??0)<=0)return;e.guard=0;e.guardCooldown=2.8;e.stun=Math.max(e.stun,.65);e.attack=null;
+    this.events.push({type:'guard-break',x:e.x,y:e.y-40});
+  }
+  blocked(e:Fighter,x:number,y:number,breaking=false){
+    if((e.guard??0)<=0)return false;
+    if(e.stun>0||!frontalGuard(e.face,e.x,e.y,x,y)){this.breakGuard(e);return false;}
+    if(breaking){this.breakGuard(e);return false;}
+    this.events.push({type:'block',x:e.x,y:e.y-40});this.freeze=.025;return true;
+  }
+
   resolve(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > (a.move==='aerial'?54:38) && a.move!=='special') return;
@@ -513,11 +554,12 @@ export class Campaign {
     if(bow){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
       if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):attackHits(a, t, reach))) continue;
+      if(heroAttack&&this.blocked(t,f.x,f.y,special||a.move==='aerial'||(!a.weapon&&f.step===3)||a.weapon==='hammer'||a.weapon==='axe'||a.move==='mounted'))continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
       t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
-      if (!isBoss(t.kind) || special) { t.stun = heroAttack ? .30 : .22; t.attack = null; }
+      if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? .30 : .22); t.attack = null; }
       t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);

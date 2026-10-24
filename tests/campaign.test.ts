@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {Campaign, attackHits, type Input, type Attack} from '../src/combat.ts';
 const idle: Input = {x:0,y:0};
 function advance(m: Campaign, seconds: number, input = idle) {for(let i=0;i<Math.ceil(seconds*60);i++)m.tick(1/60,input);}
-function isolated() { const m=new Campaign();m.start();m.enemies=[m.fighter('heavy',245,412)];m.enemies[0].cooldown=99;return m; }
+function isolated() { const m=new Campaign();m.start();m.enemies=[m.fighter('heavy',245,412)];m.enemies[0].cooldown=99;m.enemies[0].guardCooldown=99;return m; }
 
 test('pause freezes movement, attacks, cooldowns and input buffer',()=>{
  const m=isolated(); m.events=[];m.togglePause();const before=JSON.stringify(m);advance(m,2,{x:1,y:1,attack:true,jump:true,dodge:true});assert.equal(JSON.stringify(m),before);
@@ -38,10 +38,9 @@ test('zero health loses even if last enemy dies on the same frame',()=>{
 test('new campaign resets all combat state',()=>{
  const m=isolated();m.score=900;m.paused=true;m.hero.hp=1;const n=new Campaign();assert.equal(n.status,'ready');assert.equal(n.score,0);assert.equal(n.hero.hp,160);assert.equal(n.paused,false);
 });
-for (const id of HERO_IDS) test(`${id}: all 30 waves remain completable with combat inputs and a test-only continue budget`,()=>{
+for (const id of HERO_IDS) test(`${id}: all 30 waves remain completable on standard with the production two-continue budget`,()=>{
  const m=new Campaign(id);m.start();
- // Progression coverage uses extra test continues; production still starts with two.
- m.continues=10;
+ assert.equal(m.continues,2);
  for(let frame=0;frame<60*1200&&(m.status==='playing'||m.status==='stage-clear'||m.status==='lost');frame++){
   if(m.status==='lost'){if(!m.continueRun())break;continue;}
   if(m.status==='stage-clear'){assert.ok(m.nextStage());continue;}
