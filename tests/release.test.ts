@@ -6,7 +6,7 @@ test('settings clamp volumes and survive corrupt or unavailable storage',()=>{
  assert.deepEqual(readPreferences({getItem:()=>{throw Error('blocked');}}),DEFAULT_PREFERENCES);
  assert.deepEqual(readPreferences({getItem:()=>'{invalid'}),DEFAULT_PREFERENCES);
  const p=parsePreferences({music:9,effects:-4,muted:'yes',autoAttack:false,reducedMotion:true});
- assert.deepEqual(p,{difficulty:'normal',music:1,effects:0,muted:false,autoAttack:false,reducedMotion:true});
+ assert.deepEqual(p,{largeTouch:false,pad:{attack:0,jump:1,dodge:2},difficulty:'normal',music:1,effects:0,muted:false,autoAttack:false,reducedMotion:true});
  assert.equal(parsePreferences({music:NaN}).music,.35);
 });
 test('victory records preserve best score and best rank independently without duplicate counters',()=>{

@@ -6,14 +6,16 @@ import {drawHorse} from './horse-art';
 import {drawLoot,drawWeapon} from './loot-art';
 import {WEAPONS} from './loot';
 import {WORLD_WIDTH,LEVELS} from './levels';
-import {CommandInput} from './command-input';
+import {CommandBank,type InputSource} from './command-input';
+import {TouchInput,directionAt,touchLayout} from './touch-input';
+import {enterFullscreen,toggleFullscreen} from './immersive';
 import {THROWS} from './throws';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {UserSettings} from './user-settings';
 const profileStorage = new UserSettings();
 import { FixedStep } from './fixed-step';
-import { ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, CONTROL_KEY, VALID_KEYS, parseBindings, remap, keyAction, PadInput, type Bindings, type Action } from './controls';
+import { PAD_ACTIONS,PAD_LABELS,DEFAULT_PAD_BINDINGS,remapPad,ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, CONTROL_KEY, VALID_KEYS, parseBindings, remap, keyAction, PadInput, type Bindings, type Action } from './controls';
 let bindings: Bindings = {...DEFAULT_BINDINGS};
 try { bindings = parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY) ?? 'null')); } catch {}
 const keyboardHeld = new Set<string>();
@@ -39,16 +41,35 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.6.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.7.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
 import { drawBackground } from './background';
 
 const held = new Set<string>(), pressed = new Set<string>();
-const command=new CommandInput();
-const horseCommand=new CommandInput('left','right');
-function queueAction(action:string){const m=current()?.model;if(m?.grapple){command.reset();horseCommand.reset();if(action==='attack'){const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));if(keys.includes('left')||held.has('left'))pressed.add('throw-left');else if(keys.includes('right')||held.has('right'))pressed.add('throw-right');}pressed.add(action);return;}if(m?.status==='playing'&&!m.paused&&!settingsOpen&&(m.hero.mounted?horseCommand:command).press(action,performance.now()))pressed.add(m.hero.mounted?'horse-special':'command-special');else pressed.add(action);}
+const commands=new CommandBank(),touchInput=new TouchInput();let directionPointer:number|null=null;
+function queueAction(action:string,source:InputSource='keyboard'){
+ const scene=current(),m=scene?.model;
+ if(m?.grapple){commands.reset();if(action==='attack'){
+  const keys=[...keyboardHeld].map(k=>keyAction(k,bindings));
+  if(keys.includes('left')||held.has('left')||scene.padHeld.has('left'))pressed.add('throw-left');
+  else if(keys.includes('right')||held.has('right')||scene.padHeld.has('right'))pressed.add('throw-right');
+ }pressed.add(action);return;}
+ if(m?.status==='playing'&&!m.paused&&!settingsOpen&&commands.press(source,action,performance.now(),!!m.hero.mounted))pressed.add(m.hero.mounted?'horse-special':'command-special');
+ else pressed.add(action);
+}
+function clearTouches(){touchInput.reset();directionPointer=null;held.clear();document.querySelectorAll('#touch .is-held').forEach(el=>el.classList.remove('is-held'));}
+function syncTouches(){held.clear();for(const action of touchInput.held)held.add(action);document.querySelectorAll<HTMLElement>('#touch [data-key]').forEach(el=>el.classList.toggle('is-held',held.has(el.dataset.key!)));}
+const touchDevice=navigator.maxTouchPoints>0||matchMedia('(any-pointer:coarse)').matches;
+if(touchDevice)document.body.classList.add('touch-controls');
+function syncViewport(){
+ const width=window.visualViewport?.width??innerWidth,height=window.visualViewport?.height??innerHeight,layout=touchLayout(width,height,preferences.largeTouch);
+ const style=document.documentElement.style;style.setProperty('--screen-w',`${width}px`);style.setProperty('--screen-h',`${height}px`);style.setProperty('--pad-cell',`${layout.cell}px`);style.setProperty('--action-size',`${layout.action}px`);style.setProperty('--utility-top',`${layout.landscape?Math.round(height*.18):10}px`);
+}
+syncViewport();
+async function mobileFullscreen(){if(touchDevice){await enterFullscreen(document);syncViewport();requestAnimationFrame(()=>current()?.scale.refresh());}}
+
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
 function readBest() { try { const n = Number(profileStorage.getItem(bestKey(preferences.difficulty))); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
@@ -63,17 +84,17 @@ class Battle extends Phaser.Scene {
   portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';
 
   clock = new FixedStep();
-  pad = new PadInput();
+  pad = new PadInput();padHeld=new Set<string>();padConnected=false;
   autoAttackAt = 0;
   constructor() { super('Battle'); }
   create() {
     this.portraits=createPortraits(this);this.portraitFrame=-1;this.selectionKey='';this.shellKey='';
     this.model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3)); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
-    this.clock.reset(); this.pad.reset(); keyboardHeld.clear();
+    this.clock.reset(); this.pad.reset();this.padHeld.clear();clearTouches(); keyboardHeld.clear();
     this.autoAttackAt = 0;setText('#command-feedback','');
     document.querySelector('#sound')!.textContent = `聲音：${muted ? '關' : '開'}`;
-    held.clear(); pressed.clear();command.reset();horseCommand.reset();
+    clearTouches(); pressed.clear();commands.reset();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, 540);
     this.supplies = this.add.graphics().setDepth(349.5);
     this.danger = this.add.graphics().setDepth(349);
@@ -134,6 +155,7 @@ class Battle extends Phaser.Scene {
       }
       if(preview==='stage-grade'){this.model.start();this.model.stageResults=[{stage:0,seconds:128,damage:24,retries:0,bestHit:24,interactions:2,grade:'S',points:96,bonus:5000}];this.model.status='stage-clear';this.model.wave=6;this.model.enemies=[];this.model.pending=[];}
       if(preview==='stage-prop'){this.posePreview=true;this.model.stage=Math.max(0,Math.min(4,Number(new URLSearchParams(location.search).get('stage'))||0));this.model.start();this.model.spawn();this.model.pending=[];this.model.hero.x=500;this.model.hero.y=354;this.model.paused=true;this.model.message=RHYTHMS[this.model.stage];this.model.messageUntil=99;}
+      if(preview==='mobile'){document.body.classList.add('touch-controls');this.posePreview=true;this.model.start();this.model.paused=true;syncViewport();}
       if(preview==='transition'){this.model.start();this.model.enemies=[];this.model.hero.x=850;this.model.cameraLeft=510;this.model.clearedAt=0;this.model.time=2;}
       if(preview==='infantry'){this.model.start();this.model.hero.x=280;this.model.enemies=[this.model.fighter('brute',500,410),this.model.fighter('mauler',680,435)];this.model.enemies.forEach(e=>e.cooldown=100);this.model.paused=true;}
       if(preview==='horses'){this.model.start();this.model.hero.x=450;this.model.hero.mounted=true;this.model.enemies=[];this.model.pickups=[{id:800,x:300,y:475,amount:0,loot:'book'},{id:801,x:380,y:475,amount:0,loot:'gong'}];this.model.summonHorses();this.model.paused=true;}
@@ -165,10 +187,10 @@ class Battle extends Phaser.Scene {
     const m = this.model;
     let pads: (Gamepad | null)[] = [];
     try { pads = Array.from(navigator.getGamepads?.() ?? []); } catch { /* unavailable */ }
-    const pad = this.pad.read(pads);
+    const pad = this.pad.read(pads,preferences.pad);this.padHeld=pad.held;this.padConnected=pad.connected;
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
     if (pad.disconnected) suspend();
-    setText('#pad-status', pad.connected ? '手把已連接 · 左搖桿／方向鍵移動 · A／× 攻擊 · B／○ 跳躍 · X／□ 衝撞 · Start 暫停 · Back 設定' : '支援標準映射手把；連接後按任意鍵並放開。');
+    setText('#pad-status', pad.connected ? `手把已連接 · 左搖桿／方向鍵移動 · ${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞 · Start 暫停 · Back 設定` : '支援標準映射手把；連接後按任意鍵並放開。');
     if (pad.pressed.has('settings') || pad.pressed.has('pause')) { if(settingsOpen)closeSettings();else openSettings(); }
     else if(settingsOpen) { handleMenuPad(pad.pressed); }
     else if(m.status === 'ready') {
@@ -179,7 +201,7 @@ class Battle extends Phaser.Scene {
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else if(m.status !== 'playing') {
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
-    } else { for(const action of pad.pressed)queueAction(action); }
+    } else { for(const action of pad.pressed)queueAction(action,'pad'); }
     if (pressed.delete('restart')) { requestRestart(); return; }
     if (pressed.delete('start')) this.activate();
     if (pressed.delete('pause')) {toggleSettings();return;}
@@ -196,7 +218,7 @@ class Battle extends Phaser.Scene {
       m.tick(dt, stepInput);
       for (const event of m.events) this.effect(event);
     });
-    if(mountedBefore!==m.hero.mounted){command.reset();horseCommand.reset();pressed.delete('horse-special');pressed.delete('command-special');}
+    if(mountedBefore!==m.hero.mounted){commands.reset();pressed.delete('horse-special');pressed.delete('command-special');}
     soundtrack.update(m.stage, m.enemies.some(e => isBoss(e.kind)), m.status === 'playing' && !m.paused && !settingsOpen && !document.hidden);
     if ((m.status === 'won' || m.status === 'lost') && !this.recorded) {
       if(m.status === 'won' && m.ranked) {
@@ -273,6 +295,8 @@ class Battle extends Phaser.Scene {
   }
   draw() {
     const m = this.model, live = new Set<number>();
+    const touchPhase=commands.phase('touch',performance.now(),!!m.hero.mounted);setText('#touch-command',touchPhase===1?(m.hero.mounted?'→':'↑'):touchPhase===2?'斬':'移');
+    document.querySelector('#touch [data-key=attack]')!.classList.toggle('command-ready',touchPhase===2);
     if (this.drawnStage !== m.stage) {
       this.backdrop?.destroy(true); this.backdrop = drawBackground(this, m.level); this.drawnStage = m.stage;
     }
@@ -336,7 +360,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.6.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.7.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
     this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
@@ -359,12 +383,13 @@ class Battle extends Phaser.Scene {
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     }
+    if(state==='ready')setText('.select-hint',this.padConnected?`方向鍵／左搖桿選將 · ${PAD_LABELS[preferences.pad.attack]} 出陣`:document.body.classList.contains('touch-controls')?'點選武將，再按出陣':'方向鍵 ← → 或 1–6 選將 · Enter 出陣');
     const selectionKey=`${m.hero.heroId}/${records[m.hero.heroId??'guanyu']?.score??0}`;
     if(state==='ready' && this.selectionKey!==selectionKey){this.selectionKey=selectionKey;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.6.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.7.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -373,7 +398,7 @@ class Battle extends Phaser.Scene {
       if (state !== 'playing') this.showOverlay(state);
     }
     const pause = document.querySelector<HTMLButtonElement>('#pause');
-    if (pause) { setText('#pause', 'Ⅱ Esc'); pause.disabled = m.status === 'ready'; }
+    if (pause) { setText('#pause',this.padConnected?'Ⅱ Start':document.body.classList.contains('touch-controls')?'Ⅱ':'Ⅱ Esc'); pause.disabled = m.status === 'ready'; }
     const status = document.querySelector('#game-status');
     if (status) status.textContent = state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `五關完成 · ${m.score} 分` : state === 'lost' ? `敗陣 · 續關剩 ${m.continues} 次` : state === 'stage-clear' ? `第 ${m.stage+1} 關完成` : `第 ${m.stage + 1} 關 · ${m.remainingEnemies} 名敵人（含援軍）`;
     const action = document.querySelector<HTMLButtonElement>('#advance');
@@ -390,9 +415,9 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.6.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
-    const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? `按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」` : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
-    const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.7.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
+    const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
     const text = (y: number, value: string, size: number, color: string) => this.add.text(480, y, value, { fontFamily: 'serif', fontSize: `${size}px`, color, wordWrap: { width: 830 }, align: 'center' }).setOrigin(.5);
     const result=m.stageResults.find(r=>r.stage===m.stage);
@@ -403,18 +428,35 @@ class Battle extends Phaser.Scene {
 const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, pixelArt: true, roundPixels: true,
   backgroundColor: '#24393d', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, fullscreenTarget: document.documentElement }, scene: Battle, banner: false });
 document.querySelector('#sound')!.addEventListener('click', () => { preferences.muted = !preferences.muted; savePreferences(); });
-document.querySelector('#fullscreen')!.addEventListener('click', async () => { if (desktop) { try { await desktop.invoke('toggle_fullscreen'); } catch { setText('#settings-status','無法切換全螢幕。'); } return; } if (game.scale.isFullscreen) game.scale.stopFullscreen(); else game.scale.startFullscreen(); });
+document.querySelector('#fullscreen')!.addEventListener('click', async () => { if (desktop) { try { await desktop.invoke('toggle_fullscreen'); } catch { setText('#settings-status','無法切換全螢幕。'); } return; } await toggleFullscreen(document);refreshViewport(); });
 document.querySelector('#advance')!.addEventListener('click', () => { current().activate(); current().draw(); });
 document.querySelector('#pause')!.addEventListener('click',openSettings);
 document.querySelector('#restart')!.addEventListener('click', requestRestart);
-document.querySelectorAll<HTMLElement>('[data-key]').forEach(el => {
-  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); held.add(el.dataset.key!); queueAction(el.dataset.key!); });
-  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(event, () => held.delete(el.dataset.key!));
+const directionPad=document.querySelector<HTMLElement>('.touch-directions')!;
+function moveDirection(e:PointerEvent){
+ const box=directionPad.getBoundingClientRect();const actions=directionAt(e.clientX-box.left,e.clientY-box.top,box.width,box.height);
+ for(const action of touchInput.change(e.pointerId,actions))queueAction(action,'touch');syncTouches();
+}
+directionPad.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(directionPointer!==null)return;directionPointer=e.pointerId;directionPad.setPointerCapture(e.pointerId);moveDirection(e);});
+directionPad.addEventListener('pointermove',e=>{if(e.pointerId===directionPointer){e.preventDefault();moveDirection(e);}});
+function releaseTouch(e:PointerEvent){const owned=touchInput.owns(e.pointerId)||directionPointer===e.pointerId;touchInput.release(e.pointerId);if(e.pointerId===directionPointer)directionPointer=null;syncTouches();if(e.type==='pointercancel'||(e.type==='lostpointercapture'&&owned))commands.reset();}
+for(const event of ['pointerup','pointercancel','lostpointercapture'])directionPad.addEventListener(event,e=>releaseTouch(e as PointerEvent));
+document.querySelectorAll<HTMLElement>('.touch-actions [data-key]').forEach(el=>{
+ el.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();el.setPointerCapture(e.pointerId);for(const action of touchInput.change(e.pointerId,[el.dataset.key!]))queueAction(action,'touch');syncTouches();});
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,e=>releaseTouch(e as PointerEvent));
+ el.addEventListener('contextmenu',e=>e.preventDefault());
 });
+directionPad.addEventListener('contextmenu',e=>e.preventDefault());
+document.querySelector('#touch-fullscreen')!.addEventListener('click',async()=>{await toggleFullscreen(document);syncViewport();current().scale.refresh();});
+let resizeFrame=0;
+function refreshViewport(){cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{syncViewport();current()?.scale.refresh();});}
+window.addEventListener('resize',refreshViewport);window.visualViewport?.addEventListener('resize',refreshViewport);document.addEventListener('fullscreenchange',()=>{clearTouches();commands.reset();refreshViewport();});document.addEventListener('webkitfullscreenchange',()=>{clearTouches();commands.reset();refreshViewport();});
+window.addEventListener('orientationchange',()=>{clearTouches();commands.reset();refreshViewport();});
+
 function suspend() {
   soundtrack.pause();
-  current()?.clock.reset(); current()?.pad.reset(); keyboardHeld.clear();
-  held.clear(); pressed.clear();command.reset();horseCommand.reset();
+  current()?.clock.reset(); current()?.pad.reset();current()?.padHeld.clear(); keyboardHeld.clear();
+  clearTouches(); pressed.clear();commands.reset();
   const scene = game.scene.getScene('Battle') as Battle;
   if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
 }
@@ -426,7 +468,7 @@ document.querySelectorAll<HTMLElement>('[data-hero]').forEach(card => card.addEv
   const id = card.dataset.hero as HeroId;
   if (current().model.selectHero(id)) selectedHero = id;
 }));
-document.querySelector('#deploy-hero')!.addEventListener('click', () => { current().activate(); current().draw(); });
+document.querySelector('#deploy-hero')!.addEventListener('click', () => { void mobileFullscreen(); current().activate(); current().draw(); });
 document.querySelector('#reselect')!.addEventListener('click', requestRestart);
 
 
@@ -450,6 +492,9 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#mute-all')!.checked = preferences.muted;
   document.querySelector<HTMLInputElement>('#reduce-motion')!.checked = preferences.reducedMotion;
   document.querySelector<HTMLInputElement>('#auto-attack')!.checked = preferences.autoAttack;
+  document.querySelector<HTMLInputElement>('#large-touch')!.checked=preferences.largeTouch;
+  document.querySelector<HTMLInputElement>('#show-touch')!.checked=document.body.classList.contains('touch-controls');
+  renderPadControls();
   const difficulty=document.querySelector<HTMLSelectElement>('#difficulty')!;difficulty.value=preferences.difficulty;difficulty.disabled=current().model.status!=='ready';
   renderControls(); renderHistory();
   refreshVolumeLabels(); current().draw();
@@ -459,7 +504,7 @@ function closeSettings(resume=true) {
   pendingExit=null;
   settingsOpen = false; document.querySelector<HTMLElement>('#settings-panel')!.removeAttribute('data-open'); document.querySelector<HTMLElement>('#settings-panel')!.hidden = true;
   current().input.keyboard!.enabled = true; current().input.keyboard!.resetKeys();
-  pressed.clear(); held.clear(); keyboardHeld.clear();command.reset();horseCommand.reset(); current().pad.reset(); current().draw();
+  pressed.clear();clearTouches(); keyboardHeld.clear();commands.reset(); current().pad.reset();current().padHeld.clear(); current().draw();
   document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;
   if(resume && current().model.status==='playing' && current().model.paused)current().resume();
   current().draw();settingsReturnFocus?.focus();
@@ -483,8 +528,8 @@ for(const [id,key] of [['music-volume','music'],['effects-volume','effects']] as
   if(key==='effects')tone(440,.10);
  });
 }
-for(const [id,key] of [['mute-all','muted'],['reduce-motion','reducedMotion'],['auto-attack','autoAttack']] as const) {
- document.getElementById(id)!.addEventListener('change',e=>{preferences[key]=(e.target as HTMLInputElement).checked;savePreferences();});
+for(const [id,key] of [['mute-all','muted'],['reduce-motion','reducedMotion'],['auto-attack','autoAttack'],['large-touch','largeTouch']] as const) {
+ document.getElementById(id)!.addEventListener('change',e=>{preferences[key]=(e.target as HTMLInputElement).checked;savePreferences();syncViewport();current().scale.refresh();});
 }
 window.addEventListener('keydown', e => {
  if(e.code==='Escape' || (keyAction(e.code,bindings)==='pause' && (current()?.model.status==='playing'||settingsOpen) && !(e.target instanceof HTMLSelectElement))){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)toggleSettings();return;}
@@ -546,6 +591,14 @@ function handleMenuPad(actions:Set<string>){
  else if(direction&&el instanceof HTMLInputElement&&el.type==='range'){el.value=String(Math.max(Number(el.min),Math.min(Number(el.max),Number(el.value)+direction*Number(el.step||1))));el.dispatchEvent(new Event('input',{bubbles:true}));}
  if(actions.has('attack')&&el instanceof HTMLElement)el.click();
 }
+function renderPadControls(){
+ const root=document.querySelector('#pad-controls')!;root.replaceChildren();
+ for(const action of PAD_ACTIONS){const label=document.createElement('label');label.textContent=ACTION_LABELS[action];const select=document.createElement('select');select.setAttribute('aria-label',`手把${ACTION_LABELS[action]}按鈕`);
+  PAD_LABELS.forEach((name,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=name;option.selected=preferences.pad[action]===i;select.append(option);});
+  select.addEventListener('change',()=>{try{preferences.pad=remapPad(preferences.pad,action,Number(select.value));current().pad.reset();commands.reset();savePreferences();setText('#pad-binding-status','手把配置已更新，放開按鈕後繼續。');}catch(error){setText('#pad-binding-status',(error as Error).message);}renderPadControls();});label.append(select);root.append(label);
+ }
+}
+document.querySelector('#reset-pad')!.addEventListener('click',()=>{preferences.pad={...DEFAULT_PAD_BINDINGS};current().pad.reset();commands.reset();savePreferences();renderPadControls();});
 function renderHistory(){
  const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
  for(const [version,key] of [['目前休閒','v150-easy'],['目前標準','v14loot'],['目前挑戰','v150-hard'],['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command'],['摔技版','v13grapple'],['雙關擴充','v13expanded'],['五關戰役','v13five']]){
@@ -560,4 +613,4 @@ document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettin
 document.querySelector('#menu-reselect')!.addEventListener('click',()=>requestExit('select'));
 document.querySelector('#menu-home')!.addEventListener('click',()=>requestExit('title'));
 
-document.querySelector('#show-touch')!.addEventListener('change',e=>{document.body.classList.toggle('touch-controls',(e.target as HTMLInputElement).checked);requestAnimationFrame(()=>current().scale.refresh());});
+document.querySelector('#show-touch')!.addEventListener('change',e=>{document.body.classList.toggle('touch-controls',(e.target as HTMLInputElement).checked);clearTouches();commands.reset();syncViewport();requestAnimationFrame(()=>current().scale.refresh());});
