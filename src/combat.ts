@@ -40,7 +40,7 @@ export function comboStep(previous: number, last: number, now: number) {
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
-export type Move = 'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
+export type Move = 'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
 export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
@@ -57,7 +57,7 @@ export interface Fighter {
   grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
+export type Effect = { type: 'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
@@ -186,7 +186,7 @@ export class Campaign {
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
     // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
-    if(input.dropWeapon||(input.attack&&input.jump))this.dropQueued=true;
+    if((input.dropWeapon||(input.attack&&input.jump))&&this.hero.z===0&&this.hero.vz===0)this.dropQueued=true;
     if(input.horseSpecial&&this.hero.mounted)this.horseQueued=true;
     if (input.special && !this.grapple) this.specialQueued = true;
     if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
@@ -215,14 +215,17 @@ export class Campaign {
     this.horseQueued=false;
     if(this.dropQueued&&h.equipped&&!h.mounted&&!this.grapple&&h.stun<=0&&h.z===0){
       const weapon=h.equipped;this.pickups.push({id:++this.serial,x:clamp(h.x+h.face*65,this.cameraLeft+28,this.cameraLeft+930),y:h.y,amount:0,loot:weapon.id,weaponHits:weapon.hits??0,availableAt:this.time+.7});
-      h.equipped=undefined;h.attack=null;this.queuedUntil=0;this.specialQueued=false;input={...input,attack:false,jump:false,special:false};this.message='放下武器，可再次拾取';this.messageUntil=this.time+1.5;
+      h.equipped=undefined;this.dropQueued=false;h.attack=null;this.queuedUntil=0;this.specialQueued=false;input={...input,attack:false,jump:false,special:false};this.message='放下武器，可再次拾取';this.messageUntil=this.time+1.5;
+    }
+    if(this.dropQueued&&!h.equipped&&!h.mounted&&!this.grapple){
+      this.rescue();this.queuedUntil=0;this.specialQueued=false;input={...input,attack:false,jump:false,special:false,dodge:false};
     }
     this.dropQueued=false;
     if(input.jump&&h.mounted)this.dismount(false);
     const occupied=!!this.grapple;
     if(this.grapple)this.updateGrapple(dt,input);
     if(this.specialQueued){this.specialQueued=false;this.special();}
-    const casting=occupied||h.attack?.move==='special';
+    const casting=occupied||h.attack?.move==='special'||h.attack?.move==='rescue';
     if(h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
     if (input.dodge && !h.mounted && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
@@ -293,7 +296,7 @@ export class Campaign {
     this.pickups = this.pickups.filter(p => {
       if ((p.availableAt??0)>this.time||!nearPickup(h,p)||h.attack||this.grapple||h.stun>0) return true;
       if(p.loot==='book'){this.score+=1500;this.message='兵書 +1500 分';this.messageUntil=this.time+2;this.events.push({type:'book',x:p.x,y:p.y,value:1500});return false;}
-      if(p.loot==='gong'){if(h.mounted)return true;this.summonHorses();return false;}
+      if(p.loot==='gong'){if(!this.summonHorses()){this.score+=1000;this.message='已有馬匹 · 銅鑼 +1000 分';this.messageUntil=this.time+2;this.events.push({type:'bonus',x:p.x,y:p.y,value:1000});}return false;}
       if(p.loot&&isWeapon(p.loot)){
         if(h.equipped||h.mounted)return true;
         h.equipped={id:p.loot,uses:WEAPONS[p.loot].uses,hits:p.weaponHits??0};
@@ -365,9 +368,10 @@ export class Campaign {
     if(h.equipped.hits>=2){this.events.push({type:'weapon-drop',x:h.x,y:h.y,weapon:h.equipped.id});h.equipped=undefined;this.message='武器脫手損壞！';this.messageUntil=this.time+1.4;}
   }
   summonHorses(){
+    if(this.hero.mounted||this.horses.some(h=>h.life>0&&h.x>-100))return false;
     const start=this.cameraLeft+1020;
-    this.horses=[...this.horses.filter(h=>h.waiting),{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
-    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;
+    this.horses=[{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
+    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;return true;
   }
   updateHorses(dt:number){
     const h=this.hero;
@@ -497,6 +501,23 @@ export class Campaign {
     state.phase='throw';state.direction=direction;state.air=air;state.elapsed=0;state.startX=e.x;state.startZ=e.z;this.hero.face=direction;this.hero.grapplePose='throw';e.grapplePose='thrown';
     if(air)this.hero.inv=Math.max(this.hero.inv,.38);
     this.message=THROWS[this.hero.heroId!].name+(air?' · 落地重摔':' · '+(direction<0?'左摔':'右摔'));this.messageUntil=this.time+1.1;
+  }
+  /** Attack+jump while using the hero's own weapon: costly, short emergency escape. */
+  rescue(){
+    const h=this.hero;
+    if(this.status!=='playing'||this.paused||h.equipped||h.mounted||this.grapple||h.z>0||h.vz>0||h.dodge>0||(h.knockdown??0)>0||(h.specialCooldown??0)>0)return false;
+    if(h.hp<=8){this.message='氣血不足，解困技需要保留至少 1 點血';this.messageUntil=this.time+1.4;return false;}
+    h.hp-=8;this.waveDamage+=8;this.stageDamage+=8;h.stun=0;h.inv=Math.max(h.inv,.6);h.specialCooldown=1.2;h.step=3;h.moving=false;
+    h.attack={move:'rescue',elapsed:0,duration:.45,impact:.05,hit:true,face:h.face,x:h.x,y:h.y};
+    this.message='解困震退！氣血 -8';this.messageUntil=this.time+1.2;
+    this.events.push({type:'rescue',x:h.x,y:h.y,heroId:h.heroId,value:8});
+    for(const e of this.enemies){
+      if(e.hp<=0||e.inv>0||e.z>38||Math.hypot((e.x-h.x)/1.4,e.y-h.y)>95)continue;
+      this.breakGuard(e);e.attack=null;e.stun=Math.max(e.stun,.9);e.knockdown=.8;e.inv=.3;
+      const side=Math.sign(e.x-h.x)||h.face;e.x=clamp(e.x+side*(isBoss(e.kind)?65:110),this.enemyLeft,this.enemyRight);e.y=clamp(e.y+Math.sign(e.y-h.y)*15,350,503);
+      this.grappleDamage(e,20);
+    }
+    return true;
   }
   special() {
     const h=this.hero;

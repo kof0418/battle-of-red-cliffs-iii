@@ -43,7 +43,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.8.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.8.1';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -160,6 +160,7 @@ class Battle extends Phaser.Scene {
       }
       if(preview==='stage-grade'){this.model.start();this.model.stageResults=[{stage:0,seconds:128,damage:24,retries:0,bestHit:24,interactions:2,grade:'S',points:96,bonus:5000}];this.model.status='stage-clear';this.model.wave=6;this.model.enemies=[];this.model.pending=[];}
       if(preview==='stage-prop'){this.posePreview=true;this.model.stage=Math.max(0,Math.min(4,Number(new URLSearchParams(location.search).get('stage'))||0));this.model.start();this.model.spawn();this.model.pending=[];this.model.hero.x=500;this.model.hero.y=354;this.model.paused=true;this.model.message=RHYTHMS[this.model.stage];this.model.messageUntil=99;}
+      if(preview==='rescue'){this.model.start();this.model.hero.x=480;this.model.supplies=[];this.model.barrels=[];this.model.enemies=[this.model.fighter('soldier',430,412),this.model.fighter('heavy',535,412)];this.model.enemies.forEach(e=>e.cooldown=99);}
       if(preview==='scenery'){
         const params=new URLSearchParams(location.search);this.model.stage=Math.max(0,Math.min(4,Number(params.get('stage'))||0));this.model.start();this.model.cameraLeft=Math.max(0,Math.min(WORLD_WIDTH-960,Number(params.get('scroll'))||600));this.model.hero.x=this.model.cameraLeft+480;this.model.enemies=[];this.model.pending=[];this.model.paused=true;this.posePreview=true;
         const button=document.createElement('button');button.id='restore-probe';button.textContent='驗證背景恢復';button.style.cssText='position:fixed;z-index:99999;top:8px;left:8px';document.body.append(button);button.onclick=()=>{const renderer=this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;const ext=renderer.gl?.getExtension('WEBGL_lose_context');if(!ext){button.textContent='不支援模擬';return;}ext.loseContext();setTimeout(()=>ext.restoreContext(),150);};this.events.once('shutdown',()=>button.remove());
@@ -213,7 +214,7 @@ class Battle extends Phaser.Scene {
     const pad = this.pad.read(pads,preferences.pad);this.padHeld=pad.held;this.padConnected=pad.connected;
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
     if (pad.disconnected) suspend();
-    setText('#pad-status', pad.connected ? `手把已連接 · 左搖桿／方向鍵移動 · ${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞 · Start 暫停 · Back 設定` : '支援標準映射手把；連接後按任意鍵並放開。');
+    setText('#pad-status', pad.connected ? `${pad.family} 手把已連接 · 左搖桿／方向鍵移動 · ${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞 · Start 暫停 · Back 設定` : '支援 Xbox USB／藍牙手把（瀏覽器標準映射）；連接後按任意鍵並放開。');
     if (pad.pressed.has('settings') || pad.pressed.has('pause')) { if(settingsOpen)closeSettings();else openSettings(); }
     else if(settingsOpen) { handleMenuPad(pad.pressed); }
     else if(m.status === 'ready') {
@@ -259,7 +260,14 @@ class Battle extends Phaser.Scene {
     if(this.performanceQA?.done){m.paused=true;soundtrack.pause();}
   }
   effect(e: Effect) {
-    if(e.type==='weapon-drop'){
+    if(e.type==='rescue'){
+      setText('#command-feedback','解困震退 · 氣血 -8');soundtrack.specialImpact(e.heroId??'guanyu');
+      const ring=this.add.ellipse(e.x,e.y-30,100,68,0xf3d7a0,.25).setStrokeStyle(5,0xffe4af).setDepth(e.y+100);
+      this.tweens.add({targets:ring,scaleX:2.5,scaleY:2,alpha:0,duration:preferences.reducedMotion?180:400,onComplete:()=>ring.destroy()});
+      const label=this.add.text(e.x,e.y-110,'解困 -8',{fontSize:'20px',color:'#ffcf8e',stroke:'#28332a',strokeThickness:3}).setOrigin(.5).setDepth(8000);this.tweens.add({targets:label,y:label.y-20,alpha:0,duration:700,onComplete:()=>label.destroy()});
+    }else if(e.type==='bonus'){
+      tone(780,.15);const label=this.add.text(e.x,e.y-45,'銅鑼 +1000',{fontSize:'20px',color:'#ffdc8c',stroke:'#27332e',strokeThickness:3}).setDepth(8000);this.tweens.add({targets:label,y:label.y-35,alpha:0,duration:850,onComplete:()=>label.destroy()});
+    }else if(e.type==='weapon-drop'){
       const fx=this.add.graphics().setPosition(e.x,e.y-40).setDepth(e.y+1);drawWeapon(fx,e.weapon!,0,0,.8);this.tweens.add({targets:fx,y:e.y,angle:110,alpha:0,duration:600,onComplete:()=>fx.destroy()});tone(130,.15);
     }else if(e.type==='gong'||e.type==='mount'||e.type==='blade-wave'||e.type==='book'){
       if(e.type==='blade-wave')soundtrack.specialImpact(e.heroId??'guanyu',true);else if(e.type==='gong')soundtrack.gong();else tone(e.type==='book'?780:280,.2);
@@ -385,7 +393,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.8.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.8.1 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
     this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
@@ -414,7 +422,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.8.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.8.1 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -441,7 +449,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.8.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.8.1' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -580,7 +588,7 @@ function renderControls() {
 }
 function updateKeyGuide(){
  const label=(a:Action)=>bindings[a].slice(3);
- setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · ${label('dodge')} 衝撞 · ↓↑＋攻擊 必殺 · ${label('pause')} 暫停`);
+ setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · 攻擊＋跳躍 解困（耗血8；持拾取武器時丟下） · ${label('dodge')} 衝撞 · ↓↑＋攻擊 必殺 · ${label('pause')} 暫停`);
  const keys=document.querySelectorAll('.controls kbd');
  if(keys.length>=8){keys[0].textContent=`${label('up')} ${label('left')} ${label('down')} ${label('right')}`;keys[2].textContent=label('attack');keys[3].textContent=label('jump');keys[5].textContent=label('dodge');keys[6].textContent=label('pause');}
 }
