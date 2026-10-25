@@ -33,7 +33,7 @@ export const SLASHES = [
   { duration: .44, impact: .18, damage: 34, reach: 122, push: 65 },
 ];
 export function inRange(ax: number, ay: number, bx: number, by: number, facing: number, reach: number) {
-  return Math.abs(by - ay) < 30 && (bx - ax) * facing > -12 && (bx - ax) * facing < reach;
+  return Math.abs(by - ay) <= 30 && (bx - ax) * facing >= -12 && (bx - ax) * facing <= reach;
 }
 export function comboStep(previous: number, last: number, now: number) {
   return now - last < 650 ? previous % 3 + 1 : 1;
@@ -54,7 +54,7 @@ export interface Fighter {
   guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
-  grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
+  grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
 export type Effect = { type: 'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
@@ -199,7 +199,13 @@ export class Campaign {
       if(f.guard!==undefined)f.guard=Math.max(0,f.guard-dt);
       if(f.guardCooldown!==undefined)f.guardCooldown=Math.max(0,f.guardCooldown-dt);
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
-      if(f.knockdown!==undefined)f.knockdown=Math.max(0,f.knockdown-dt);
+      if((f.knockdown??0)>0){
+        f.knockdown=Math.max(0,f.knockdown!-dt);
+        f.attack=null;
+        if(f.knockdown===0)f.inv=Math.max(f.inv,f===h?.35:.18);
+        else f.stun=Math.max(f.stun,f.knockdown);
+      }
+      if(f.rescueCooldown!==undefined)f.rescueCooldown=Math.max(0,f.rescueCooldown-dt);
       f.grappleCooldown=Math.max(0,(f.grappleCooldown??0)-dt);
       f.specialCooldown = Math.max(0,(f.specialCooldown ?? 0)-dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
@@ -505,9 +511,9 @@ export class Campaign {
   /** Attack+jump while using the hero's own weapon: costly, short emergency escape. */
   rescue(){
     const h=this.hero;
-    if(this.status!=='playing'||this.paused||h.equipped||h.mounted||this.grapple||h.z>0||h.vz>0||h.dodge>0||(h.knockdown??0)>0||(h.specialCooldown??0)>0)return false;
+    if(this.status!=='playing'||this.paused||h.equipped||h.mounted||this.grapple||h.z>0||h.vz>0||h.dodge>0||(h.knockdown??0)>0||(h.rescueCooldown??0)>0)return false;
     if(h.hp<=8){this.message='氣血不足，解困技需要保留至少 1 點血';this.messageUntil=this.time+1.4;return false;}
-    h.hp-=8;this.waveDamage+=8;this.stageDamage+=8;h.stun=0;h.inv=Math.max(h.inv,.6);h.specialCooldown=1.2;h.step=3;h.moving=false;
+    h.hp-=8;this.waveDamage+=8;this.stageDamage+=8;h.stun=0;h.inv=Math.max(h.inv,.6);h.rescueCooldown=1.2;h.specialCooldown=Math.max(h.specialCooldown??0,.85);h.step=3;h.moving=false;
     h.attack={move:'rescue',elapsed:0,duration:.45,impact:.05,hit:true,face:h.face,x:h.x,y:h.y};
     this.message='解困震退！氣血 -8';this.messageUntil=this.time+1.2;
     this.events.push({type:'rescue',x:h.x,y:h.y,heroId:h.heroId,value:8});
@@ -523,7 +529,7 @@ export class Campaign {
     const h=this.hero;
     if(this.status!=='playing'||this.paused||h.hp<=0||this.grapple||h.mounted)return false;
     let reason='';
-    if((h.specialCooldown??0)>0||h.attack?.move==='special')reason='招式尚未收完';
+    if((h.knockdown??0)>0||h.attack?.move==='rescue'||(h.specialCooldown??0)>0||h.attack?.move==='special')reason='招式尚未收完';
     else if(h.z>0||h.vz>0||h.dodge>0)reason='請落地站穩後施放';
     if(reason){this.message=reason;this.messageUntil=this.time+1.2;return false;}
     h.hp-=SPECIAL_COST;this.waveDamage+=SPECIAL_COST;h.specialCooldown=SPECIAL_COOLDOWN;
@@ -545,9 +551,9 @@ export class Campaign {
     this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
   ai(e: Fighter, index: number, dt: number) {
-    if (this.grapple?.target===e.id || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
+    if (this.grapple?.target===e.id || (e.knockdown??0)>0 || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
-    if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.moving=true;return;}
+    if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.y+=Math.sign(dy)*Math.min(Math.abs(dy),stats[e.kind].speed*.5*dt);e.moving=true;return;}
     if((e.guard??0)>0)return;
     e.face = dx >= 0 ? 1 : -1;
     const boss=isBoss(e.kind),phase=boss?bossPhase(e.hp,e.max):0;
@@ -625,6 +631,7 @@ export class Campaign {
       t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
       if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? .30 : .22); t.attack = null; }
+      if(heroAttack&&!special&&!a.weapon&&a.move==='slash'&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
       t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);
