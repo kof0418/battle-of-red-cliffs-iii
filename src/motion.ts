@@ -39,3 +39,14 @@ export function mountedMotion(phase:number,back=false,charging=false){
  const active=phase===2||phase===3;
  return {x:(back?-1:1)*(active?28:18),y:-50,lean:charging?12:back?-7:active?6:0,angle:0,stride:0,crouch:0,phase};
 }
+
+/** Bow release point after the same rider scale, lean and saddle lift as Actor.draw.
+ * Ground lane coordinates stay separate so mounted arrows still hit same-lane foes.
+ */
+export function mountedArrowVisual(face:number,shotFace:number,originOffset=20){
+ const relative=shotFace*face,m=mountedMotion(2,relative<0);
+ const angle=m.lean*face*Math.PI/180,scale=1.12;
+ const x=(m.x+40*relative)*scale*face,y=(m.y-5)*scale;
+ return {drawOffsetX:x*Math.cos(angle)-y*Math.sin(angle)-shotFace*originOffset,
+  drawHeight:42-(x*Math.sin(angle)+y*Math.cos(angle))};
+}

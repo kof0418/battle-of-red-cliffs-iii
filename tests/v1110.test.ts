@@ -40,3 +40,15 @@ test('lethal light strikes and environmental knockdowns do not leave a mounted c
  const m=setup();const boss=m.fighter('marshal',460,412);boss.mounted=true;boss.hp=1;m.enemies=[boss];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(boss.hp,0);assert(!boss.mounted);assert.equal(m.events.filter(e=>e.type==='enemy-dismount').length,1);
  const n=setup(),e=n.enemies[0];e.mounted=true;e.knockdown=.8;ticks(n,1);assert(!e.mounted);assert.equal(n.horses.length,0);
 });
+
+test('mounted Huang arrows leave the raised bow in either facing, including rear shots and special',()=>{
+ for(const face of [-1,1])for(const shotFace of [-1,1]){
+  const m=setup('huangzhong');m.hero.face=face;m.swing(shotFace);m.resolve(m.hero,m.hero.attack!);
+  const p=m.projectiles[0];assert.equal(p.y,m.hero.y);assert(p.drawHeight!>90&&p.drawHeight!<105);
+  assert((p.x+p.drawOffsetX!-m.hero.x)*shotFace>60);
+  m.projectiles=[];m.resolve(m.hero,{...m.hero.attack!,move:'wave',face});
+  assert(m.projectiles[0].drawHeight!>90);assert.equal(m.projectiles[0].y,m.hero.y);
+ }
+ const foot=setup('huangzhong');foot.hero.mounted=false;foot.swing();foot.resolve(foot.hero,foot.hero.attack!);
+ assert.equal(foot.projectiles[0].drawHeight,undefined);
+});
