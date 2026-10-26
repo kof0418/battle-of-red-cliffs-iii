@@ -11,7 +11,7 @@ import {WORLD_WIDTH,LEVELS} from './levels';
 import {CommandBank,type InputSource} from './command-input';
 import {TouchInput,directionAt,touchLayout} from './touch-input';
 import {enterFullscreen,toggleFullscreen} from './immersive';
-import {THROWS} from './throws';
+import {THROWS,bossGrabWindow} from './throws';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
 import {UserSettings} from './user-settings';
@@ -43,7 +43,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.9.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v1.10.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -151,6 +151,17 @@ class Battle extends Phaser.Scene {
           if(i)this.model.enemies.push(f);
         });
         this.model.message='六將動作檢查';this.model.messageUntil=99;
+      }
+      if(preview==='throws'){
+        this.posePreview=true;this.model.start();this.model.enemies=[];this.model.supplies=[];this.model.barrels=[];this.model.paused=true;
+        const samples=[{kind:'soldier' as const,x:165,back:false,title:'向前拋摔'},{kind:'mauler' as const,x:485,back:true,title:'重裝過肩背摔'},{kind:'boss' as const,x:800,back:true,title:'頭目抓摔'}];
+        samples.forEach((sample,i)=>{
+          const q=new Campaign(i===1?'zhangfei':'guanyu');q.start();q.hero.x=sample.x;q.hero.y=420;
+          const target=q.fighter(sample.kind,sample.x+25,420);q.enemies=[target];q.tryGrab({x:1,y:0});q.beginThrow(sample.back?-1:1,false);q.updateGrapple(.15,{x:0,y:0});
+          q.hero.id=1100+i*2;target.id=1101+i*2;if(i===0)this.model.hero=q.hero;else this.model.enemies.push(q.hero);this.model.enemies.push(target);
+          this.add.text(sample.x,220,sample.title,{fontFamily:'sans-serif',fontSize:'16px',color:'#f4d28d'}).setOrigin(.5).setDepth(9002);
+        });
+        this.model.message='前摔／背摔與重量差異';this.model.messageUntil=99;
       }
       if(preview==='tactics'){
         this.posePreview=true;this.model.stage=4;this.model.start();this.model.wave=6;this.model.hero.x=280;this.model.supplies=[];this.model.barrels=[];
@@ -393,15 +404,15 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * m.hero.x / WORLD_WIDTH, 3);
     this.label.setText(`${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?'騎乘 · 左右＋攻擊刀波':m.hero.equipped?WEAPONS[m.hero.equipped.id].name+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v1.9.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v1.10.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.scoreLabel.setText(`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
-    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':'摔技！') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
+    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':m.grapple.air?'共同落地重摔':m.grapple.back?'過肩背摔':'向前拋摔') : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
     this.combo.setText(m.hits > 0 ? `${m.hits} HIT${m.hits>1?'S':''}` : '');
     if(m.hits>0){const remaining=Phaser.Math.Clamp((m.hitDeadline-m.time)/1.7,0,1);g.fillStyle(0x20312d,.95).fillRect(780,171,140,6);g.fillStyle(remaining<.3?0xe77754:0xf9d38a).fillRect(780,171,140*remaining,6);}
 
     const boss = m.enemies.find(e => isBoss(e.kind));
-    this.bossLabel.setText(boss ? `${m.level.boss} · ${['試探','變招','決戰'][bossPhase(boss.hp,boss.max)]}${boss.attack?.hit?' · 收招可反擊':''}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
+    this.bossLabel.setText(boss ? `${m.level.boss} · ${['試探','變招','決戰'][bossPhase(boss.hp,boss.max)]}${(boss.knockdown??0)>0||boss.grapplePose?' · 倒地／擒拿中':(boss.grappleCooldown??0)>0?' · 擒拿冷卻':boss.inv>0&&boss.stun<=0?' · 起身保護':bossGrabWindow(boss.attack)==='recovery'?' · 收招可抓':bossGrabWindow(boss.attack)==='windup'?' · 蓄力可抓':bossGrabWindow(boss.attack)==='unsafe'?' · 出招中':' · 近身可抓'}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
     if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
     const state = m.paused && !(import.meta.env.DEV&&this.posePreview) ? 'paused' : m.status;
     const overlayKey=state;
@@ -422,7 +433,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', personal ? `此武將已通關 · v1.9.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', personal ? `此武將已通關 · v1.10.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', `以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -449,7 +460,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.9.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v1.10.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);

@@ -73,7 +73,7 @@ test('thrown enemy knocks down and damages multiple targets once, without hittin
   const {m,e}=setup();const targets=[50,85].map(offset=>{const t=m.fighter('heavy',400+direction*offset,412);t.cooldown=10;m.enemies.push(t);return t;});
   const outside=m.fighter('heavy',400+direction*70,470);outside.stun=10;m.enemies.push(outside);
   m.tryGrab({x:1,y:0});if(air){m.hero.face=direction;m.tick(1/60,{...idle,jump:true});step(m,10);punch(m);}else m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});
-  step(m,38);for(const t of targets){assert.equal(t.hp,air?150:156);assert((t.knockdown??0)>0);assert(t.stun>0);assert.equal(t.attack,null);}assert.equal(outside.hp,180);assert(e.hp<180);
+  step(m,42);for(const t of targets){assert.equal(t.hp,air?150:156);assert((t.knockdown??0)>0);assert(t.stun>0);assert.equal(t.attack,null);}assert.equal(outside.hp,180);assert(e.hp<180);
   step(m,15);for(const t of targets)assert.equal(t.hp,air?150:156);
  }
 });

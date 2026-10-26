@@ -22,9 +22,9 @@ export function aerialMotion(id:HeroId,descending:boolean){
  const thrust=id==='zhaoyun',bow=id==='huangzhong';
  return {x:descending?(thrust?38:bow?26:30):10,y:descending?-26:-65,lean:descending?12:-6,angle:descending?(thrust?.3:bow?.65:.9):-1.1,stride:descending?10:6,crouch:0,phase:descending?2:1};
 }
-export function grappleMotion(id:HeroId,pose:string,progress=0){
+export function grappleMotion(id:HeroId,pose:string,progress=0,back=false){
  const heavy=id==='zhangfei'||id==='lubu',p=Math.max(0,Math.min(1,progress));
- if(pose==='throw')return {x:26,y:-66+Math.sin(p*Math.PI)*26,lean:(heavy?10:7)*Math.sin(p*Math.PI),stride:10,crouch:Math.sin(p*Math.PI)*4};
+ if(pose==='throw')return {x:back?26-42*Math.sin(p*Math.PI):26,y:-66+Math.sin(p*Math.PI)*26,lean:(back?-1:1)*(heavy?10:7)*Math.sin(p*Math.PI),stride:10,crouch:Math.sin(p*Math.PI)*4};
  if(pose==='air')return {x:27,y:-66,lean:-5,stride:8,crouch:0};
  return {x:27,y:-49,lean:heavy?-3:-1,stride:7,crouch:2};
 }

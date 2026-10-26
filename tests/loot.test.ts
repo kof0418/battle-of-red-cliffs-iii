@@ -28,7 +28,7 @@ test('knife travels before hitting, strikes nearest target once, respects lanes 
  const x=m.projectiles[0].x;m.paused=true;tick(m,20);assert.equal(m.projectiles[0].x,x);m.paused=false;tick(m,20);assert.equal(front.hp,142);assert.equal(back.hp,180);assert.equal(off.hp,180);assert.equal(m.projectiles.length,0);}
 });
 test('all heroes can grab and throw all five full-health bosses, with post-throw cooldown',()=>{
- for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:1,y:0,grappleAttack:true});tick(m,42);assert.equal(m.grapple,null);assert(e.hp<e.max);assert((e.grappleCooldown??0)>0);}
+ for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:1,y:0,grappleAttack:true});tick(m,48);assert.equal(m.grapple,null);assert(e.hp<e.max);assert((e.grappleCooldown??0)>0);}
 });
 test('equipment carries into next stage, while continuing resets equipment and projectiles',()=>{
  const m=setup();m.hero.equipped={id:'hammer',uses:5};m.hero.hp=81;m.status='stage-clear';m.nextStage();assert.equal(m.hero.hp,81);assert.equal(m.hero.equipped?.uses,5);m.status='lost';m.hero.hp=0;m.projectiles=[{id:999,x:400,y:412,face:1,remaining:300,damage:38}];m.continueRun();assert.equal(m.hero.hp,160);assert.equal(m.hero.equipped,undefined);assert.equal(m.projectiles.length,0);

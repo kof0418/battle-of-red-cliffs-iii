@@ -8,7 +8,7 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
  const action=f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase):null;
- const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress):null;
+ const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
  poly(0x142c28,[-11,-64,-22,-58,-29-frame%3,-18,-14,-24,-6,-48]);
