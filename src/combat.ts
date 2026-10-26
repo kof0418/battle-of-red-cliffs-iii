@@ -1,3 +1,4 @@
+import {HERO_STYLES,BOW_STRIKE} from './hero-styles.ts';
 import {encounterPlan,PROPS,RHYTHMS,type Reinforcement,type StageProp} from './encounters.ts';
 import {gradeStage,type StageResult} from './stage-grade.ts';
 import {DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
@@ -40,14 +41,14 @@ export function comboStep(previous: number, last: number, now: number) {
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
-export type Move = 'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
+export type Move = 'kick'|'bow-strike'|'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
 export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
 }
 export interface Pickup { id: number; x: number; y: number; amount: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export interface Attack {
-  weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
+  connected?:boolean; weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
 }
 export interface Fighter {
@@ -125,11 +126,16 @@ export class Campaign {
   difficulty:Difficulty;
   constructor(heroId: HeroId = 'guanyu',difficulty:Difficulty='normal',encounterSeed=0) { this.encounterSeed=encounterSeed;this.difficulty=difficulty;this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
   get attackLimit(){return DIFFICULTIES[this.difficulty].attackers;}
+  get style(){return HERO_STYLES[this.hero.heroId??'guanyu'];}
   get champion() { return HEROES[this.hero.heroId ?? 'guanyu']; }
   selectHero(id: HeroId) { if (this.status !== 'ready') return false; this.hero.heroId = id; return true; }
   slash(step: number) {
     const s = SLASHES[Math.max(0, step - 1)], c = this.champion;
-    return { duration: s.duration * c.tempo, impact: s.impact * c.tempo, damage: Math.round(s.damage * c.damage), reach: s.reach * c.reach, push: s.push * c.push };
+    const result={ duration: s.duration * c.tempo, impact: s.impact * c.tempo, damage: Math.round(s.damage * c.damage), reach: s.reach * c.reach, push: s.push * c.push };
+    if(this.hero.heroId==='guanyu'&&step<3)result.push=step===1?10:12;
+    if(this.hero.heroId==='weiyan'&&step===3){result.duration=.38;result.impact=.14;result.reach=92;result.push=48;}
+    if(this.hero.heroId==='lubu'&&step===3){result.duration=.60;result.impact=.23;}
+    return result;
   }
   fighter(kind: Kind, x: number, y: number): Fighter {
     return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: stats[kind].hp, max: stats[kind].hp,
@@ -209,7 +215,9 @@ export class Campaign {
       f.grappleCooldown=Math.max(0,(f.grappleCooldown??0)-dt);
       f.specialCooldown = Math.max(0,(f.specialCooldown ?? 0)-dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
-      if ((!this.grapple || (f!==h && f.id!==this.grapple.target)) && (f.z > 0 || f.vz > 0)) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { if(f.attack?.move==='aerial'&&!f.attack.hit){this.resolve(f,f.attack);f.attack.hit=true;} delete f.airAttackUsed;f.stun = Math.max(f.stun, .12); f.attack = null; this.queuedUntil=0; } } }
+      if ((!this.grapple || (f!==h && f.id!==this.grapple.target)) && (f.z > 0 || f.vz > 0)) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { if(f.attack?.move==='aerial'&&!f.attack.hit){this.resolve(f,f.attack);f.attack.hit=true;} const aerialLink=f.heroId==='zhaoyun'&&f.attack?.move==='aerial'&&f.attack.connected;
+        delete f.airAttackUsed;f.stun = Math.max(f.stun, this.style.landing); f.attack = null;
+        if(aerialLink){f.step=1;f.last=this.time;this.message='銀龍接勢 · 可接第二段';this.messageUntil=this.time+.7;}else this.queuedUntil=0; } } }
     }
     if(this.grapple && (h.hp<=0||h.stun>0||!this.enemies.some(e=>e.id===this.grapple!.target&&e.hp>0)))this.releaseGrapple(false);
     if(h.mountCooldown!==undefined)h.mountCooldown=Math.max(0,h.mountCooldown-dt);
@@ -251,11 +259,12 @@ export class Campaign {
     else if (h.stun <= 0 && !casting) {
       if (input.jump && !h.mounted && h.z === 0) { h.vz = 360; this.events.push({ type: 'jump', x: h.x, y: h.y }); }
       if (this.queuedUntil > this.time && !h.attack && (!(h.z>0||h.vz>0)||!h.airAttackUsed)) { this.swing(); this.queuedUntil = 0; }
-      if (!h.attack || h.attack.move==='aerial') {
+      const retreat=h.attack?.move==='kick'&&h.attack.connected&&h.attack.elapsed>=h.attack.impact+.10&&input.x*h.attack.face<0;
+      if (!h.attack || h.attack.move==='aerial'||retreat) {
         const len = Math.hypot(input.x, input.y) || 1;
-        const mobility=h.attack?.move==='aerial'?.65:1;
+        const mobility=retreat?.6:h.attack?.move==='aerial'?this.style.airSteer:1;
         h.x += input.x / len * (h.mounted?290:this.champion.speed) * mobility * dt; h.y += input.y / len * (h.mounted?290:this.champion.speed) * mobility * (125 / 180) * dt;
-        h.moving = !!(input.x || input.y); if (input.x && h.attack?.move!=='aerial') h.face = Math.sign(input.x);
+        h.moving = !!(input.x || input.y); if (input.x && h.attack?.move!=='aerial'&&!retreat) h.face = Math.sign(input.x);
       }
     }
     if(!occupied && !h.attack && h.stun<=0 && h.z===0 && h.dodge<=0 && !input.attack && !input.special && (input.x||input.y))this.tryGrab(input);
@@ -272,7 +281,7 @@ export class Campaign {
         a.x=f.x;a.y=f.y;
         if(a.elapsed>=a.impact&&!a.hit&&descendingContact(f.z,f.vz)){a.hit=true;this.resolve(f,a);a.duration=a.elapsed+.18;}
       }else if (a.elapsed >= a.impact && !a.hit) { a.hit = true; this.resolve(f, a); }
-      if (a.elapsed >= a.duration && (a.move!=='aerial'||a.hit)) f.attack = null;
+      if (a.elapsed >= a.duration && (a.move!=='aerial'||a.hit)&&!(f.heroId==='zhaoyun'&&a.move==='aerial'&&a.connected&&(f.z>0||f.vz>0))) f.attack = null;
     }
     this.updateProjectiles(dt);
     this.enemies.forEach((e, i) => this.ai(e, i, dt));
@@ -420,7 +429,7 @@ export class Campaign {
     const h=this.hero;if(h.mounted||this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||h.attack||h.z>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
     // Soldiers and bosses can be grabbed during windup, but not on impact or recovery.
     // Filter approach direction before selecting: a closer enemy behind must not block a valid grab.
-    const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=44&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
+    const target=this.enemies.filter(e=>e.hp>0&&(!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&Math.abs(e.x-h.x)<=this.style.grabReach&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
     if(!target)return false;
     h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;if(target.guard!==undefined)target.guard=0;target.grapplePose='held';target.face=-h.face;
@@ -450,7 +459,7 @@ export class Campaign {
       e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.z=0;
       if(fresh){
         if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
-        else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,7);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
+        else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,this.style.grabDamage);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
         else{this.releaseGrapple(false);this.message='連打三下，鬆開抓取';this.messageUntil=this.time+1;return;}
       }
       if(input.jump&&state.phase==='hold'){state.phase='jump';state.elapsed=0;state.jumpDirection=Math.sign(input.x);h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});}
@@ -545,9 +554,13 @@ export class Campaign {
       h.attack={move:'aerial',elapsed:0,duration:1,impact:.08,hit:false,face:h.face,x:h.x,y:h.y};
       this.events.push({type:'swing',x:h.x,y:h.y,heroId:h.heroId});return;
     }
-    h.step = comboStep(h.step, h.last * 1000, this.time * 1000); h.last = this.time;
-    const weapon=h.mounted?undefined:h.equipped?.id,s=h.mounted?MOUNT_SLASH:weapon?WEAPONS[weapon]:this.slash(h.step);
-    h.attack = { ...(weapon?{weapon}:{}), move: h.mounted?'mounted':'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.face, x: h.x, y: h.y };
+    h.step = (this.time-h.last)*1000<(h.equipped||h.mounted?650:this.style.comboWindow)?h.step%3+1:1; h.last = this.time;
+    const weapon=h.mounted?undefined:h.equipped?.id;
+    const bowStrike=!h.mounted&&!weapon&&h.heroId==='huangzhong'&&this.enemies.some(e=>e.hp>0&&e.z<=38&&(e.knockdown??0)<=0&&inRange(h.x,h.y,e.x,e.y,h.face,64));
+    const kick=!h.mounted&&!weapon&&h.heroId==='weiyan'&&h.step===3;
+    if(bowStrike){h.step=1;h.last=-10;}
+    const s=h.mounted?MOUNT_SLASH:weapon?WEAPONS[weapon]:bowStrike?BOW_STRIKE:this.slash(h.step);
+    h.attack = { ...(weapon?{weapon}:{}), move: h.mounted?'mounted':bowStrike?'bow-strike':kick?'kick':'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.face, x: h.x, y: h.y };
     this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
   ai(e: Fighter, index: number, dt: number) {
@@ -614,24 +627,25 @@ export class Campaign {
   resolve(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > (a.move==='aerial'?54:38) && a.move!=='special') return;
-    const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = a.move==='aerial'?{...AERIALS[f.heroId!],duration:1,impact:.08}:a.move==='mounted'?MOUNT_SLASH:a.move==='wave'?MOUNT_WAVE:special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
+    const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = a.move==='bow-strike'?BOW_STRIKE:a.move==='aerial'?{...AERIALS[f.heroId!],duration:1,impact:.08}:a.move==='mounted'?MOUNT_SLASH:a.move==='wave'?MOUNT_WAVE:special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
     if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
     if(heroAttack&&a.move==='wave'){this.projectiles.push({id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
     const reach = heroAttack ? s.reach : f.kind==='archer'?340:f.kind==='spearman'?145:f.kind==='brute'?85: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
-    const bow = !f.mounted && !a.weapon && !special && heroAttack && a.move!=='aerial' && f.heroId === 'huangzhong';
+    const bow = !f.mounted && !a.weapon && !special && heroAttack && a.move==='slash' && f.heroId === 'huangzhong';
     if(bow){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
-      if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):attackHits(a, t, reach))) continue;
+      if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):heroAttack&&f.heroId==='lubu'&&a.move==='slash'&&!a.weapon&&f.step===3?(t.z<=38&&Math.abs(t.y-a.y)<=42&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach):attackHits(a, t, reach))) continue;
       if(heroAttack&&this.blocked(t,f.x,f.y,special||a.move==='aerial'||(!a.weapon&&f.step===3)||a.weapon==='hammer'||a.weapon==='axe'||a.move==='mounted'))continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
+      if(heroAttack)a.connected=true;
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
       t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
-      if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? .30 : .22); t.attack = null; }
-      if(heroAttack&&!special&&!a.weapon&&a.move==='slash'&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
+      if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? (f.heroId==='guanyu'&&a.move==='slash'&&!a.weapon&&f.step<3?.36:.30) : .22); t.attack = null; }
+      if(heroAttack&&!special&&!a.weapon&&(a.move==='slash'||a.move==='kick')&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
       t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);

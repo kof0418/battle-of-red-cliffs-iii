@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {Campaign} from '../src/combat.ts';import {HERO_IDS} from '../src/heroes.ts';import {THROWS} from '../src/throws.ts';
+import {Campaign} from '../src/combat.ts';import {HERO_IDS} from '../src/heroes.ts';import {THROWS} from '../src/throws.ts';import {HERO_STYLES} from '../src/hero-styles.ts';
 const idle={x:0,y:0};
 function setup(id:typeof HERO_IDS[number]='guanyu',kind:'soldier'|'heavy'|'boss'='heavy'){
  const m=new Campaign(id);m.start();m.hero.x=400;m.hero.y=412;m.supplies=[];const e=m.fighter(kind,428,412);e.cooldown=10;m.enemies=[e];return {m,e};
@@ -7,12 +7,12 @@ function setup(id:typeof HERO_IDS[number]='guanyu',kind:'soldier'|'heavy'|'boss'
 function punch(m:Campaign){m.tick(1/60,{...idle,attack:true,grappleAttack:true});}
 function step(m:Campaign,n:number){for(let i=0;i<n;i++)m.tick(1/60,idle);}
 test('all five heroes grab, punch exactly twice and throw in either direction',()=>{
- for(const id of HERO_IDS)for(const direction of [-1,1]){const {m,e}=setup(id);assert(m.tryGrab({x:1,y:0}),id);punch(m);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,166);
- m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(e.hp,166-THROWS[id].damage);assert(direction<0?e.x<400:e.x>428);assert.equal(e.z,0);
+ for(const id of HERO_IDS)for(const direction of [-1,1]){const {m,e}=setup(id);assert(m.tryGrab({x:1,y:0}),id);punch(m);punch(m);assert.equal(m.grapple?.hits,2);assert.equal(e.hp,180-2*HERO_STYLES[id].grabDamage);
+ m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(e.hp,180-2*HERO_STYLES[id].grabDamage-THROWS[id].damage);assert(direction<0?e.x<400:e.x>428);assert.equal(e.z,0);
  }
 });
 test('all five heroes can lift and perform aerial throws after two punches',()=>{
- for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,166-THROWS[id].damage-14));}
+ for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,180-2*HERO_STYLES[id].grabDamage-THROWS[id].damage-14));}
 });
 test('idle time escapes, and button spam after two punches cannot renew hold',()=>{
  const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,175);assert.equal(m.grapple,null);assert.equal(e.grapplePose,undefined);assert(!m.tryGrab({x:1,y:0}));
@@ -61,7 +61,7 @@ test('five heroes throw before punches or after one punch, in either direction',
  for(const id of HERO_IDS)for(const count of [0,1])for(const direction of [-1,1]){
   const {m,e}=setup(id);m.tryGrab({x:1,y:0});for(let i=0;i<count;i++)punch(m);
   m.tick(1/60,{x:direction,y:0,attack:true,grappleAttack:true});assert.equal(m.grapple?.phase,'throw');assert.equal(m.grapple?.hits,count);
-  step(m,45);assert.equal(e.hp,Math.max(0,180-count*7-THROWS[id].damage));
+  step(m,45);assert.equal(e.hp,Math.max(0,180-count*HERO_STYLES[id].grabDamage-THROWS[id].damage));
  }
 });
 test('third neutral attack releases without a third hit or a normal swing',()=>{

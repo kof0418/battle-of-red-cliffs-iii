@@ -28,3 +28,9 @@ export function grappleMotion(id:HeroId,pose:string,progress=0){
  if(pose==='air')return {x:27,y:-66,lean:-5,stride:8,crouch:0};
  return {x:27,y:-49,lean:heavy?-3:-1,stride:7,crouch:2};
 }
+
+export function closeMotion(move:'kick'|'bow-strike',phase:number){
+ const active=phase===2||phase===3;
+ return move==='kick'?{x:active?-2:12,y:-52,lean:active?-9:0,angle:-1.2,stride:0,crouch:0,phase}
+ :{x:active?32:14,y:active?-35:-46,lean:active?8:-3,angle:.65,stride:active?8:0,crouch:0,phase};
+}

@@ -1,7 +1,7 @@
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
-import {heroMotion,aerialMotion,grappleMotion} from './motion';
+import {heroMotion,aerialMotion,grappleMotion,closeMotion} from './motion';
 import {drawGrip} from './grip-art';
 
 /** Original layered pixel silhouettes. Gameplay geometry remains in combat.ts. */
@@ -14,7 +14,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.attack?.move==='aerial'?aerialMotion(id,f.vz<0):f.attack?heroMotion(id,f.step,phase):null;
+ const action=f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0):f.attack?heroMotion(id,f.step,phase):null;
  const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
@@ -27,12 +27,15 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0xc1a271,2,[-24,-54,-16,-51]);
   for(let i=0;i<3;i++){const x=-23+i*4;line(0xa88c61,1,[x,-49,x+6,-77-i*2]);poly(0xd9d3b8,[x+5,-71-i*2,x+3,-78-i*2,x+8,-75-i*2,x+6,-69-i*2]);}
  }
+ const kicking=f.attack?.move==='kick'&&(phase===2||phase===3);
  for(const [x,d] of [[-10-spread,stride],[8+spread,-stride]]){
+  if(kicking&&x>0)continue;
   poly(0x222d2b,[x-6,-29,x+5,-29,x+5,-8+d,x-5,-7+d]);
   g.fillStyle(metal).fillRect(x-4,-21,7,11);g.fillStyle(edge).fillRect(x-4,-21,2,10);
   poly(0x142020,[x-6,-10+d,x+5,-10+d,x+7,-4+d,x+11,-1+d,x+11,2+d,x-7,2+d]);
   line(0x7f7560,1,[x-5,-6+d,x+4,-6+d,x+6,-2+d]);
  }
+ if(kicking){line(0x222d2b,12,[4,-25,25,-30,53,-33]);line(metal,8,[27,-30,49,-33]);poly(0x142020,[47,-39,60,-40,66,-33,64,-27,48,-28]);line(edge,2,[30,-34,50,-37]);}
  poly(cloth,[-w+2,-43,w-2,-43,w+5,-18,10,-12,1,-19,-10,-13,-w-5,-20]);
  for(let i=-w+4;i<w;i+=7){poly(i<0?light:metal,[i,-39,i+4,-39,i+6,-20,i+1,-18]);line(0x283a34,1,[i+4,-37,i+6,-22]);}
  line(edge,1,[-w-3,-20,-10,-15,1,-21,10,-14,w+3,-19]);
@@ -121,12 +124,12 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  if(zhang&&f.attack?.move==='special'){
   line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
  }else if(huang){
-  g.save();if(f.attack?.move==='aerial'){g.translateCanvas(hx,hy);g.rotateCanvas(.65);g.translateCanvas(-hx,-hy);}
-  const bx=hx+7,draw=f.attack?[6,17,0,2,0][phase]:0;
+  g.save();if(f.attack?.move==='aerial'||f.attack?.move==='bow-strike'){g.translateCanvas(hx,hy);g.rotateCanvas(.65);g.translateCanvas(-hx,-hy);}
+  const bx=hx+7,draw=f.attack&&f.attack.move!=='bow-strike'?[6,17,0,2,0][phase]:0;
   line(0x3e3021,5,[bx-2,hy-30,bx+9,hy-21,bx+14,hy,bx+9,hy+21,bx-2,hy+30]);
   line(0xc9a76b,2,[bx-2,hy-30,bx+7,hy-20,bx+11,hy,bx+7,hy+20,bx-2,hy+30]);
   line(0xe4dbbd,1,[bx-2,hy-30,bx-draw,hy,bx-2,hy+30]);
-  if((!f.attack||phase<2)&&f.attack?.move!=='aerial'){line(0xc8b58a,2,[bx-draw-8,hy,bx+37,hy]);poly(0xe1e5d2,[bx+37,hy-3,bx+44,hy,bx+37,hy+3]);}
+  if((!f.attack||phase<2)&&f.attack?.move!=='aerial'&&f.attack?.move!=='bow-strike'){line(0xc8b58a,2,[bx-draw-8,hy,bx+37,hy]);poly(0xe1e5d2,[bx+37,hy-3,bx+44,hy,bx+37,hy+3]);}
   line(cloth,7,[-w+4,-53,-4,hy+10,bx-draw,hy]);
   g.fillStyle(skin).fillRect(bx-draw-3,hy-2,6,5);g.restore();
  }else if(lu){
@@ -169,7 +172,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0xf0e8cd,1,[11,4,37,5,50,-1,54,-12]);g.restore();
  }
  g.fillStyle(0x754e38).fillRect(hx-2,hy-2,7,7);g.fillStyle(skin).fillRect(hx-2,hy-2,6,4);g.fillStyle(0xe7c397).fillRect(hx-2,hy-2,5,1);
- if(f.attack&&phase>=2&&phase<=3&&!huang){
+ if(f.attack&&phase>=2&&phase<=3&&!huang&&!kicking){
   if(zhao){g.lineStyle(2,0xc7eaf0,.7).lineBetween(hx+15,hy,hx+85,hy);}
   else {const r=lu?78:zhang?66:39;g.lineStyle(f.step===3?5:3,zhang?0xf0cf95:0xefbca7,.7).beginPath().arc(18,-38,r,-1.6,.5).strokePath();}
  }
