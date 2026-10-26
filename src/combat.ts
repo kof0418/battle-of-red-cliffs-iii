@@ -2,10 +2,10 @@ import {mountedArrowVisual} from './motion.ts';
 import {HERO_STYLES,BOW_STRIKE} from './hero-styles.ts';
 import {encounterPlan,PROPS,RHYTHMS,type Reinforcement,type StageProp} from './encounters.ts';
 import {gradeStage,type StageResult} from './stage-grade.ts';
-import {DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
+import {BOSS_STYLE,enemyTempo,DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
 import {AERIALS,descendingContact} from './aerial.ts';
 import {MOUNT_SLASH,MOUNT_WAVE,mountedStrike,type Horse} from './horse.ts';
-import {WEAPONS,crateLoot,barrelLoot,isWeapon,type WeaponId,type LootId} from './loot.ts';
+import {WEAPON_ROLES,enemyWeapon,weaponPickupReady,WEAPONS,crateLoot,barrelLoot,isWeapon,type WeaponId,type LootId} from './loot.ts';
 import {THROWS,throwWeight,bossGrabWindow,sweptThrowContact,type Grapple} from './throws.ts';
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
@@ -168,13 +168,15 @@ export class Campaign {
     this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   private rideAttackFace?:number;
+  private weaponDropUsed=false;
+  private foodDropUsed=false;
   private resetTransient() {
     this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.horses=[];this.pending=[];this.props=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false;this.horseQueued=false;this.dropQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
   spawn() {
-    this.wave++; this.clearedAt = -1;
+    this.wave++; this.clearedAt = -1;this.weaponDropUsed=false;this.foodDropUsed=false;
     if(this.wave===1)this.cameraLeft=0;
     this.waveStarted = this.time; this.waveDamage = 0; this.waveReward = -1;
     this.checkpointScore = this.score; this.checkpointKills = this.kills;
@@ -185,6 +187,7 @@ export class Campaign {
     if(this.stage===1&&this.wave===6){const rider=this.enemies.find(e=>e.kind==='marshal');if(rider)rider.mounted=true;}
     this.supplies = [{ id: ++this.serial, x: this.cameraLeft+570, y: (this.wave+this.stage)%2?499:354, hp: 24 }];
     this.barrels=[{id:++this.serial,x:this.cameraLeft+750,y:(this.wave+this.stage)%2?354:499,hp:24,loot:barrelLoot(this.stage,this.wave)}];
+    if(this.wave===3)this.barrels.push({id:++this.serial,x:this.cameraLeft+860,y:(this.stage%2)?499:354,hp:24,loot:this.stage%2?'knife':'book'});
     this.pickups = [];this.projectiles=[];this.horses=this.horses.filter(h=>h.waiting);
     this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title} · ${RHYTHMS[this.stage]} · ${this.level.sections[this.wave-1]}`;
     this.messageUntil = this.time + 3;
@@ -337,9 +340,9 @@ export class Campaign {
       if(p.loot==='book'){this.score+=1500;this.message='兵書 +1500 分';this.messageUntil=this.time+2;this.events.push({type:'book',x:p.x,y:p.y,value:1500});return false;}
       if(p.loot==='gong'){if(!this.summonHorses()){this.score+=1000;this.message='已有馬匹 · 銅鑼 +1000 分';this.messageUntil=this.time+2;this.events.push({type:'bonus',x:p.x,y:p.y,value:1000});}return false;}
       if(p.loot&&isWeapon(p.loot)){
-        if(h.equipped||h.mounted)return true;
+        if(h.equipped||h.mounted||!weaponPickupReady(h,p))return true;
         h.equipped={id:p.loot,uses:WEAPONS[p.loot].uses,hits:p.weaponHits??0};
-        this.message=`拾取${WEAPONS[p.loot].name} · 攻擊使用`;this.messageUntil=this.time+2;
+        this.message=`拾取${WEAPONS[p.loot].name} · ${WEAPON_ROLES[p.loot]}`;this.messageUntil=this.time+2;
         this.events.push({type:'equip',x:p.x,y:p.y});return false;
       }
       if(h.hp>=h.max)return true;
@@ -489,7 +492,15 @@ export class Campaign {
   grappleDamage(e:Fighter,amount:number){
     const actual=Math.min(e.hp,amount);e.hp-=actual;this.score+=actual*10;this.hits++;this.bestCombo=Math.max(this.bestCombo,this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);this.hitDeadline=this.time+1.7;
     this.events.push({type:'hit',x:e.x,y:e.y-e.z-38,value:actual,heroId:this.hero.heroId,heavy:amount>20});
-    if(e.hp<=0){this.unseatEnemy(e);this.kills++;this.score+=100;if(e.kind==='heavy')this.pickups.push({id:++this.serial,x:clamp(e.x,this.cameraLeft+30,this.cameraLeft+930),y:e.y,amount:25});this.events.push({type:'death',x:e.x,y:e.y});if(this.grapple?.target===e.id)this.releaseGrapple(false);}
+    if(e.hp<=0){this.unseatEnemy(e);this.kills++;this.score+=100;this.enemyDrop(e);this.events.push({type:'death',x:e.x,y:e.y});if(this.grapple?.target===e.id)this.releaseGrapple(false);}
+  }
+  enemyDrop(e:Fighter){
+    const weapon=enemyWeapon(e.kind);
+    let loot:LootId|undefined;
+    if(weapon&&!this.weaponDropUsed){this.weaponDropUsed=true;loot=weapon;}
+    else if(e.kind==='heavy'&&!this.foodDropUsed){this.foodDropUsed=true;loot='bun';}
+    if(!loot)return;
+    this.pickups.push({id:++this.serial,x:clamp(e.x,this.cameraLeft+30,this.cameraLeft+930),y:clamp(e.y,354,499),loot,amount:loot==='bun'?25:0,availableAt:this.time+.45});
   }
   updateGrapple(dt:number,input:Input){
     const state=this.grapple!,h=this.hero,e=this.enemies.find(e=>e.id===state.target);if(!e){this.releaseGrapple(false);return;}
@@ -617,30 +628,31 @@ export class Campaign {
     e.face = dx >= 0 ? 1 : -1;
     const boss=isBoss(e.kind),phase=boss?bossPhase(e.hp,e.max):0;
     const ranged=e.kind==='archer',spear=e.kind==='spearman';
-    const reach=ranged?340:spear?130:(e.kind==='hammer'||e.kind==='mauler')?96:e.kind==='brute'?82:boss?250:e.kind==='heavy'?74:60;
+    const reach=ranged?340:spear?130:(e.kind==='hammer'||e.kind==='mauler')?96:e.kind==='brute'?82:boss?BOSS_STYLE[e.kind].reach:e.kind==='heavy'?74:60;
     // Shields commit to a short stance; they cannot turn or attack while guarding.
     if(e.kind==='heavy'&&(e.guardCooldown??0)<=0&&e.cooldown>.3&&Math.abs(dx)<150&&Math.abs(dy)<40&&frontalGuard(e.face,e.x,e.y,h.x,h.y)){
       e.guard=.65;e.guardCooldown=2.8;return;
     }
     // Bowmen and spearmen step back instead of firing or stabbing at point blank range.
-    const retreat=(ranged&&Math.abs(dx)<145)||(spear&&e.cooldown>0&&Math.abs(dx)<82);
+    const retreat=(e.kind==='hunter'&&e.cooldown>0&&Math.abs(dx)<190)||(e.kind==='raider'&&e.attacks>0&&e.cooldown>.8&&Math.abs(dx)<100)||(ranged&&Math.abs(dx)<145)||(spear&&e.cooldown>0&&Math.abs(dx)<82);
     const preferred=e.id%2?1:-1,side=h.x+preferred*110<this.cameraLeft+15||h.x+preferred*110>this.cameraLeft+945?-preferred:preferred,signed=(e.x-h.x)*side;
     const flanking=e.kind==='raider'&&signed<80&&(signed < -25||Math.abs(dy)>35);
     const activeAttackers=this.enemies.filter(f=>f.hp>0&&f.attack).length;
     const bossReady=!boss&&this.enemies.some(f=>isBoss(f.kind)&&f.hp>0&&f.stun<=0&&!f.attack&&f.cooldown<=0&&Math.abs(f.x-h.x)<250);
     const slots=this.attackLimit-(bossReady?1:0);
-    if(!retreat&&!flanking&&e.cooldown<=0&&activeAttackers<slots&&Math.abs(dy)<27&&Math.abs(dx)<reach){
+    if(!retreat&&!flanking&&e.cooldown<=0&&activeAttackers<slots&&Math.abs(dy)<(boss?BOSS_STYLE[e.kind].lane:27)&&Math.abs(dx)<reach){
       let move:Move=ranged?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';
-      const plan=boss?bossPlan(e.kind,e.hp,e.max,e.attacks):null;
+      const plan=boss?bossPlan(e.kind,e.hp,e.max,e.attacks,{dx,dy}):null;
       if(plan)move=plan.move;
       // Far-away slams become a separately telegraphed charge, never an invisible extended hit.
       if((move==='slam'&&Math.abs(dx)>125)||(move==='sweep'&&Math.abs(dx)>160))move='charge';
-      const windup=plan?.windup??(ranged?.95:e.kind==='mauler'?1.15:e.kind==='brute'?.58:e.kind==='hammer'?1.05:spear?.65:e.kind==='heavy'?.7:.48);
-      const recovery=plan?.recovery??.32;
+      const tempo=enemyTempo(e.kind,e.attacks);
+      const windup=plan?.windup??tempo.windup;
+      const recovery=plan?.recovery??tempo.recovery;
       e.attack={move,elapsed:0,duration:windup+recovery,impact:windup,hit:false,face:e.face,x:e.x,y:e.y};
       if(move==='cross'){e.attack.x=h.x;e.attack.y=h.y;}
       if(boss){this.message=move==='fan'?'三路箭陣 · 換線或跳躍':move==='ring'?'震地環 · 內圈安全或跳躍':move==='cross'?'十字斬 · 離開交叉線':move==='charge'?'突進 · 移出前方警戒線':move==='sweep'?'橫掃 · 拉開距離或跳躍':'重砸 · 離開地面警戒圈';this.messageUntil=this.time+windup;}
-      e.cooldown=plan?windup+recovery+plan.gap:1.6+index%3*.15;e.attacks++;return;
+      e.cooldown=windup+recovery+(plan?.gap??tempo.gap)+(!boss?index%3*.05:0);e.attacks++;return;
     }
     const speed=stats[e.kind].speed*(1+phase*.1);
     let targetY=h.y,moveX=0;
@@ -650,12 +662,13 @@ export class Campaign {
     }else if(retreat){moveX=-Math.sign(dx||e.face);}
     else{
       const waiting=activeAttackers>=slots&&e.cooldown>.2;
-      const stop=ranged?210:spear?112:waiting?105:reach-8;
+      const stop=boss?BOSS_STYLE[e.kind].stop:ranged?210:spear?112:waiting?105:reach-8;
       moveX=Math.abs(dx)>stop?Math.sign(dx):0;
       // Finish the flank by joining the player's lane before closing for a hit.
       if(e.kind==='raider'&&signed>=60&&Math.abs(dy)>27)moveX=0;
       if(waiting)targetY=clamp(h.y+(index%2?36:-36),352,500);
     }
+    if((ranged||e.kind==='hunter')&&e.attacks>0&&e.cooldown>.55&&!retreat)targetY=clamp(h.y+(e.attacks%2?42:-42),352,500);
     const moveY=Math.abs(targetY-e.y)>3?Math.sign(targetY-e.y):0;
     e.x=clamp(e.x+moveX*speed*dt,this.cameraLeft+15,this.cameraLeft+945);e.y=clamp(e.y+moveY*speed*.65*dt,350,503);e.moving=!!(moveX||moveY);
   }
@@ -693,6 +706,7 @@ export class Campaign {
       t.inv = heroAttack ? (special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
       if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? (f.heroId==='guanyu'&&a.move==='slash'&&!a.weapon&&f.step<3?.36:.30) : .22); t.attack = null; }
+      if(heroAttack&&a.weapon==='hammer'&&(!isBoss(t.kind)||!t.attack)){t.stun=Math.max(t.stun,.8);if(!isBoss(t.kind))t.knockdown=.6;}
       if(heroAttack&&!special&&!a.weapon&&(a.move==='slash'||a.move==='kick')&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
       t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
@@ -705,7 +719,7 @@ export class Campaign {
         this.score += heroAttack ? 100 : 0;
         if (heroAttack) {
           this.kills++;
-          if (t.kind === 'heavy') this.pickups.push({ id: ++this.serial, x: clamp(t.x,this.cameraLeft+30,this.cameraLeft+930), y: t.y, amount: 25 });
+          this.enemyDrop(t);
         }
         this.events.push({ type: 'death', x: t.x, y: t.y });
       }

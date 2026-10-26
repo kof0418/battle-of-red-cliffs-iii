@@ -23,9 +23,9 @@ test('jump and dodge avoid ground attacks; dodge cooldown prevents spamming',()=
 test('damage interrupts ordinary enemies and hero invulnerability prevents pile-on',()=>{
  const m=isolated(),e=m.enemies[0];const a:Attack={move:'slash',elapsed:0,duration:.6,impact:.4,hit:false,face:-1,x:225,y:412};e.attack=a;m.resolve(e,a);const hp=m.hero.hp;m.resolve(e,a);assert.equal(m.hero.hp,hp);assert.ok(hp<160);
 });
-test('boss alternates readable slam / charge and speeds up at half health',()=>{
+test('boss changes close-range attacks and speeds up at half health',()=>{
  const m=isolated(),e=m.fighter('boss',270,412);m.enemies=[e];e.cooldown=0;m.tick(1/60,idle);assert.equal(e.attack?.move,'slam');const normal=e.attack!.impact;
- e.attack=null;e.cooldown=0;e.hp=e.max/2;m.tick(1/60,idle);assert.equal(e.attack?.move,'charge');assert.ok(e.attack!.impact<normal);
+ e.attack=null;e.cooldown=0;e.hp=e.max/2;m.tick(1/60,idle);assert.equal(e.attack?.move,'sweep');assert.ok(e.attack!.impact<normal);
 });
 test('clear reward happens once, arena gates hold, and next waves unlock in order',()=>{
  const m=isolated();m.hero.x=960;advance(m,1,{x:1,y:0});assert.equal(m.hero.x,935);

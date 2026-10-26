@@ -4,8 +4,8 @@ test('five unique stage themes and bosses, six waves each, final clear only at s
  assert.equal(LEVELS.length,5);assert.equal(new Set(LEVELS.map(l=>l.theme)).size,5);const m=new Campaign();m.start();
  for(let i=0;i<5;i++){assert.equal(m.stage,i);assert.equal(m.level.waves.length,6);m.wave=6;m.enemies=[];m.tick(1/60,idle);assert.equal(m.status,i===4?'won':'stage-clear');assert.equal(m.nextStage(),i<4);}
 });
-test('new bosses have distinct move cycles and their own telegraphs',()=>{
- for(const [kind,moves] of [['hunter',['fan','charge','fan']],['frostlord',['ring','slam','ring']],['regent',['cross','sweep','charge']]] as const){const m=new Campaign();m.start();m.hero.x=400;const e=m.fighter(kind,480,412);m.enemies=[e];for(const move of moves){e.attack=null;e.cooldown=0;m.ai(e,0,1/60);assert.equal(e.attack?.move,move);assert(e.attack!.impact>=.64);if(move==='cross'){assert.equal(e.attack!.x,400);m.hero.x=410;assert.equal(e.attack!.x,400);}}}
+test('new bosses choose distinct close-range moves and keep fixed telegraphs',()=>{
+ for(const [kind,moves] of [['hunter',['sweep','sweep','sweep']],['frostlord',['ring','ring','ring']],['regent',['cross','sweep','cross']]] as const){const m=new Campaign();m.start();m.hero.x=400;const e=m.fighter(kind,480,412);m.enemies=[e];for(const move of moves){e.attack=null;e.cooldown=0;m.ai(e,0,1/60);assert.equal(e.attack?.move,move);assert(e.attack!.impact>=.64);if(move==='cross'){const locked=m.hero.x;assert.equal(e.attack!.x,locked);m.hero.x+=10;assert.equal(e.attack!.x,locked);}}}
 });
 test('fan gaps, ring inner safety and cross corners offer real escape spaces',()=>{
  const m=new Campaign(),h=m.hero;h.x=100;h.y=412;const a:Attack={move:'fan',x:0,y:412,elapsed:0,impact:1,duration:2,face:1,hit:false};assert(attackHits(a,h,330));h.x=200;h.y=442;assert(!attackHits(a,h,330));h.x=200;h.y=442;assert(!attackHits(a,h,330));

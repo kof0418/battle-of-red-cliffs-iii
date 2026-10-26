@@ -1,3 +1,4 @@
+import {WEAPONS} from '../src/loot.ts';
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {Campaign,type Input} from '../src/combat.ts';import {HERO_IDS,type HeroId} from '../src/heroes.ts';
 const idle={x:0,y:0};
@@ -32,6 +33,6 @@ test('Lu Bu finisher covers a wider lane with longer recovery, not a whole-scree
  const m=setup('lubu');m.enemies[0].y=455;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(m.enemies[0].hp,m.enemies[0].max);
 });
 for(const id of HERO_IDS)test(`${id}: pickup weapon and mount keep their own attack identity`,()=>{
- const m=setup(id);m.hero.equipped={id:'sword',uses:18};m.hero.step=2;m.hero.last=m.time;m.swing();assert.equal(m.hero.attack?.move,'slash');assert.equal(m.hero.attack?.weapon,'sword');assert.equal(m.hero.attack?.duration,.32);
+ const m=setup(id);m.hero.equipped={id:'sword',uses:18};m.hero.step=2;m.hero.last=m.time;m.swing();assert.equal(m.hero.attack?.move,'slash');assert.equal(m.hero.attack?.weapon,'sword');assert.equal(m.hero.attack?.duration,WEAPONS.sword.duration);
  m.hero.mounted=true;m.swing();assert.equal(m.hero.attack?.move,'mounted');assert(!m.hero.attack?.weapon);
 });

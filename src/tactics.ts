@@ -11,11 +11,36 @@ const PLANS:Record<string,readonly (readonly BossMove[])[]>={
  frostlord:[['ring','slam','ring'],['ring','charge','slam'],['slam','ring','charge','slam']],
  regent:[['cross','sweep','charge'],['cross','charge','sweep','cross'],['charge','cross','sweep','slam']],
 };
-export function bossPlan(kind:string,hp:number,max:number,attacks:number){
- const phase=bossPhase(hp,max),moves=PLANS[kind][phase],move=moves[attacks%moves.length];
+export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing?:{dx:number;dy:number}){
+ const phase=bossPhase(hp,max),moves=PLANS[kind][phase];
+ let move=moves[attacks%moves.length];
+ if(spacing){
+  const x=Math.abs(spacing.dx),y=Math.abs(spacing.dy);
+  if(kind==='hunter')move=x<110?'sweep':move==='charge'&&x<250?'charge':'fan';
+  else if(kind==='frostlord')move=x<70&&y<45?'slam':x<155?(phase>0&&attacks%3===2&&x<125?'slam':'ring'):'charge';
+  else if(kind==='marshal')move=x>160?'charge':attacks%2?'slam':'sweep';
+  else if(kind==='boss')move=x>125?'charge':phase>0&&attacks%2?'sweep':'slam';
+  else if(kind==='regent')move=phase===2&&attacks%3===2&&x<100&&y<27?'slam':y>28||attacks%2===0?'cross':x<155?'sweep':'charge';
+ }
  const base=move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:.85;
  // Even the final phase keeps at least 650 ms of warning. Every sequence ends in a large opening.
  const windup=Math.max(.65,base-phase*.09),finisher=attacks%moves.length===moves.length-1;
  return {move,windup,recovery:finisher?1.05:phase===2?.6:.7,gap:finisher?.45:.18,phase};
 }
 export function frontalGuard(face:number,x:number,y:number,sourceX:number,sourceY:number){return (sourceX-x)*face>=-6&&Math.abs(sourceY-y)<40;}
+
+export const BOSS_STYLE:Record<string,{name:string;reach:number;lane:number;stop:number}>={
+ boss:{name:'近身重砸',reach:250,lane:27,stop:110},
+ marshal:{name:'突進橫掃',reach:250,lane:27,stop:140},
+ hunter:{name:'游擊箭陣',reach:320,lane:80,stop:225},
+ frostlord:{name:'內外震地',reach:250,lane:90,stop:115},
+ regent:{name:'交叉封路',reach:300,lane:120,stop:180},
+};
+export function enemyTempo(kind:string,attacks:number){
+ if(kind==='brute')return {windup:attacks%2?.52:.65,recovery:attacks%2?.85:.26,gap:attacks%2?.7:.12};
+ if(kind==='mauler')return {windup:1.15,recovery:1.05,gap:.45};
+ if(kind==='hammer')return {windup:1.05,recovery:.85,gap:.4};
+ if(kind==='spearman')return {windup:.65,recovery:.42,gap:.6};
+ if(kind==='archer')return {windup:.95,recovery:.35,gap:1.05};
+ return {windup:kind==='heavy'?.7:.48,recovery:.32,gap:.8};
+}

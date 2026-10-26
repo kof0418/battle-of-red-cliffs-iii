@@ -26,7 +26,7 @@ test('second-stage continue keeps second-stage roster and restores all supplies'
  m.hero.hp=0;tick(m);m.continueRun();assert.equal(m.stage,1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.enemies.some(e=>e.kind==='marshal'));assert.equal(m.supplies.length,1);assert.equal(m.pickups.length,0);
 });
 test('supply crate drops one medicine and healing respects depth, height and HP cap',()=>{
- const m=new Campaign();m.start();const b=m.supplies[0];m.hero.x=b.x-55;m.hero.y=b.y;
+ const m=new Campaign();m.start();const b=m.supplies[0];b.loot='meat';m.hero.x=b.x-55;m.hero.y=b.y;
  const a:Attack={move:'slash',elapsed:0,duration:.3,impact:.1,hit:false,face:1,x:m.hero.x,y:m.hero.y};
  m.hero.step=1;m.resolve(m.hero,a);assert.equal(b.hp,7);m.resolve(m.hero,a);assert.equal(m.supplies.length,0);assert.equal(m.pickups.length,1);
  m.resolve(m.hero,a);assert.equal(m.pickups.length,1);
@@ -47,7 +47,7 @@ test('rank reflects continue usage and remaining health',()=>{
 });
 
 test('walking along bottom edge collects medicine from a crate broken in that lane',()=>{
- const m=new Campaign();m.start();const box=m.supplies[0];
+ const m=new Campaign();m.start();const box=m.supplies[0];box.loot='meat';
  m.hero.x=box.x-55;m.hero.y=503;m.hero.hp=80;
  const a:Attack={move:'slash',elapsed:0,duration:.3,impact:.1,hit:false,face:1,x:m.hero.x,y:m.hero.y};
  m.hero.step=3;m.resolve(m.hero,a);assert.equal(m.pickups.length,1);
