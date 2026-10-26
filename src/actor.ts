@@ -5,7 +5,7 @@ import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
 import Phaser from 'phaser';
-import {attackPhase,heroMotion,aerialMotion,grappleMotion,closeMotion} from './motion';
+import {attackPhase,heroMotion,aerialMotion,grappleMotion,closeMotion,mountedMotion} from './motion';
 import { isBoss, type Fighter } from './combat';
 /** Reused graphics object with quantized 12 fps poses; no per-frame object allocation. */
 export class Actor {
@@ -22,7 +22,7 @@ export class Actor {
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
-    const motion=champion&&f.attack?(f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0):heroMotion(f.heroId!,f.step,phase)):null;
+    const motion=champion&&f.attack?(f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0):heroMotion(f.heroId!,f.step,phase)):null;
     const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;

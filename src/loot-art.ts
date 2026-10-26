@@ -1,4 +1,4 @@
-import {drawGlaive} from './horse-art';
+import {drawMountedWeapon} from './horse-art';
 import type Phaser from 'phaser';
 import type {WeaponId,LootId} from './loot';
 import type {Fighter} from './combat';
@@ -18,7 +18,7 @@ export function drawWeapon(g:Phaser.GameObjects.Graphics,id:WeaponId,x:number,y:
  g.restore();
 }
 export function heldWeapon(g:Phaser.GameObjects.Graphics,f:Fighter,x:number,y:number,phase:number){
- if(f.mounted){drawGlaive(g,x,y,phase,!!f.attack);return true;}
+ if(f.mounted){drawMountedWeapon(g,f,x,y,phase);return true;}
  const id=f.attack?.weapon??f.equipped?.id;if(!id||f.attack?.move==='special')return false;
  const angle=f.attack?[-1.15,-.8,.1,.7,-.3][phase]:-.6;
  drawWeapon(g,id,x,y,1,angle);

@@ -17,8 +17,8 @@ test('book scores once at full health; gong summons one horse from the right',()
  m.tick(1/60,{...idle,jump:true});assert.equal(m.hero.mounted,false);assert((m.hero.mountCooldown??0)>0);
 });
 test('mounted input requires ordered left right and fresh attack within timing window',()=>{const c=new CommandInput('left','right');assert(!c.press('attack',0));c.press('left',100);c.press('right',200);assert(c.press('attack',300));assert(!c.press('attack',301));c.press('left',500);c.press('right',1000);assert(!c.press('attack',1100));});
-for(const id of HERO_IDS)test(`${id}: mounted glaive and piercing wave damage enemies`,()=>{
- const m=setup();m.hero.heroId=id;m.hero.mounted=true;const e=m.fighter('heavy',480,412);m.enemies=[e];m.swing();assert.equal(m.hero.attack?.move,'mounted');m.resolve(m.hero,m.hero.attack!);assert(e.hp<180);assert(!m.events.some(e=>e.type==='arrow'));
+for(const id of HERO_IDS)test(`${id}: mounted weapon and piercing wave damage enemies`,()=>{
+ const m=setup();m.hero.heroId=id;m.hero.mounted=true;const e=m.fighter('heavy',480,412);m.enemies=[e];m.swing();assert.equal(m.hero.attack?.move,'mounted');m.resolve(m.hero,m.hero.attack!);if(id==='huangzhong')m.updateProjectiles(.1);assert(e.hp<180);assert(!m.events.some(e=>e.type==='arrow'));
  m.hero.attack=null;m.freeze=0;m.enemies=[m.fighter('heavy',550,412),m.fighter('heavy',680,412),m.fighter('heavy',550,480)];m.tick(1/60,{...idle,horseSpecial:true});assert.equal(m.hero.attack?.move,'wave');m.resolve(m.hero,m.hero.attack!);for(let i=0;i<90;i++)m.updateProjectiles(1/60);assert.deepEqual(m.enemies.map(e=>e.hp),[132,132,180]);assert.equal(m.projectiles.length,0);
  m.status='stage-clear';m.nextStage();assert(!m.hero.mounted);assert.equal(m.hero.steed,undefined);m.status='lost';m.continueRun();assert(!m.hero.mounted);assert.equal(m.horses.length,0);
 });
