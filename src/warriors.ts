@@ -1,3 +1,4 @@
+import {rangedSpecialPose,drawRangedWeapon} from './ranged-art';
 import {duelSpecialPose,drawDuelTrail} from './duel-art';
 import {drawStyleWeapon} from './style-art';
 import {heldWeapon} from './loot-art';
@@ -16,7 +17,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase):null;
+ const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase):null;
  const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
@@ -29,8 +30,13 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0xc1a271,2,[-24,-54,-16,-51]);
   for(let i=0;i<3;i++){const x=-23+i*4;line(0xa88c61,1,[x,-49,x+6,-77-i*2]);poly(0xd9d3b8,[x+5,-71-i*2,x+3,-78-i*2,x+8,-75-i*2,x+6,-69-i*2]);}
  }
+ const kneeling=huang&&!f.mounted&&!f.equipped&&f.attack?.move==='slash'&&f.step===2;
  const kicking=f.attack?.move==='kick'&&(phase===2||phase===3);
- for(const [x,d] of [[-10-spread,stride],[8+spread,-stride]]){
+ if(kneeling){
+  line(0x222d2b,12,[-9,-29,-20,-16,-29,-16]);line(metal,7,[-18,-17,-28,-17]);poly(0x142020,[-34,-19,-23,-18,-22,-12,-36,-11]);
+  line(0x222d2b,12,[9,-29,22,-18,14,-13]);line(metal,7,[21,-18,14,-13]);poly(0x142020,[9,-17,20,-16,28,-11,27,-9,8,-10]);
+ }
+ for(const [x,d] of kneeling?[]:[[-10-spread,stride],[8+spread,-stride]]){
   if(kicking&&x>0)continue;
   poly(0x222d2b,[x-6,-29,x+5,-29,x+5,-8+d,x-5,-7+d]);
   g.fillStyle(metal).fillRect(x-4,-21,7,11);g.fillStyle(edge).fillRect(x-4,-21,2,10);
@@ -125,6 +131,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  line(metal,6,[hx-6,hy,hx,hy+2]);line(edge,1,[hx-7,hy-2,hx,hy]);
  if(heldWeapon(g,f,hx,hy,phase))return;
  if(drawStyleWeapon(g,f,hx,hy,phase))return;
+ if(drawRangedWeapon(g,f,hx,hy,phase,action?.angle??-.65))return;
  if(zhang&&f.attack?.move==='special'){
   line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
  }else if(huang){

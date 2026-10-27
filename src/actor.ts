@@ -1,3 +1,4 @@
+import {rangedSpecialPose} from './ranged-art';
 import {duelSpecialPose} from './duel-art';
 import {drawHeavyInfantry} from './heavy-infantry';
 import {drawHorse} from './horse-art';
@@ -23,7 +24,7 @@ export class Actor {
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
-    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
+    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
     const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;

@@ -14,6 +14,7 @@ import {WORLD_WIDTH,LEVELS} from './levels';
 import {CommandBank,type InputSource} from './command-input';
 import {TouchInput,directionAt,touchLayout} from './touch-input';
 import {enterFullscreen,toggleFullscreen} from './immersive';
+import {bowStrike} from './hero-styles';
 import {THROWS,bossGrabWindow} from './throws';
 import {SPECIALS} from './specials';
 import Phaser from 'phaser';
@@ -48,7 +49,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.2.2';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.2.3';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -162,8 +163,18 @@ class Battle extends Phaser.Scene {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
       if(preview==='duel-combat'){
-        const m=this.model;m.selectHero(new URLSearchParams(location.search).get('hero')==='zhangfei'?'zhangfei':'guanyu');m.start();m.hero.x=400;m.hero.y=412;m.hero.inv=0;m.pending=[];m.props=[];m.supplies=[];m.barrels=[];
+        const m=this.model,hero=new URLSearchParams(location.search).get('hero');m.selectHero(hero==='zhaoyun'||hero==='huangzhong'||hero==='zhangfei'?hero:'guanyu');m.start();m.hero.x=400;m.hero.y=412;m.hero.inv=0;m.pending=[];m.props=[];m.supplies=[];m.barrels=[];
         m.enemies=[m.fighter('soldier',450,412),m.fighter('soldier',350,412)];for(const e of m.enemies){e.hp=e.max=1000;e.stun=999;e.cooldown=999;}
+      }
+      if(preview==='archer-duel'){
+        this.posePreview=true;const m=this.model;m.start();m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.enemies=[];m.paused=true;const close=new URLSearchParams(location.search).get('close')==='1';
+        for(let row=0;row<2;row++)for(let step=1;step<=3;step++){
+          const id=row===0?'zhaoyun':'huangzhong',f=row===0&&step===1?m.hero:m.fighter('hero',0,0),form=row&&close?bowStrike(step):duelForm(id,step)!;f.heroId=id;f.x=170+(step-1)*300;f.y=310+row*180;f.step=step;f.face=1;
+          f.attack={move:row&&close?'bow-strike':'slash',elapsed:row&&!close?form.impact*.8:form.impact+.025,duration:form.duration,impact:form.impact,hit:true,face:1,x:f.x,y:f.y};if(row||step!==1)m.enemies.push(f);
+          this.add.text(f.x,327+row*180,form.name,{fontSize:'18px',color:row?'#ffe2a0':'#bceaff',stroke:'#19352a',strokeThickness:3}).setOrigin(.5).setDepth(9002);
+        }
+        this.add.text(26,160,'趙雲 · 疾刺／挑槍／迴身掃槍',{fontSize:'16px',color:'#bceaff'}).setDepth(9002);
+        this.add.text(26,353,close?'黃忠 · 弓梢點擊／橫攔／下砸':'黃忠 · 定弦／低姿追矢／滿弓貫穿',{fontSize:'16px',color:'#ffe2a0'}).setDepth(9002);m.message='趙雲與黃忠 · 專屬動作對照';m.messageUntil=99;
       }
       if(preview==='duel-roster'){
         this.posePreview=true;const m=this.model;m.start();m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.enemies=[];m.paused=true;
@@ -207,7 +218,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v2.2.2 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v2.2.3 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -399,13 +410,13 @@ class Battle extends Phaser.Scene {
       }else if(id==='zhangfei'){
         if((e.pulse??0)<2){for(const dy of [-15,0,15])fx.lineStyle(dy===0?8:3,spec.color,.9).lineBetween(15,dy,105,dy-8);fx.strokeCircle(105,-8,18);}
         else{fx.lineStyle(6,spec.color,.85).strokeEllipse(0,27,210,115);for(let i=0;i<7;i++){const a=Math.PI+i*Math.PI/6;fx.lineBetween(Math.cos(a)*35,32+Math.sin(a)*15,Math.cos(a)*105,32+Math.sin(a)*65);}}
-      }else if(id==='lubu'||id==='huangzhong'){
+      }else if(id==='huangzhong'){
+        const a=(e.pulse??0)*Math.PI*2/3;fx.lineStyle(2,spec.color,.35).strokeEllipse(0,25,spec.reach*2,spec.depth*2);fx.lineStyle(6,spec.color,.85).beginPath().arc(0,5,85,a-1.3,a+1.3).strokePath();fx.lineStyle(2,0xfff5d2,.9).lineBetween(Math.cos(a-1.3)*85,5+Math.sin(a-1.3)*85,Math.cos(a+1.3)*85,5+Math.sin(a+1.3)*85);
+      }else if(id==='lubu'){
         fx.strokeEllipse(0,25,spec.reach*2,spec.depth*2);
-        if(id==='huangzhong')fx.lineStyle(7,spec.color,.6).beginPath().arc(0,0,100,-2.5,1.5).strokePath();
-        else for(let i=0;i<8;i++){const a=i*Math.PI/4;fx.lineBetween(Math.cos(a)*30,25+Math.sin(a)*20,Math.cos(a)*110,25+Math.sin(a)*70);}
+        for(let i=0;i<8;i++){const a=i*Math.PI/4;fx.lineBetween(Math.cos(a)*30,25+Math.sin(a)*20,Math.cos(a)*110,25+Math.sin(a)*70);}
       }else if(id==='zhaoyun'){
-        for(const dy of [-18,0,18])fx.lineStyle(dy===0?6:2,spec.color,.9).lineBetween(10,dy,175,dy-20);
-        fx.fillStyle(0xffffff).fillTriangle(180,-20,158,-29,158,-11);
+        const tilt=(e.pulse??0)===0?-30:(e.pulse??0)===1?18:0;for(const dy of [-12,0,12])fx.lineStyle(dy===0?6:2,spec.color,.9).lineBetween(10,dy,175,dy+tilt);fx.fillStyle(0xffffff).fillTriangle(180,tilt,158,tilt-8,158,tilt+8);
       }else for(let i=0;i<3;i++)fx.lineStyle(5-i,spec.color,.9).beginPath().arc(15,-i*8,85+i*12,-1.4,.9).strokePath();
       this.tweens.add({targets:fx,alpha:0,duration:500,onComplete:()=>fx.destroy()});
     } else if (e.type === 'arrow') {
@@ -513,8 +524,8 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - (m.hero.mounted?(m.hero.rideDashCooldown??0)/1.15:m.hero.dodgeCooldown/.95)), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * (m.partner?m.cameraLeft+340:m.hero.x) / WORLD_WIDTH, 3);
     this.label.setText(`${m.partner?'1P · ':''}${m.champion.name} / ${m.champion.title}`);
-    this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 衝突擊／左右＋攻擊貫穿箭':'騎乘 · 衝突擊／左右＋攻擊刀波'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='slash'&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v2.2.2 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 衝突擊／左右＋攻擊貫穿箭':'騎乘 · 衝突擊／左右＋攻擊刀波'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='bow-strike'?bowStrike(m.hero.step).name:m.hero.attack?.move==='slash'&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
+    this.stageLabel.setText(`赤壁之戰三 · v2.2.3 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,69,80,4);g.fillStyle(0x8acfe5).fillRect(695,69,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,51,235,10);g.fillStyle(0x8acfe5).fillRect(697,53,231*p.hp/p.max,6);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?70:18).setFontSize(m.partner?11:14);
@@ -547,7 +558,7 @@ class Battle extends Phaser.Scene {
     for(const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))){const c=HEROES[card.dataset.hero as HeroId];card.querySelector('span')!.textContent=c.weapon;card.querySelector('small')!.textContent='0'+(HERO_IDS.indexOf(card.dataset.hero as HeroId)+1)+' / '+c.title;card.setAttribute('aria-label',c.name+'，'+c.weapon);}
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${TECHNIQUES[m.hero.heroId!]} 兵器：${m.champion.weapon}。 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.2.2 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.2.3 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -574,7 +585,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.2.2' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.2.3' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);

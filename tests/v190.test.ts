@@ -1,3 +1,4 @@
+import {bowStrike} from '../src/hero-styles.ts';
 import {WEAPONS} from '../src/loot.ts';
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {Campaign,type Input} from '../src/combat.ts';import {HERO_IDS,type HeroId} from '../src/heroes.ts';
@@ -20,7 +21,7 @@ test('Zhao Yun whiff / blocked landing does not grant the ground follow-up',()=>
  for(const shield of [false,true]){const m=setup('zhaoyun'),e=m.enemies[0];if(shield)e.inv=1;else e.x=800;m.hero.step=3;m.hero.z=1;m.hero.vz=-100;m.swing();ticks(m,1);ticks(m,5,{...idle,attack:true});assert.equal(m.hero.step,1);assert.equal(e.hp,e.max);}
 });
 test('Huang Zhong pushes a close frontal foe with the bow, without creating an arrow',()=>{
- for(const face of [-1,1]){const m=setup('huangzhong'),e=m.enemies[0];m.hero.face=face;e.x=400+face*50;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();assert.equal(m.hero.attack?.move,'bow-strike');m.resolve(m.hero,m.hero.attack!);assert.equal(m.projectiles.length,0);assert.equal(e.hp,e.max-14);assert.equal(e.x,400+face*88);assert.equal(m.hero.step,3);}
+ for(const face of [-1,1]){const m=setup('huangzhong'),e=m.enemies[0];m.hero.face=face;e.x=400+face*50;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();assert.equal(m.hero.attack?.move,'bow-strike');m.resolve(m.hero,m.hero.attack!);assert.equal(m.projectiles.length,0);assert.equal(e.hp,e.max-bowStrike(3).damage);assert.equal(e.x,400+face*(50+bowStrike(3).push));assert.equal(m.hero.step,3);}
 });
 test('Huang Zhong still fires at distance; rear/off-lane foes do not force bow defence',()=>{
  for(const [x,y] of [[465,412],[350,412],[450,450]]){const m=setup('huangzhong');m.enemies[0].x=x;m.enemies[0].y=y;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();assert.equal(m.hero.attack?.move,'slash');m.resolve(m.hero,m.hero.attack!);assert(m.projectiles[0].piercing);}

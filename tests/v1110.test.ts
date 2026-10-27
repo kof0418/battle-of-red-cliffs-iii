@@ -50,5 +50,5 @@ test('mounted Huang arrows leave the raised bow in either facing, including rear
   assert(m.projectiles[0].drawHeight!>90);assert.equal(m.projectiles[0].y,m.hero.y);
  }
  const foot=setup('huangzhong');foot.hero.mounted=false;foot.swing();foot.resolve(foot.hero,foot.hero.attack!);
- assert.equal(foot.projectiles[0].drawHeight,undefined);
+ assert(foot.projectiles[0].drawHeight!>35&&foot.projectiles[0].drawHeight!<65);
 });
