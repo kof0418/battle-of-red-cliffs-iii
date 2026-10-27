@@ -1,3 +1,4 @@
+import {duelSpecialPose,drawDuelTrail} from './duel-art';
 import {drawStyleWeapon} from './style-art';
 import {heroMotion,aerialMotion,grappleMotion,mountedMotion} from './motion';
 import {drawGrip} from './grip-art';
@@ -8,7 +9,7 @@ import type {Fighter} from './combat';
 export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number) {
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase,f.stance):null;
+ const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase,f.stance):null;
  const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
@@ -84,9 +85,5 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
   g.fillStyle(0xc28a59).fillRect(x-2,y-2,6,4);
   g.fillStyle(0xe0b47b).fillRect(x-2,y-2,5,1);
  }
- if(f.attack&&phase>=2&&phase<=3){
-  const r=f.step===3?67:51;
-  g.lineStyle(f.step===3?5:3,0xdbe8bc,.65).beginPath().arc(17,-43,r,f.step===2?-.4:-1.5,f.step===2?1.4:.4).strokePath();
-  g.lineStyle(1,0xffffda,.9).beginPath().arc(17,-43,r+3,-1.3,.3).strokePath();
- }
+ drawDuelTrail(g,f,phase);
 }

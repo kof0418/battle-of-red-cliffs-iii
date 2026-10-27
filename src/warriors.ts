@@ -1,3 +1,4 @@
+import {duelSpecialPose,drawDuelTrail} from './duel-art';
 import {drawStyleWeapon} from './style-art';
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
@@ -15,7 +16,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase,f.stance):null;
+ const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase,f.stance):null;
  const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
@@ -116,7 +117,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   line(0x625542,1,[1,-63,3,-59]);
  }
  if(drawGrip(g,f))return;
- const m=f.attack?.move==='special'&&zhang?{x:[12,22,44,40,17][phase],y:-44}:action??{x:17,y:-43};
+ const m=action??{x:17,y:-43};
  const hx=m.x,hy=m.y-5;
  // Sleeve and bracer follow the hand rather than stretching a rectangular arm.
  poly(cloth,[w-5,-58,w+2,-56,hx+3,hy-3,hx+4,hy+5,hx-3,hy+7,w-7,-49]);
@@ -176,7 +177,8 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  }
  if(lu&&f.attack&&f.step>=2&&(phase===2||phase===3)){g.lineStyle(2,0xffe8a4,.85).strokeCircle(hx+93,hy,7);}
  g.fillStyle(0x754e38).fillRect(hx-2,hy-2,7,7);g.fillStyle(skin).fillRect(hx-2,hy-2,6,4);g.fillStyle(0xe7c397).fillRect(hx-2,hy-2,5,1);
- if(f.attack&&phase>=2&&phase<=3&&!huang&&!kicking){
+ if(zhang)drawDuelTrail(g,f,phase);
+ if(f.attack&&phase>=2&&phase<=3&&!huang&&!kicking&&!zhang){
   if(zhao){g.lineStyle(2,0xc7eaf0,.7).lineBetween(hx+15,hy,hx+85,hy);}
   else {const r=lu?78:zhang?66:39;g.lineStyle(f.step===3?5:3,zhang?0xf0cf95:0xefbca7,.7).beginPath().arc(18,-38,r,-1.6,.5).strokePath();}
  }

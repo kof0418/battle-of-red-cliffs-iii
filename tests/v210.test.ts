@@ -13,7 +13,7 @@ for(const id of HERO_IDS)for(const face of [-1,1])for(const y of [-1,1])test(`${
  strike(m);assert(m.hero.comboHit);strike(m);assert.equal(m.hero.step,2);assert(m.hero.comboHit);
  // Stay within a close grab finish rather than allowing a ranged vacuum throw.
  m.hero.x=e.x-face*30;
- m.tick(1/60,{x:0,y:0,comboY:y,attack:true});ticks(m,15);
+ m.tick(1/60,{x:0,y:0,comboY:y,attack:true});ticks(m,Math.ceil((m.hero.attack!.impact+.04)*60));
  assert.equal(m.grapple?.target,e.id);assert.equal(m.grapple?.phase,'throw');assert.equal(m.grapple?.direction,face*(y<0?-1:1));
  const hp=e.hp;ticks(m,60);assert(e.hp<hp);assert.equal(m.grapple,null);assert.equal(m.hero.comboHit,false);
 });
