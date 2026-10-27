@@ -58,7 +58,7 @@ export interface Fighter {
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
-export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
+export interface Input { partner?:Input; x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
 export type Effect = { type: 'arcade-bonus'|'enemy-dismount'|'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
@@ -72,7 +72,32 @@ export function attackHits(a: Attack, target: Fighter, reach: number) {
   return inRange(a.x, a.y, target.x, target.y, a.face, reach);
 }
 /** Deterministic, renderer-independent game simulation. */
+interface PlayerControl {grapple:Grapple|null;queuedUntil:number;specialQueued:boolean;horseQueued:boolean;dropQueued:boolean;rideAttackFace:number|undefined;dashHits:Set<number>;}
 export class Campaign {
+  partner?:Fighter;
+  private rootHero?:Fighter;
+  private playerControls=new Map<number,PlayerControl>();
+  get players(){return [this.rootHero??this.hero,...(this.partner?[this.partner]:[])];}
+  get livingPlayers(){return this.players.filter(p=>p.hp>0);}
+  enableCoop(id:HeroId){if(this.status!=='ready')return false;this.partner=this.fighter('hero',260,455);this.partner.heroId=id;this.ranked=false;return true;}
+  private control():PlayerControl{return {grapple:this.grapple,queuedUntil:this.queuedUntil,specialQueued:this.specialQueued,horseQueued:this.horseQueued,dropQueued:this.dropQueued,rideAttackFace:this.rideAttackFace,dashHits:this.dashHits};}
+  withPlayer<T>(player:Fighter,action:()=>T):T{
+    if(player===this.hero)return action();
+    const previous=this.hero,root=this.rootHero,saved=this.control();this.playerControls.set(previous.id,saved);
+    this.rootHero=root??previous;this.hero=player;
+    Object.assign(this,this.playerControls.get(player.id)??{grapple:null,queuedUntil:0,specialQueued:false,horseQueued:false,dropQueued:false,rideAttackFace:undefined,dashHits:new Set<number>()});
+    try{return action();}finally{this.playerControls.set(player.id,this.control());this.hero=previous;this.rootHero=root;Object.assign(this,saved);}
+  }
+  grappleOf(player:Fighter){return player===this.hero?this.grapple:this.playerControls.get(player.id)?.grapple??null;}
+  private grappleOwner(target:number){return this.players.find(p=>this.grappleOf(p)?.target===target);}
+  private inGrapple(f:Fighter){return this.players.some(p=>{const g=this.grappleOf(p);return g&&(p.id===f.id||g.target===f.id);});}
+  rejoin(player:Fighter){
+    if(!this.partner||this.status!=='playing'||this.paused||player.hp>0||!this.livingPlayers.length||this.continues<=0)return false;
+    const ally=this.livingPlayers[0],id=player.heroId;this.continues--;this.continuesUsed++;this.stageRetries++;
+    this.withPlayer(player,()=>{this.releaseGrapple(false);if(player.mounted)this.dismount(true);Object.assign(player,this.fighter('hero',ally.x,clamp(ally.y+35,350,503)),{id:player.id,heroId:id,inv:1.5,equipped:undefined,mounted:false,steed:undefined,grapplePose:undefined,grappleProgress:undefined,grappleBack:undefined,airAttackUsed:false,throwRecovery:0,throwSpin:0,rideDash:0,knockdown:0});this.queuedUntil=0;this.specialQueued=false;this.dropQueued=false;this.horseQueued=false;});
+    this.message='隊友重新出陣 · 消耗 1 次隊伍續關';this.messageUntil=this.time+2;return true;
+  }
+
   hero: Fighter;
   grapple:Grapple|null=null;
   enemies: Fighter[] = [];
@@ -80,7 +105,7 @@ export class Campaign {
   barrels:Supply[]=[];
   horses:Horse[]=[];
   pickups: Pickup[] = [];
-  projectiles:{id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;drawOffsetX?:number;drawHeight?:number;piercing?:boolean;push?:number;hits?:number[]}[]=[];
+  projectiles:{owner?:number;id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;drawOffsetX?:number;drawHeight?:number;piercing?:boolean;push?:number;hits?:number[]}[]=[];
   pending:Reinforcement[]=[];props:StageProp[]=[];fieldSuppressed=false;
   stageStarted=0;stageDamage=0;stageRetries=0;stageBestHit=0;stageInteractions=new Set<number>();stageResults:StageResult[]=[];rallyUntil=0;
   encounterSeed:number;
@@ -108,7 +133,7 @@ export class Campaign {
   get arenaEnd(){return ARENA_ENDS[this.wave-1]??ARENA_ENDS[0];}
   get level() { return LEVELS[this.stage]; }
   get field() { const f=this.status==='playing'&&this.encounterActive&&!this.fieldSuppressed?fieldEvent(this.stage,this.wave,this.time,this.waveStarted):null;if(f)f.x+=this.cameraLeft-arenaStart(this.wave);return f; }
-  get rank() { return this.continuesUsed === 0 && this.hero.hp >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
+  get rank() { return this.continuesUsed === 0 && this.players.reduce((sum,p)=>sum+p.hp,0)/this.players.length >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
   time = 0;
   wave = 0;
   score = 0;
@@ -142,7 +167,7 @@ export class Campaign {
     return result;
   }
   fighter(kind: Kind, x: number, y: number): Fighter {
-    return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: stats[kind].hp, max: stats[kind].hp,
+    return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)), max: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)),
       face: kind === 'hero' ? 1 : -1, z: 0, vz: 0, inv: 0, stun: 0, cooldown: .9,
       step: 0, last: -10, attack: null, moving: false, specialCooldown: 0, dodge: 0, dodgeCooldown: 0,
       dashX: 0, dashY: 0, attacks: 0 };
@@ -158,6 +183,8 @@ export class Campaign {
     const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++; this.wave = 0;this.stageStarted=this.time;this.stageDamage=0;this.stageRetries=0;this.stageBestHit=0;this.stageInteractions.clear(); this.hero = this.fighter('hero', 180, 412);
     this.hero.hp=hp;this.hero.equipped=equipped;
+    if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.hp=old.hp;this.partner.equipped=old.equipped;}
+
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
   /** Replay the current wave, rolling back its score and kills to prevent farming. */
@@ -167,6 +194,7 @@ export class Campaign {
     this.score = this.checkpointScore; this.kills = this.checkpointKills;
     const x = arenaStart(this.wave)+180;
     this.hero = this.fighter('hero', x, 412); this.hero.inv = 1.5;
+    if(this.partner){const id=this.partner.heroId;this.partner=this.fighter('hero',x+80,455);this.partner.heroId=id;this.partner.inv=1.5;}
     this.cameraLeft=clamp(x-340,0,WORLD_WIDTH-960);
     this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
@@ -174,7 +202,7 @@ export class Campaign {
   private weaponDropUsed=false;
   private foodDropUsed=false;
   private resetTransient() {
-    this.bonusRound=undefined;this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.horses=[];this.pending=[];this.props=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
+    this.playerControls.clear();this.bonusRound=undefined;this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.horses=[];this.pending=[];this.props=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false;this.horseQueued=false;this.dropQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
@@ -200,42 +228,96 @@ export class Campaign {
     this.events = [];
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
-    // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
-    if((input.dropWeapon||(input.attack&&input.jump))&&this.hero.z===0&&this.hero.vz===0)this.dropQueued=true;
-    if(input.horseSpecial&&this.hero.mounted)this.horseQueued=true;
-    if (input.special && !this.grapple) this.specialQueued = true;
-    if(input.attack&&this.hero.mounted)this.rideAttackFace=input.x?Math.sign(input.x):this.hero.face;
-    if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
+    const inputs=new Map(this.players.map((p,i)=>[p,i===0?input:input.partner??{x:0,y:0}]));
+    for(const p of this.players)this.withPlayer(p,()=>{const command=inputs.get(p)!;if(p.hp<=0){if(command.grappleAttack)this.rejoin(p);return;}this.queueInput(command);});
     if (this.freeze > 0) { this.freeze -= dt; return; }
     this.time += dt;
     if(this.bonusRound&&this.time>=this.bonusRound.until){this.barrels=this.barrels.filter(b=>!b.bonus);this.bonusRound=undefined;}
 
     if (this.time > this.hitDeadline) this.hits = 0;
     const h = this.hero;
-    for (const f of [h, ...this.enemies]) {
+    for(const p of this.players)this.withPlayer(p,()=>this.tickFighter(p,dt));
+    for(const e of this.enemies)this.tickFighter(e,dt);
+    for(const p of this.players)this.withPlayer(p,()=>{if(p.hp>0)this.tickPlayer(dt,inputs.get(p)!);else {this.releaseGrapple(false);if(p.mounted)this.dismount(true);p.attack=null;}});
+    this.updateHorses(dt);if(this.partner)this.withPlayer(this.partner,()=>this.updateHorses(0));
+    // Each arena opens only after its defenders fall.
+    if(!this.encounterActive&&this.livingPlayers.length)this.cameraLeft=Math.max(this.cameraLeft,Math.min(this.cameraLeft+600*dt,clamp(Math.min(...this.livingPlayers.map(p=>p.x))-340,0,WORLD_WIDTH-960)));
+    for(const p of this.livingPlayers){p.x=clamp(p.x,this.cameraLeft+25,this.cameraLeft+935);p.y=clamp(p.y,350,503);}
+    for(const p of this.players)this.withPlayer(p,()=>this.tickAttack(p,dt));
+    for(const e of this.enemies)this.tickAttack(e,dt);
+    this.updateProjectiles(dt);
+    this.enemies.forEach((e, i) => this.ai(e, i, dt));
+    // Gentle separation prevents enemies occupying exactly the same lane and pixel.
+    for (let i = 0; i < this.enemies.length; i++) for (let j = i + 1; j < this.enemies.length; j++) {
+      const a = this.enemies[i], b = this.enemies[j];
+      if(this.inGrapple(a)||this.inGrapple(b))continue;
+      if (Math.abs(a.x - b.x) < 30 && Math.abs(a.y - b.y) < 21) {
+        if (!a.attack) a.y = clamp(a.y - 20 * dt, 350, 503);
+        if (!b.attack) b.y = clamp(b.y + 20 * dt, 350, 503);
+      }
+    }
+    this.enemies = this.enemies.filter(e => e.hp > 0);
+    this.updateReinforcements();
+    const field = this.field;
+    if(field && this.time-dt < field.impactAt && this.time >= field.impactAt) {
+      this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
+      for(const player of this.livingPlayers)this.withPlayer(player,()=>{const h=this.hero;if(fieldHits(field,h)) {
+        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;this.stageDamage+=damage;if(h.mounted)this.dismount(true);else this.damageEquipment();
+        h.inv=.75;h.stun=.22;h.attack=null;this.hits=0;this.queuedUntil=0;
+        this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
+      }});
+    }
+    for(const p of this.players)this.withPlayer(p,()=>{if(this.grapple&&(p.hp<=0||p.stun>0))this.releaseGrapple(false);});
+    // Death takes precedence over simultaneous final clearance.
+    if (!this.livingPlayers.length) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
+    for(const p of this.livingPlayers)this.withPlayer(p,()=>this.collectPickups());
+    if (!this.encounterActive) {
+      if (this.waveReward < 0) {
+        const speed = Math.max(0, 1200 - Math.floor(this.time - this.waveStarted) * 10);
+        this.waveReward = speed + (this.waveDamage === 0 ? 800 : 0);
+        this.score += this.waveReward;
+        if(this.wave===3)this.startBonusRound();
+      }
+      if (this.wave === this.level.waves.length) { this.finishStage();this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
+      else if (this.clearedAt < 0) {
+        this.clearedAt = this.time;
+        this.message = `破陣！獎勵 +${this.waveReward}　向右前進 →`; this.messageUntil = Infinity;
+      } else if (this.time - this.clearedAt > .8 && this.livingPlayers.every(p=>p.x>(this.arenaEnd-70)) && this.cameraLeft>=clamp(Math.min(...this.livingPlayers.map(p=>p.x))-340,0,WORLD_WIDTH-960)-1) this.spawn();
+    }
+  }
+  private queueInput(input:Input){
+    // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
+    if((input.dropWeapon||(input.attack&&input.jump))&&this.hero.z===0&&this.hero.vz===0)this.dropQueued=true;
+    if(input.horseSpecial&&this.hero.mounted)this.horseQueued=true;
+    if (input.special && !this.grapple) this.specialQueued = true;
+    if(input.attack&&this.hero.mounted)this.rideAttackFace=input.x?Math.sign(input.x):this.hero.face;
+    if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
+  }
+  private tickFighter(f:Fighter,dt:number){const h=this.hero;
       if(f.throwRecovery!==undefined){f.throwRecovery=Math.max(0,f.throwRecovery-dt);if(!f.throwRecovery)delete f.throwRecovery;}
       if(f.guard!==undefined)f.guard=Math.max(0,f.guard-dt);
       if(f.guardCooldown!==undefined)f.guardCooldown=Math.max(0,f.guardCooldown-dt);
       f.inv = Math.max(0, f.inv - dt); f.stun = Math.max(0, f.stun - dt);
       if((f.knockdown??0)>0){
-        if(f!==h&&f.mounted)this.unseatEnemy(f);
+        if(f.kind!=='hero'&&f.mounted)this.unseatEnemy(f);
         f.knockdown=Math.max(0,f.knockdown!-dt);
         f.attack=null;
-        if(f.knockdown===0)f.inv=Math.max(f.inv,f===h?.35:.18);
+        if(f.knockdown===0)f.inv=Math.max(f.inv,f.kind==='hero'?.35:.18);
         else f.stun=Math.max(f.stun,f.knockdown);
       }
       if(f.rescueCooldown!==undefined)f.rescueCooldown=Math.max(0,f.rescueCooldown-dt);
       f.grappleCooldown=Math.max(0,(f.grappleCooldown??0)-dt);
       f.specialCooldown = Math.max(0,(f.specialCooldown ?? 0)-dt);
       f.cooldown -= dt; f.dodgeCooldown = Math.max(0, f.dodgeCooldown - dt); f.moving = false;
-      if ((!this.grapple || (f!==h && f.id!==this.grapple.target)) && (f.z > 0 || f.vz > 0)) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { if(f.attack?.move==='aerial'&&!f.attack.hit){this.resolve(f,f.attack);f.attack.hit=true;} const aerialLink=f.heroId==='zhaoyun'&&f.attack?.move==='aerial'&&f.attack.connected;
+      if (!this.inGrapple(f) && (f.z > 0 || f.vz > 0)) { f.z += f.vz * dt; f.vz -= 900 * dt; if (f.z <= 0) { f.z = 0; f.vz = 0; if (f === h) { if(f.attack?.move==='aerial'&&!f.attack.hit){this.resolve(f,f.attack);f.attack.hit=true;} const aerialLink=f.heroId==='zhaoyun'&&f.attack?.move==='aerial'&&f.attack.connected;
         delete f.airAttackUsed;f.stun = Math.max(f.stun, this.style.landing); f.attack = null;
         if(aerialLink){f.step=1;f.last=this.time;this.message='銀龍接勢 · 可接第二段';this.messageUntil=this.time+.7;}else this.queuedUntil=0; } } }
-    }
+  }
+  private tickPlayer(dt:number,input:Input){const h=this.hero;
     if(this.grapple && (h.hp<=0||h.stun>0||!this.enemies.some(e=>e.id===this.grapple!.target&&e.hp>0)))this.releaseGrapple(false);
     if(h.rideDashCooldown!==undefined)h.rideDashCooldown=Math.max(0,h.rideDashCooldown-dt);
     if(h.mountCooldown!==undefined)h.mountCooldown=Math.max(0,h.mountCooldown-dt);
-    this.updateHorses(dt);
+
     if(this.horseQueued&&h.mounted&&(h.specialCooldown??0)<=0&&h.stun<=0&&!h.attack){
       h.specialCooldown=1.3;h.attack={move:'wave',elapsed:0,duration:.8,impact:.32,hit:false,face:h.face,x:h.x,y:h.y};this.queuedUntil=0;
       this.message=h.heroId==='huangzhong'?'騎乘必殺 · 貫陣火矢！':'騎乘必殺 · 斬風刀波！';this.messageUntil=this.time+1.2;
@@ -270,7 +352,7 @@ export class Campaign {
     if(h.mounted&&(h.rideDash??0)>0&&h.stun<=0){
       const from=h.x;h.rideDash=Math.max(0,h.rideDash!-dt);h.x=clamp(h.x+h.face*480*dt,this.cameraLeft+25,this.cameraLeft+935);h.y=clamp(h.y+input.y*60*dt,350,503);h.moving=true;h.rideSpeed=290;
       for(const e of this.enemies){
-        if(e.hp<=0||e.inv>0||e.z>38||this.dashHits.has(e.id)||Math.abs(e.y-h.y)>30||e.x<Math.min(from,h.x)-38||e.x>Math.max(from,h.x)+38)continue;
+        if((this.grappleOwner(e.id)&&this.grappleOwner(e.id)!==this.hero)||e.hp<=0||e.inv>0||e.z>38||this.dashHits.has(e.id)||Math.abs(e.y-h.y)>30||e.x<Math.min(from,h.x)-38||e.x>Math.max(from,h.x)+38)continue;
         this.dashHits.add(e.id);this.breakGuard(e);this.unseatEnemy(e);e.attack=null;e.stun=Math.max(e.stun,.55);e.inv=.22;e.x=clamp(e.x+h.face*70,this.enemyLeft,this.enemyRight);this.grappleDamage(e,38);this.freeze=.025;
       }
     }
@@ -278,7 +360,7 @@ export class Campaign {
       const fromX=h.x,fromY=h.y;h.dodge -= dt;h.x+=h.dashX*410*dt;h.y+=h.dashY*245*dt;
       h.x=clamp(h.x,this.cameraLeft+25,this.cameraLeft+935);h.y=clamp(h.y,350,503);
       for(const e of this.enemies){
-        if(e.hp<=0||e.z>38||e.inv>0||this.dashHits.has(e.id)||Math.abs(e.y-(fromY+h.y)/2)>30||e.x<Math.min(fromX,h.x)-48||e.x>Math.max(fromX,h.x)+48)continue;
+        if((this.grappleOwner(e.id)&&this.grappleOwner(e.id)!==this.hero)||e.hp<=0||e.z>38||e.inv>0||this.dashHits.has(e.id)||Math.abs(e.y-(fromY+h.y)/2)>30||e.x<Math.min(fromX,h.x)-48||e.x>Math.max(fromX,h.x)+48)continue;
         this.dashHits.add(e.id);this.breakGuard(e);this.unseatEnemy(e);e.attack=null;e.stun=Math.max(e.stun,.4);e.inv=.22;e.x=clamp(e.x+h.face*(isBoss(e.kind)?30:65),this.enemyLeft,this.enemyRight);this.grappleDamage(e,Math.round(14*this.champion.damage));this.freeze=.025;
       }
     }
@@ -296,15 +378,13 @@ export class Campaign {
       }
     }
     if(!occupied && (!h.attack||this.canLinkGrab()) && h.stun<=0 && h.z===0 && h.dodge<=0 && !input.attack && !input.special && (input.x||input.y))this.tryGrab(input);
-    // Each arena opens only after its defenders fall.
-    if(!this.encounterActive)this.cameraLeft=Math.max(this.cameraLeft,Math.min(this.cameraLeft+600*dt,clamp(h.x-340,0,WORLD_WIDTH-960)));
-    h.x=clamp(h.x,this.cameraLeft+25,this.cameraLeft+935);h.y=clamp(h.y,350,503);
-    for (const f of [h, ...this.enemies]) {
-      if (f.hp <= 0 || !f.attack) continue;
+  }
+  private tickAttack(f:Fighter,dt:number){const h=this.hero;
+      if (f.hp <= 0 || !f.attack) return;
       const a = f.attack; a.elapsed += dt;
       if(a.move==='cavalry'){
         if(a.elapsed>=a.impact&&a.elapsed<a.impact+.42){a.x=f.x;a.y=f.y;f.x=clamp(f.x+a.face*380*dt,this.enemyLeft,this.enemyRight);f.moving=true;
-          if(!a.hit&&attackHits(a,h,70)){a.hit=true;this.resolve(f,a);}}
+          if(!a.hit&&this.livingPlayers.some(p=>attackHits(a,p,70))){a.hit=true;this.resolve(f,a);}}
         if(a.elapsed>=a.impact+.42)a.hit=true;
       }else if(a.move==='special'){
         const times=[.18,.38,.58];let pulse=a.pulses??0;
@@ -314,32 +394,8 @@ export class Campaign {
         if(a.elapsed>=a.impact&&!a.hit&&descendingContact(f.z,f.vz)){a.hit=true;this.resolve(f,a);a.duration=a.elapsed+.18;}
       }else if (a.elapsed >= a.impact && !a.hit) { a.hit = true; this.resolve(f, a); }
       if (a.elapsed >= a.duration && (a.move!=='aerial'||a.hit)&&!(f.heroId==='zhaoyun'&&a.move==='aerial'&&a.connected&&(f.z>0||f.vz>0))) f.attack = null;
-    }
-    this.updateProjectiles(dt);
-    this.enemies.forEach((e, i) => this.ai(e, i, dt));
-    // Gentle separation prevents enemies occupying exactly the same lane and pixel.
-    for (let i = 0; i < this.enemies.length; i++) for (let j = i + 1; j < this.enemies.length; j++) {
-      const a = this.enemies[i], b = this.enemies[j];
-      if(this.grapple && (a.id===this.grapple.target||b.id===this.grapple.target))continue;
-      if (Math.abs(a.x - b.x) < 30 && Math.abs(a.y - b.y) < 21) {
-        if (!a.attack) a.y = clamp(a.y - 20 * dt, 350, 503);
-        if (!b.attack) b.y = clamp(b.y + 20 * dt, 350, 503);
-      }
-    }
-    this.enemies = this.enemies.filter(e => e.hp > 0);
-    this.updateReinforcements();
-    const field = this.field;
-    if(field && this.time-dt < field.impactAt && this.time >= field.impactAt) {
-      this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
-      if(fieldHits(field,h)) {
-        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;this.stageDamage+=damage;if(h.mounted)this.dismount(true);else this.damageEquipment();
-        h.inv=.75;h.stun=.22;h.attack=null;this.hits=0;this.queuedUntil=0;
-        this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
-      }
-    }
-    if(this.grapple&&(h.hp<=0||h.stun>0))this.releaseGrapple(false);
-    // Death takes precedence over simultaneous final clearance.
-    if (h.hp <= 0) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
+  }
+  private collectPickups(){const h=this.hero;
     this.pickups = this.pickups.filter(p => {
       if ((p.availableAt??0)>this.time||!nearPickup(h,p)||h.attack||this.grapple||h.stun>0) return true;
       if(p.loot==='book'){this.score+=1500;this.message='兵書 +1500 分';this.messageUntil=this.time+2;this.events.push({type:'book',x:p.x,y:p.y,value:1500});return false;}
@@ -354,25 +410,13 @@ export class Campaign {
       const amount = Math.min(p.amount, h.max - h.hp); h.hp += amount;
       this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
     });
-    if (!this.encounterActive) {
-      if (this.waveReward < 0) {
-        const speed = Math.max(0, 1200 - Math.floor(this.time - this.waveStarted) * 10);
-        this.waveReward = speed + (this.waveDamage === 0 ? 800 : 0);
-        this.score += this.waveReward;
-        if(this.wave===3)this.startBonusRound();
-      }
-      if (this.wave === this.level.waves.length) { this.finishStage();this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
-      else if (this.clearedAt < 0) {
-        this.clearedAt = this.time;
-        this.message = `破陣！獎勵 +${this.waveReward}　向右前進 →`; this.messageUntil = Infinity;
-      } else if (this.time - this.clearedAt > .8 && h.x > (this.arenaEnd-70) && this.cameraLeft>=clamp(h.x-340,0,WORLD_WIDTH-960)-1) this.spawn();
-    }
   }
   startBonusRound(){
     if(this.bonusRound||this.encounterActive)return;
     this.bonusRound={until:this.time+12,broken:0,finished:false};
-    const start=clamp(this.hero.x+65,this.cameraLeft+90,this.cameraLeft+580);
-    for(let i=0;i<3;i++)this.barrels.push({id:++this.serial,x:start+i*130,y:this.hero.y<427?354:499,hp:24,bonus:true});
+    const player=this.livingPlayers[0]??this.hero;
+    const start=clamp(player.x+65,this.cameraLeft+90,this.cameraLeft+580);
+    for(let i=0;i<3;i++)this.barrels.push({id:++this.serial,x:start+i*130,y:player.y<427?354:499,hp:24,bonus:true});
     this.events.push({type:'arcade-bonus',x:this.hero.x,y:this.hero.y,value:0});
   }
   breakSupply(box:Supply){
@@ -407,7 +451,7 @@ export class Campaign {
     if(p.stageKind==='ballista'){this.propShots.push({id:++this.serial,x:p.x,y:this.hero.y,face:this.hero.face,remaining:900,damage:40,arrow:true,piercing:true,push:22,hits:[]});return;}
     if(p.stageKind==='banner')this.rallyUntil=this.time+5;
     for(const e of this.enemies){
-      if(e.hp<=0||e.inv>0)continue;
+      if(this.grappleOwner(e.id)||e.hp<=0||e.inv>0)continue;
       if(p.stageKind==='bamboo'&&Math.abs(e.x-p.x)>80)continue;
       if(p.stageKind==='ice'&&Math.hypot((e.x-p.x)/1.3,e.y-p.y)>150)continue;
       this.breakGuard(e);e.attack=null;e.stun=Math.max(e.stun,p.stageKind==='banner'?1.25:.9);e.guardCooldown=3;
@@ -448,7 +492,7 @@ export class Campaign {
     if(h.equipped.hits>=2){this.events.push({type:'weapon-drop',x:h.x,y:h.y,weapon:h.equipped.id});h.equipped=undefined;this.message='武器脫手損壞！';this.messageUntil=this.time+1.4;}
   }
   summonHorses(){
-    if(this.hero.mounted||this.horses.some(h=>h.life>0&&h.x>-100))return false;
+    if(this.players.some(p=>p.mounted)||this.horses.some(h=>h.life>0&&h.x>-100))return false;
     const start=this.cameraLeft+1020;
     this.horses=[{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
     this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;return true;
@@ -458,18 +502,18 @@ export class Campaign {
     this.horses=this.horses.filter(horse=>{
       if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&(h.mounted===true||horse.x>horse.target));
       if(horse.moving)horse.x=Math.max(h.mounted||horse.fleeing?-200:horse.target,horse.x-260*dt);
-      if(horse.awaitSeparation&&(Math.abs(horse.x-h.x)>60||Math.abs(horse.y-h.y)>36))horse.awaitSeparation=false;
-      if(!horse.awaitSeparation&&!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
+      if(horse.awaitSeparation&&this.players.every(p=>Math.abs(horse.x-p.x)>60||Math.abs(horse.y-p.y)>36))horse.awaitSeparation=false;
+      if(h.hp>0&&!horse.awaitSeparation&&!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
         h.mounted=true;h.rideSpeed=0;h.rideDash=0;h.rideTurn=0;h.rideFacing=undefined;h.step=0;h.last=-10;h.steed=horse;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！連攻三段 · 反向攻擊回身 · 衝撞突擊 · 跳躍下馬';this.messageUntil=this.time+4;return false;
       }
       return horse.life>0&&horse.x>-100;
     });
   }
   updateProjectiles(dt:number){
-    this.projectiles=this.projectiles.filter(p=>{
+    this.projectiles=this.projectiles.filter(p=>this.withPlayer(this.players.find(f=>f.id===p.owner)??this.players[0],()=>{
       const distance=Math.min(p.remaining,(p.arrow?850:p.wave?560:640)*dt),next=p.x+p.face*distance;
       const targets:(Fighter|Supply|StageProp)[]=[...this.enemies,...this.props,...(p.arrow?[...this.supplies,...this.barrels]:this.barrels.filter(b=>b.bonus))];
-      const contacts=targets.filter(e=>e.hp>0&&(!('z' in e)||e.z<=38)&&Math.abs(e.y-p.y)<(p.wave?38:22)&&!p.hits?.includes(e.id)&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12).sort((a,b)=>(a.x-b.x)*p.face);
+      const contacts=targets.filter(e=>(!('kind' in e)||!this.grappleOwner(e.id)||this.grappleOwner(e.id)===this.hero)&&e.hp>0&&(!('z' in e)||e.z<=38)&&Math.abs(e.y-p.y)<(p.wave?38:22)&&!p.hits?.includes(e.id)&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12).sort((a,b)=>(a.x-b.x)*p.face);
       for(const target of contacts){
         (p.hits??=[]).push(target.id);
         if(!('kind' in target)){
@@ -487,7 +531,7 @@ export class Campaign {
         if(!p.wave&&!p.piercing)return false;
       }
       p.x=next;p.remaining-=distance;return p.remaining>0&&p.x>=this.enemyLeft&&p.x<=this.enemyRight;
-    });
+    }));
     this.projectiles.push(...this.propShots);this.propShots=[];
     this.supplies=this.supplies.filter(b=>b.hp>0);this.barrels=this.barrels.filter(b=>b.hp>0);
   }
@@ -499,7 +543,7 @@ export class Campaign {
     const h=this.hero;if(h.mounted||this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||(h.attack&&!this.canLinkGrab())||h.z>0||h.vz>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
     // Boss grabs are safe during early windup and settled recovery, never on the impact frame.
     // Filter approach direction before selecting: a closer enemy behind must not block a valid grab.
-    const target=this.enemies.filter(e=>e.hp>0&&!e.mounted&&(isBoss(e.kind)?bossGrabWindow(e.attack)!=='unsafe':!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&(!h.attack||h.attack.hitTargets?.includes(e.id))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&!(e.inv>0&&e.stun<=0)&&Math.abs(e.x-h.x)<=this.style.grabReach&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
+    const target=this.enemies.filter(e=>!this.grappleOwner(e.id)&&e.hp>0&&!e.mounted&&(isBoss(e.kind)?bossGrabWindow(e.attack)!=='unsafe':!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&(!h.attack||h.attack.hitTargets?.includes(e.id))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&!(e.inv>0&&e.stun<=0)&&Math.abs(e.x-h.x)<=this.style.grabReach&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
     if(!target)return false;
     h.face=target.x>=h.x?1:-1;h.attack=null;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;if(target.guard!==undefined)target.guard=0;target.grapplePose='held';target.face=-h.face;
@@ -554,7 +598,7 @@ export class Campaign {
         if(progress>=1){
           h.z=0;e.z=0;e.inv=.35;e.stun=.9;e.knockdown=.8;e.grappleCooldown=1.2;
           for(const other of this.enemies){
-            if(other.id===e.id||other.hp<=0||other.inv>0||other.z>38||Math.abs(other.x-h.x)>110||Math.abs(other.y-h.y)>52)continue;
+            if(this.grappleOwner(other.id)||other.id===e.id||other.hp<=0||other.inv>0||other.z>38||Math.abs(other.x-h.x)>110||Math.abs(other.y-h.y)>52)continue;
             this.unseatEnemy(other);other.attack=null;other.stun=1;other.knockdown=.8;other.inv=.35;this.grappleDamage(other,30);
           }
           this.events.push({type:'throw',x:h.x,y:h.y,value:state.direction,heroId:h.heroId});
@@ -577,7 +621,7 @@ export class Campaign {
       h.z=state.air?Math.max(0,state.startZ-24)*(1-flight):0;
       if(state.elapsed>=weight.lift){
         for(const other of this.enemies){
-          if(other.id===e.id||other.hp<=0||other.inv>0||state.collisions?.includes(other.id)||!sweptThrowContact(previous,e,other))continue;
+          if(this.grappleOwner(other.id)||other.id===e.id||other.hp<=0||other.inv>0||state.collisions?.includes(other.id)||!sweptThrowContact(previous,e,other))continue;
           (state.collisions??=[]).push(other.id);
           this.unseatEnemy(other);other.attack=null;other.stun=Math.max(other.stun,1);other.knockdown=.8;other.inv=.35;
           other.x=clamp(other.x+state.direction*18,this.enemyLeft,limit);
@@ -605,7 +649,7 @@ export class Campaign {
     this.message='解困震退！氣血 -8';this.messageUntil=this.time+1.2;
     this.events.push({type:'rescue',x:h.x,y:h.y,heroId:h.heroId,value:8});
     for(const e of this.enemies){
-      if(e.hp<=0||e.inv>0||e.z>38||Math.hypot((e.x-h.x)/1.4,e.y-h.y)>95)continue;
+      if((this.grappleOwner(e.id)&&this.grappleOwner(e.id)!==this.hero)||e.hp<=0||e.inv>0||e.z>38||Math.hypot((e.x-h.x)/1.4,e.y-h.y)>95)continue;
       this.breakGuard(e);this.unseatEnemy(e);e.attack=null;e.stun=Math.max(e.stun,.9);e.knockdown=.8;e.inv=.3;
       const side=Math.sign(e.x-h.x)||h.face;e.x=clamp(e.x+side*(isBoss(e.kind)?65:110),this.enemyLeft,this.enemyRight);e.y=clamp(e.y+Math.sign(e.y-h.y)*15,350,503);
       this.grappleDamage(e,20);
@@ -641,7 +685,12 @@ export class Campaign {
     h.attack = { ...(weapon?{weapon}:{}), move: h.mounted?'mounted':bowStrike?'bow-strike':kick?'kick':'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.mounted?(rideFace??h.face):h.face, x: h.x, y: h.y };
     this.events.push({ type: 'swing', x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
-  ai(e: Fighter, index: number, dt: number) {
+  ai(e:Fighter,index:number,dt:number){
+    if(this.grappleOwner(e.id))return;
+    const target=[...this.livingPlayers].sort((a,b)=>Math.hypot(a.x-e.x,(a.y-e.y)*2)-Math.hypot(b.x-e.x,(b.y-e.y)*2))[0];
+    if(target)this.withPlayer(target,()=>this.aiOne(e,index,dt));
+  }
+  private aiOne(e: Fighter, index: number, dt: number) {
     if (this.grapple?.target===e.id || (e.knockdown??0)>0 || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
     if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.y+=Math.sign(dy)*Math.min(Math.abs(dy),stats[e.kind].speed*.5*dt);e.moving=true;return;}
@@ -709,20 +758,25 @@ export class Campaign {
     this.events.push({type:'block',x:e.x,y:e.y-40});this.freeze=.025;return true;
   }
 
-  resolve(f: Fighter, a: Attack) {
+  resolve(f:Fighter,a:Attack){
+    if(this.players.includes(f))return this.withPlayer(f,()=>this.resolveOne(f,a));
+    for(const p of this.livingPlayers)this.withPlayer(p,()=>this.resolveOne(f,a));
+  }
+  private resolveOne(f: Fighter, a: Attack) {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > (a.move==='aerial'?54:38) && a.move!=='special') return;
     const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = a.move==='bow-strike'?BOW_STRIKE:a.move==='aerial'?{...AERIALS[f.heroId!],duration:1,impact:.08}:a.move==='mounted'?mountedStrike(f.step,f.heroId==='huangzhong'):a.move==='wave'?MOUNT_WAVE:special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
-    if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
-    if(heroAttack&&a.move==='wave'){this.projectiles.push({id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,...(f.heroId==='huangzhong'?{arrow:true,...mountedArrowVisual(f.face,a.face,24)}:{}),hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
+    if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
+    if(heroAttack&&a.move==='wave'){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,...(f.heroId==='huangzhong'?{arrow:true,...mountedArrowVisual(f.face,a.face,24)}:{}),hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
     if(special)this.events.push({type:'special',x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
     const reach = heroAttack ? s.reach : a.move==='cavalry'?70: f.kind==='archer'?340:f.kind==='spearman'?145:f.kind==='brute'?85: f.kind === 'heavy' ? 88 : 73;
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !f.mounted && !a.weapon && !special && heroAttack && a.move==='slash' && f.heroId === 'huangzhong';
-    if(heroAttack&&a.move==='mounted'&&f.heroId==='huangzhong'){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:s.reach,damage:s.damage,arrow:true,...mountedArrowVisual(f.face,a.face),piercing:f.step===3,push:s.push,hits:[]});return;}
-    if(bow){this.projectiles.push({id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,piercing:f.step===3,push:s.push,hits:[]});return;}
+    if(heroAttack&&a.move==='mounted'&&f.heroId==='huangzhong'){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:s.reach,damage:s.damage,arrow:true,...mountedArrowVisual(f.face,a.face),piercing:f.step===3,push:s.push,hits:[]});return;}
+    if(bow){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
+      if (heroAttack&&this.grappleOwner(t.id)&&this.grappleOwner(t.id)!==f)continue;
       if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z):heroAttack&&f.heroId==='lubu'&&a.move==='slash'&&!a.weapon&&f.step===3?(t.z<=38&&Math.abs(t.y-a.y)<=42&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach):attackHits(a, t, reach))) continue;
       if(heroAttack&&this.blocked(t,f.x,f.y,special||a.move==='aerial'||(!a.weapon&&f.step===3)||a.weapon==='hammer'||a.weapon==='axe'||a.move==='mounted'))continue;
       const damage = heroAttack ? s.damage : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
