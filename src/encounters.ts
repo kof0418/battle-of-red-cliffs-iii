@@ -1,7 +1,7 @@
 import type {Kind} from './combat.ts';
 import {LEVELS} from './levels.ts';
 export const RHYTHMS=['分隊推進','兩側夾擊','竹林伏兵','重裝壓陣','宮城接力'] as const;
-export interface Reinforcement {kinds:Kind[];due:number;side:'front'|'pincer'|'ambush';}
+export interface Reinforcement {kinds:Kind[];due:number;side:'front'|'pincer'|'ambush';held?:boolean;readyAt?:number;}
 export function encounterRoster(stage:number,wave:number,seed=0):Kind[]{
  const roster=[...LEVELS[stage].waves[wave-1]];
  if(!seed||wave===6)return roster;
@@ -30,3 +30,7 @@ export const PROPS=[
  {stageKind:'ice',name:'冰柱',hint:'擊碎冰柱 · 震退附近敵人'},
  {stageKind:'banner',name:'軍旗',hint:'擊倒軍旗 · 敵軍短暫失去防守'},
 ] as const;
+
+// Heavy formations get breathing room; pincer and ambush stages retain pressure.
+export const REINFORCEMENT_CAP=[3,4,4,2,4] as const;
+export const BONUS_NAMES=['軍糧整備','渡口破桶','竹寮搜集','礦場清障','宮庫破陣'] as const;

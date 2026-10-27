@@ -1,6 +1,6 @@
 import {mountedArrowVisual} from './motion.ts';
 import {HERO_STYLES,BOW_STRIKE} from './hero-styles.ts';
-import {encounterPlan,PROPS,RHYTHMS,type Reinforcement,type StageProp} from './encounters.ts';
+import {REINFORCEMENT_CAP,BONUS_NAMES,encounterPlan,PROPS,RHYTHMS,type Reinforcement,type StageProp} from './encounters.ts';
 import {gradeStage,type StageResult} from './stage-grade.ts';
 import {BOSS_STYLE,enemyTempo,DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
 import {AERIALS,descendingContact} from './aerial.ts';
@@ -43,7 +43,7 @@ export function comboStep(previous: number, last: number, now: number) {
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
 export type Move = 'ride-charge'|'cavalry'|'kick'|'bow-strike'|'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
-export interface Supply { id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
+export interface Supply { bonus?:boolean;opened?:boolean; id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
 }
@@ -59,7 +59,7 @@ export interface Fighter {
   grappleBack?:boolean;grapplePose?:'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { type: 'enemy-dismount'|'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
+export type Effect = { type: 'arcade-bonus'|'enemy-dismount'|'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
@@ -86,7 +86,7 @@ export class Campaign {
   encounterSeed:number;
   get remainingEnemies(){return this.enemies.length+this.pending.reduce((n,g)=>n+g.kinds.length,0);}
   get encounterActive(){return this.remainingEnemies>0;}
-  get reinforcementHint(){const group=this.pending[0];return group&&group.due-(this.time-this.waveStarted)<=1?group.side==='pincer'?'援軍接近 · 注意左右兩側':group.side==='ambush'?'竹影有動靜 · 伏兵接近':'前方援軍接近':'';}
+  get reinforcementHint(){const group=this.pending[0];if(group?.held&&!group.readyAt)return '後方守軍整隊中 · 先突破眼前陣線';return group&&(group.readyAt??group.due)-(this.time-this.waveStarted)<=1?group.side==='pincer'?'援軍接近 · 注意左右兩側':group.side==='ambush'?'竹影有動靜 · 伏兵接近':'前方援軍接近':'';}
   private propShots:Campaign['projectiles']=[];
   cameraLeft=0;
   private dashHits=new Set<number>();
@@ -102,6 +102,9 @@ export class Campaign {
   waveStarted = 0;
   waveDamage = 0;
   waveReward = -1;
+  bonusRound?:{until:number;broken:number;finished:boolean};
+  get bonusHint(){const b=this.bonusRound;return !b?'':b.finished?'破桶全破！額外 +1000 · 向右前進 →':`${BONUS_NAMES[this.stage]} ${b.broken}/3 · ${Math.max(0,b.until-this.time).toFixed(1)}秒 · 金箍桶每個 +300，可直接前進 →`;}
+
   get arenaEnd(){return ARENA_ENDS[this.wave-1]??ARENA_ENDS[0];}
   get level() { return LEVELS[this.stage]; }
   get field() { const f=this.status==='playing'&&this.encounterActive&&!this.fieldSuppressed?fieldEvent(this.stage,this.wave,this.time,this.waveStarted):null;if(f)f.x+=this.cameraLeft-arenaStart(this.wave);return f; }
@@ -171,12 +174,12 @@ export class Campaign {
   private weaponDropUsed=false;
   private foodDropUsed=false;
   private resetTransient() {
-    this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.horses=[];this.pending=[];this.props=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
+    this.bonusRound=undefined;this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.horses=[];this.pending=[];this.props=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false;this.horseQueued=false;this.dropQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
   spawn() {
-    this.wave++; this.clearedAt = -1;this.weaponDropUsed=false;this.foodDropUsed=false;
+    this.bonusRound=undefined;this.wave++; this.clearedAt = -1;this.weaponDropUsed=false;this.foodDropUsed=false;
     if(this.wave===1)this.cameraLeft=0;
     this.waveStarted = this.time; this.waveDamage = 0; this.waveReward = -1;
     this.checkpointScore = this.score; this.checkpointKills = this.kills;
@@ -205,6 +208,8 @@ export class Campaign {
     if (input.attack && !this.grapple) this.queuedUntil = this.time + .38;
     if (this.freeze > 0) { this.freeze -= dt; return; }
     this.time += dt;
+    if(this.bonusRound&&this.time>=this.bonusRound.until){this.barrels=this.barrels.filter(b=>!b.bonus);this.bonusRound=undefined;}
+
     if (this.time > this.hitDeadline) this.hits = 0;
     const h = this.hero;
     for (const f of [h, ...this.enemies]) {
@@ -354,6 +359,7 @@ export class Campaign {
         const speed = Math.max(0, 1200 - Math.floor(this.time - this.waveStarted) * 10);
         this.waveReward = speed + (this.waveDamage === 0 ? 800 : 0);
         this.score += this.waveReward;
+        if(this.wave===3)this.startBonusRound();
       }
       if (this.wave === this.level.waves.length) { this.finishStage();this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
       else if (this.clearedAt < 0) {
@@ -362,11 +368,31 @@ export class Campaign {
       } else if (this.time - this.clearedAt > .8 && h.x > (this.arenaEnd-70) && this.cameraLeft>=clamp(h.x-340,0,WORLD_WIDTH-960)-1) this.spawn();
     }
   }
+  startBonusRound(){
+    if(this.bonusRound||this.encounterActive)return;
+    this.bonusRound={until:this.time+12,broken:0,finished:false};
+    const start=clamp(this.hero.x+65,this.cameraLeft+90,this.cameraLeft+580);
+    for(let i=0;i<3;i++)this.barrels.push({id:++this.serial,x:start+i*130,y:this.hero.y<427?354:499,hp:24,bonus:true});
+    this.events.push({type:'arcade-bonus',x:this.hero.x,y:this.hero.y,value:0});
+  }
+  breakSupply(box:Supply){
+    if(box.opened||box.hp>0)return;box.opened=true;
+    if(box.bonus){
+      const b=this.bonusRound;if(!b||b.finished||this.time>=b.until)return;
+      b.broken++;this.score+=300;this.events.push({type:'arcade-bonus',x:box.x,y:box.y,value:300});
+      if(b.broken===3){b.finished=true;b.until=this.time+2;this.score+=1000;this.events.push({type:'arcade-bonus',x:box.x,y:box.y,value:1000});}return;
+    }
+    const loot=box.loot??crateLoot(this.stage,this.wave);
+    this.pickups.push({id:++this.serial,x:box.x,y:box.y,amount:loot==='bun'?25:loot==='meat'?40:0,loot});
+  }
   updateReinforcements(){
     const group=this.pending[0];if(!group)return;
     const elapsed=this.time-this.waveStarted;
     if(!this.enemies.length)group.due=Math.min(group.due,elapsed+.9);
-    if(elapsed<group.due)return;this.pending.shift();
+    if(elapsed<group.due)return;
+    if(this.enemies.length>REINFORCEMENT_CAP[this.stage]&&elapsed<group.due+6){group.held=true;return;}
+    if(group.held){group.readyAt??=elapsed+.9;if(elapsed<group.readyAt)return;}
+    this.pending.shift();
     group.kinds.forEach((kind,i)=>{
       const left=group.side==='pincer'&&i%2===0,x=this.cameraLeft+(left?65+i*20:800+i*35),y=group.side==='ambush'?(i%2?490:360):370+i%3*49;
       const e=this.fighter(kind,x,y);e.inv=.55;e.cooldown=.9;if(this.time<this.rallyUntil){e.guardCooldown=3;e.stun=1.25;}this.enemies.push(e);
@@ -442,13 +468,13 @@ export class Campaign {
   updateProjectiles(dt:number){
     this.projectiles=this.projectiles.filter(p=>{
       const distance=Math.min(p.remaining,(p.arrow?850:p.wave?560:640)*dt),next=p.x+p.face*distance;
-      const targets:(Fighter|Supply|StageProp)[]=[...this.enemies,...this.props,...(p.arrow?[...this.supplies,...this.barrels]:[])];
+      const targets:(Fighter|Supply|StageProp)[]=[...this.enemies,...this.props,...(p.arrow?[...this.supplies,...this.barrels]:this.barrels.filter(b=>b.bonus))];
       const contacts=targets.filter(e=>e.hp>0&&(!('z' in e)||e.z<=38)&&Math.abs(e.y-p.y)<(p.wave?38:22)&&!p.hits?.includes(e.id)&&(e.x-p.x)*p.face>=-12&&(e.x-next)*p.face<=12).sort((a,b)=>(a.x-b.x)*p.face);
       for(const target of contacts){
         (p.hits??=[]).push(target.id);
         if(!('kind' in target)){
           target.hp=Math.max(0,target.hp-p.damage);this.events.push({type:'crate',x:target.x,y:target.y-12});
-          if(!target.hp&&'stageKind' in target){this.activateProp(target);}else if(!target.hp){const loot=target.loot??crateLoot(this.stage,this.wave);this.pickups.push({id:++this.serial,x:target.x,y:target.y,loot,amount:loot==='bun'?25:loot==='meat'?40:0});}
+          if(!target.hp&&'stageKind' in target){this.activateProp(target);}else if(!target.hp){this.breakSupply(target);}
         }else if(target.inv<=0){
           if(this.blocked(target,p.x,p.y,!!p.piercing||!!p.wave)){if(!p.wave&&!p.piercing)return false;continue;}
           target.inv=.2;
@@ -729,7 +755,7 @@ export class Campaign {
         if (box.hp <= 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,box.x,box.y):inRange(a.x,a.y,box.x,box.y,a.face,s.reach))) continue;
         box.hp = Math.max(0, box.hp - s.damage);
         this.events.push({ type: 'crate', x: box.x, y: box.y - 12 });
-        if(!box.hp&&'stageKind' in box){this.activateProp(box);}else if (!box.hp) {const loot=box.loot??crateLoot(this.stage,this.wave);this.pickups.push({ id: ++this.serial, x: box.x, y: box.y, amount:loot==='bun'?25:loot==='meat'?40:0,loot });}
+        if(!box.hp&&'stageKind' in box){this.activateProp(box);}else if (!box.hp) {this.breakSupply(box);}
       }
       this.supplies = this.supplies.filter(box => box.hp > 0);this.barrels=this.barrels.filter(box=>box.hp>0);
     }
