@@ -27,6 +27,8 @@ export function sweptThrowContact(from:BodyPoint,to:BodyPoint,target:BodyPoint){
 /** Agile low release and deliberate shoulder roll use different trajectories. */
 export function groundThrowWeight(id:HeroId,kind:string){
  const w=throwWeight(kind);
+ if(id==='weiyan')return {...w,lift:.14,flight:.38,height:w.height*.65};
+ if(id==='lubu')return {...w,lift:.25,flight:.46,height:w.height+34};
  if(id==='zhaoyun')return {...w,lift:w.lift*.8,flight:.40,height:w.height*.75};
  if(id==='huangzhong')return {...w,lift:.20,flight:.45,height:w.height+12};
  return w;

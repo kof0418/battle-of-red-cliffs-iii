@@ -22,7 +22,7 @@ test('heroes have different actual movement, hit damage and timing',()=>{
  a.tick(.03,{x:1,y:0});b.tick(.03,{x:1,y:0});assert.ok(b.hero.x>a.hero.x);
  assert.ok(a.slash(3).damage>b.slash(3).damage);assert.ok(a.slash(1).duration>b.slash(1).duration);
  const hits=HERO_IDS.map(id=>{const m=new Campaign(id);m.start();m.enemies=[m.fighter('heavy',230,412)];m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);return 180-m.enemies[0].hp;});
- assert.deepEqual(hits,[17,22,14,14,18,20]);
+ assert.deepEqual(hits,[17,22,14,14,18,23]);
 });
 test('Huang Zhong arrows hit the nearest target, respect lanes, and third shot pierces',()=>{
  const m=new Campaign('huangzhong');m.start();m.supplies=[];

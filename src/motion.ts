@@ -6,8 +6,8 @@ const MOTION:Record<HeroId,Pose[][]>={
  zhangfei:[[[6,-42,-9,.1],[-3,-43,-14,.05],[45,-42,17,0],[49,-41,19,0],[17,-43,0,-.65]],[[-16,-50,-16,2.6],[-26,-58,-21,2.9],[27,-36,20,2.8],[36,-31,23,3.1],[17,-43,0,-.65]],[[3,-77,-8,-1.4],[0,-98,-14,-1.65],[20,-9,23,.9],[28,-4,28,1.1],[17,-43,0,-.65]]],
  zhaoyun:[[[5,-40,-6,-.1],[-10,-42,-12,-.05],[48,-40,13,0],[55,-39,16,.04],[17,-43,0,-.65]],[[10,-22,-7,.8],[0,-16,-11,1.1],[25,-70,1,-1.1],[18,-82,-6,-1.5],[17,-43,0,-.65]],[[0,-66,-12,-2.1],[-17,-72,-18,-2.8],[33,-30,14,.65],[41,-24,20,1.6],[17,-43,0,-.65]]],
  huangzhong:[[[20,-42,-1,0],[25,-43,-4,0],[26,-42,3,0],[25,-41,2,0],[17,-43,0,0]],[[13,-37,-4,0],[17,-38,-9,0],[21,-37,7,0],[19,-35,5,0],[17,-43,0,0]],[[24,-48,-7,0],[30,-49,-12,0],[32,-48,5,0],[29,-45,8,0],[17,-43,0,0]]],
- weiyan:[[[2,-26,-6,.65],[5,-22,-8,.9],[34,-44,9,-.6],[24,-54,7,-1],[17,-43,0,-.55]],[[3,-60,-4,-1],[0,-65,-7,-1.25],[35,-30,8,.65],[29,-22,9,1],[17,-43,0,-.55]],[[0,-64,-7,-1.1],[-4,-70,-10,-1.4],[39,-36,11,.15],[43,-21,12,.85],[17,-43,0,-.55]]],
- lubu:[[[3,-64,-6,-.8],[7,-70,-9,-1],[39,-32,9,.12],[43,-18,11,.55],[17,-43,0,-.6]],[[6,-28,-5,.65],[2,-24,-8,.85],[37,-56,8,-.65],[34,-67,10,-.95],[17,-43,0,-.6]],[[0,-72,-8,-1.1],[-4,-79,-11,-1.45],[43,-30,11,.5],[46,-18,12,.9],[17,-43,0,-.6]]],
+ weiyan:[[[0,-30,-9,1.0],[-8,-24,-13,1.3],[31,-48,11,-.65],[36,-54,15,-1.1],[17,-43,0,-.55]],[[10,-51,-5,-1.4],[7,-58,-11,-1.65],[8,-57,-15,-1.7],[10,-50,-9,-1.5],[17,-43,0,-.55]],[[12,-56,-7,-1.3],[-10,-61,-16,-1.8],[-8,-53,-22,-1.7],[0,-45,-12,-1.4],[17,-43,0,-.55]]],
+ lubu:[[[0,-55,-9,-1.6],[-12,-61,-15,-2.1],[34,-39,12,.45],[40,-31,17,1.0],[17,-43,0,-.6]],[[4,-43,-8,.06],[-17,-43,-17,0],[49,-44,18,0],[56,-43,21,.04],[17,-43,0,-.6]],[[2,-81,-9,-1.4],[-7,-101,-16,-1.65],[31,-13,24,1.25],[40,-4,29,1.5],[17,-43,0,-.6]]],
 };
 export function attackPhase(elapsed:number,impact:number,duration:number){
  if(elapsed<impact*.5)return 0;if(elapsed<impact)return 1;
@@ -20,6 +20,8 @@ export function heroMotion(id:HeroId,combo:number,phase:number){
 }
 export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  const thrust=id==='zhaoyun',bow=id==='huangzhong';
+ if(id==='weiyan')return {x:descending?35:0,y:descending?-34:-70,lean:descending?24:-15,angle:descending?1.05:-1.5,stride:descending?16:10,crouch:0,phase:descending?2:1};
+ if(id==='lubu')return {x:descending?28:0,y:descending?-8:-93,lean:descending?20:-12,angle:descending?1.35:-1.6,stride:12,crouch:descending?9:0,phase:descending?2:1};
  if(id==='guanyu')return {x:descending?34:10,y:descending?-12:-78,lean:descending?18:-8,angle:descending?2.7:-.1,stride:8,crouch:descending?5:0,phase:descending?2:1};
  if(id==='zhangfei')return {x:descending?12:4,y:descending?-65:-72,lean:descending?-13:-4,angle:descending?1.3:-1.5,stride:14,crouch:descending?8:0,phase:descending?2:1};
  if(follow&&thrust)return {x:50,y:-19,lean:23,angle:.6,stride:14,crouch:2,phase:2};
@@ -29,6 +31,8 @@ export function aerialMotion(id:HeroId,descending:boolean,follow=false){
 }
 export function grappleMotion(id:HeroId,pose:string,progress=0,back=false){
  const heavy=id==='zhangfei'||id==='lubu',p=Math.max(0,Math.min(1,progress));
+ if(pose==='throw'&&id==='weiyan')return {x:24-38*Math.sin(p*Math.PI),y:-40-18*Math.sin(p*Math.PI),lean:-24*Math.sin(p*Math.PI),stride:18,crouch:10*Math.sin(p*Math.PI)};
+ if(pose==='throw'&&id==='lubu')return {x:18+16*Math.sin(p*Math.PI),y:-104+74*Math.sin(p*Math.PI),lean:20*Math.sin(p*Math.PI),stride:20,crouch:7*Math.sin(p*Math.PI)};
  if(pose==='throw'&&id==='zhaoyun')return {x:28+18*Math.sin(p*Math.PI),y:-48+22*Math.sin(p*Math.PI),lean:14*Math.sin(p*Math.PI),stride:14,crouch:7*Math.sin(p*Math.PI)};
  if(pose==='throw'&&id==='huangzhong')return {x:15-30*Math.sin(p*Math.PI),y:-72+15*Math.sin(p*Math.PI),lean:-10*Math.sin(p*Math.PI),stride:8,crouch:2};
  if(pose==='throw'&&id==='zhangfei')return {x:27,y:-96+Math.sin(p*Math.PI)*70,lean:18*Math.sin(p*Math.PI),stride:16,crouch:8*Math.sin(p*Math.PI)};
@@ -44,8 +48,8 @@ export function closeMotion(move:'kick'|'bow-strike',phase:number,combo=3){
   const x=combo===1?(active?34:14):combo===2?(active?26:2):(active?20:5),y=combo===1?(active?-35:-46):combo===2?(active?-25:-60):(active?-15:-82);
   return {x,y,lean:active?(combo===2?-8:combo===3?14:8):-4,angle:combo===1?.65:combo===2?1.6:active?.4:-.9,stride:combo===3?12:8,crouch:active&&combo===3?8:0,phase};
  }
- if(move==='kick'&&combo===2)return {x:12,y:-50,lean:active?-5:0,angle:-1.2,stride:0,crouch:2,phase};
- return move==='kick'?{x:active?-2:12,y:-52,lean:active?-9:0,angle:-1.2,stride:0,crouch:0,phase}
+ if(move==='kick'&&combo===2)return {x:active?8:13,y:active?-57:-49,lean:active?-15:-5,angle:active?-1.7:-1.2,stride:0,crouch:active?4:0,phase};
+ return move==='kick'?{x:active?-8:12,y:active?-53:-58,lean:active?-22:-10,angle:-1.7,stride:0,crouch:active?3:0,phase}
  :{x:active?32:14,y:active?-35:-46,lean:active?8:-3,angle:.65,stride:active?8:0,crouch:0,phase};
 }
 

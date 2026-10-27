@@ -3299,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "three-kingdoms-battle"
-version = "2.2.3"
+version = "2.2.4"
 dependencies = [
  "tauri",
  "tauri-build",

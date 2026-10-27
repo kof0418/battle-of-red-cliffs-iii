@@ -166,9 +166,6 @@ export class Campaign {
     const s = SLASHES[Math.max(0, step - 1)], c = this.champion;
     const result={ duration: s.duration * c.tempo, impact: s.impact * c.tempo, damage: Math.round(s.damage * c.damage), reach: s.reach * c.reach, push: s.push * c.push };
     const form=duelForm(this.hero.heroId??'guanyu',step);if(form)return {duration:form.duration,impact:form.impact,damage:form.damage,reach:form.reach,push:form.push};
-    if(this.hero.heroId==='weiyan'&&step===2){result.duration=.27;result.impact=.095;result.reach=80;result.push=8;}
-    if(this.hero.heroId==='weiyan'&&step===3){result.duration=.38;result.impact=.14;result.reach=92;result.push=48;}
-    if(this.hero.heroId==='lubu'&&step===3){result.duration=.60;result.impact=.23;}
     return result;
   }
   fighter(kind: Kind, x: number, y: number): Fighter {
@@ -704,7 +701,7 @@ export class Campaign {
     if(reason){this.message=reason;this.messageUntil=this.time+1.2;return false;}
     h.comboHit=false;h.comboAttack=undefined;h.hp-=SPECIAL_COST;this.waveDamage+=SPECIAL_COST;h.specialCooldown=SPECIAL_COOLDOWN;
     h.stun=0;h.inv=Math.max(h.inv,h.heroId==='zhangfei'?.58:.45);h.step=3;h.last=this.time;h.moving=false;this.queuedUntil=0;
-    h.attack={move:'special',elapsed:0,duration:h.heroId==='zhangfei'?.94:h.heroId==='guanyu'?.88:.85,impact:.18,hit:false,pulses:0,face:h.face,x:h.x,y:h.y};
+    h.attack={move:'special',elapsed:0,duration:h.heroId==='zhangfei'?.94:h.heroId==='guanyu'?.88:h.heroId==='lubu'?.98:.85,impact:.18,hit:false,pulses:0,face:h.face,x:h.x,y:h.y};
     this.message=SPECIALS[h.heroId!].name+'！';this.messageUntil=this.time+1.2;
     this.events.push({type:'special-start',x:h.x,y:h.y,value:3,heroId:h.heroId});return true;
   }
@@ -819,7 +816,7 @@ export class Campaign {
     if(bow){this.projectiles.push({comboAttack:a,owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,...groundArrowVisual(a.face,f.step),piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
       if (heroAttack&&this.grappleOwner(t.id)&&this.grappleOwner(t.id)!==f)continue;
-      if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z,a.pulses??0):heroAttack&&a.move==='bow-strike'?(t.z<=38&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach&&Math.abs(t.y-a.y)<=bowStrikeSpec(f.step).depth):heroAttack&&isDuelHero(f.heroId)&&a.move==='slash'&&!a.weapon&&!f.mounted?(t.z<=38&&duelHits(f.heroId!,f.step,a.x,a.y,a.face,t.x,t.y,reach)):heroAttack&&f.heroId==='lubu'&&a.move==='slash'&&!a.weapon&&f.step===3?(t.z<=38&&Math.abs(t.y-a.y)<=42&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach):attackHits(a, t, reach))) continue;
+      if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z,a.pulses??0):heroAttack&&a.move==='bow-strike'?(t.z<=38&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach&&Math.abs(t.y-a.y)<=bowStrikeSpec(f.step).depth):heroAttack&&isDuelHero(f.heroId)&&(a.move==='slash'||a.move==='kick')&&!a.weapon&&!f.mounted?(t.z<=38&&duelHits(f.heroId!,f.step,a.x,a.y,a.face,t.x,t.y,reach)):heroAttack&&f.heroId==='lubu'&&a.move==='slash'&&!a.weapon&&f.step===3?(t.z<=38&&Math.abs(t.y-a.y)<=42&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach):attackHits(a, t, reach))) continue;
       const tip=heroAttack&&bladeTip(f.heroId!,a.move,f.step,a.weapon,f.mounted,(t.x-a.x)*a.face);
       if(heroAttack&&this.blocked(t,f.x,f.y,tip||special||a.move==='aerial'||(!a.weapon&&f.step===3)||a.weapon==='hammer'||a.weapon==='axe'||a.move==='mounted'))continue;
       const damage = heroAttack ? Math.round(s.damage*(tip?1.25:1)) : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
