@@ -46,7 +46,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.0.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.1.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -54,13 +54,17 @@ import { drawBackground } from './background';
 
 const held = new Set<string>(), pressed = new Set<string>();
 const commands=new CommandBank(),touchInput=new TouchInput();let directionPointer:number|null=null;
-function queuePartner(action:string,source:InputSource='keyboard'){
+function rememberComboDirection(edges:Set<string>,y:number){for(const n of [-1,0,1])edges.delete('combo:'+n);edges.add('combo:'+Math.sign(y));}
+function takeComboDirection(edges:Set<string>){let y:number|undefined;for(const n of [-1,0,1])if(edges.delete('combo:'+n))y=n;return y;}
+function queuePartner(action:string,source:InputSource='keyboard',padY=0){
  const m=current()?.model;if(!m?.partner||settingsOpen||m.status!=='playing'||m.paused)return;
+ if(action==='attack'){const keys=[...keyboardHeld].map(k=>coopKey(k,2));rememberComboDirection(partnerPressed,source==='pad'?padY:Number(keys.includes('down'))-Number(keys.includes('up')));}
  if(m.grappleOf(m.partner)){partnerCommands.reset();partnerPressed.add(action);return;}
  if(partnerCommands.press(source,action,performance.now(),!!m.partner.mounted))partnerPressed.add(m.partner.mounted?'horse-special':'command-special');else partnerPressed.add(action);
 }
 function queueAction(action:string,source:InputSource='keyboard'){
  const scene=current(),m=scene?.model;
+ if(action==='attack'){const directions=source==='keyboard'?new Set([...keyboardHeld].map(k=>coopMode?coopKey(k,1):keyAction(k,bindings))):source==='touch'?touchInput.held:scene.padHeld;rememberComboDirection(pressed,Number(directions.has('down'))-Number(directions.has('up')));}
  if(m?.grapple){commands.reset();if(action==='attack'){
   const keys=[...keyboardHeld].map(k=>coopMode?coopKey(k,1):keyAction(k,bindings));
   if(keys.includes('left')||held.has('left')||scene.padHeld.has('left'))pressed.add('throw-left');
@@ -177,7 +181,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v2.0.0 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v2.1.0 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -215,6 +219,12 @@ class Battle extends Phaser.Scene {
       }
       if(preview==='stage-grade'){this.model.start();this.model.stageResults=[{stage:0,seconds:128,damage:24,retries:0,bestHit:24,interactions:2,grade:'S',points:96,bonus:5000}];this.model.status='stage-clear';this.model.wave=6;this.model.enemies=[];this.model.pending=[];}
       if(preview==='stage-prop'){this.posePreview=true;this.model.stage=Math.max(0,Math.min(4,Number(new URLSearchParams(location.search).get('stage'))||0));this.model.start();this.model.spawn();this.model.pending=[];this.model.hero.x=500;this.model.hero.y=354;this.model.paused=true;this.model.message=RHYTHMS[this.model.stage];this.model.messageUntil=99;}
+      if(preview==='combo-finish'){
+        const m=this.model;m.start();m.hero.x=400;m.hero.y=412;m.enemies=[m.fighter('soldier',425,412)];m.enemies[0].hp=m.enemies[0].max=1000;m.enemies[0].cooldown=999;m.pending=[];m.supplies=[];m.barrels=[];
+        for(let n=0;n<2;n++){m.tick(1/60,{x:0,y:0,attack:true});while(m.hero.attack){m.freeze=0;m.tick(1/60,{x:0,y:0});}}
+        m.hero.x=m.enemies[0].x-30;m.tick(1/60,{x:0,y:0,attack:true,comboY:-1});for(let i=0;i<25;i++){m.freeze=0;m.tick(1/60,{x:0,y:0});}m.paused=true;this.posePreview=true;
+      }
+      if(preview==='rescue-empty'){this.model.start();this.model.hero.x=480;this.model.enemies=[];this.model.pending=[];this.model.supplies=[];this.model.barrels=[];}
       if(preview==='rescue'){this.model.start();this.model.hero.x=480;this.model.supplies=[];this.model.barrels=[];this.model.enemies=[this.model.fighter('soldier',430,412),this.model.fighter('heavy',535,412)];this.model.enemies.forEach(e=>e.cooldown=99);}
       if(preview==='scenery'){
         const params=new URLSearchParams(location.search);this.model.stage=Math.max(0,Math.min(4,Number(params.get('stage'))||0));this.model.start();this.model.cameraLeft=Math.max(0,Math.min(WORLD_WIDTH-960,Number(params.get('scroll'))||600));this.model.hero.x=this.model.cameraLeft+480;this.model.enemies=[];this.model.pending=[];this.model.paused=true;this.posePreview=true;
@@ -275,7 +285,7 @@ class Battle extends Phaser.Scene {
     else if(m.status==='ready'&&coopMode&&!titleScreen){
       if(pad2.pressed.has('left')||pad2.pressed.has('right')){partnerHero=HERO_IDS[(HERO_IDS.indexOf(partnerHero)+(pad2.pressed.has('right')?1:5))%6];if(m.partner)m.partner.heroId=partnerHero;document.querySelector<HTMLSelectElement>('#partner-hero')!.value=partnerHero;}
       if(pad2.pressed.has('attack'))this.activate();
-    }else if(m.status==='playing'){for(const action of pad2.pressed)queuePartner(action,'pad');}
+    }else if(m.status==='playing'){for(const action of pad2.pressed)queuePartner(action,'pad',Number(pad2.held.has('down'))-Number(pad2.held.has('up')));}
     else if(pad2.pressed.has('attack')&&!titleScreen)this.activate();
     const pad = this.pad.read(coopMode?[routed[0]]:pads,preferences.pad);this.padHeld=pad.held;this.padConnected=pad.connected;
     if (!document.hasFocus()) { this.pad.reset(); pad.held.clear(); pad.pressed.clear(); }
@@ -297,7 +307,7 @@ class Battle extends Phaser.Scene {
     if (pressed.delete('pause')) {toggleSettings();return;}
     const autoAttack = preferences.autoAttack && !settingsOpen && (this.actionDown('attack') || held.has('attack') || pad.held.has('attack')) && m.time >= this.autoAttackAt;
     if(autoAttack) this.autoAttackAt = m.time + .20;
-    const input: Input = {
+    const input: Input = {comboY:takeComboDirection(pressed),
       dropWeapon:(pressed.has('attack')||pressed.has('jump'))&&(pressed.has('attack')||this.actionDown('attack')||held.has('attack')||pad.held.has('attack'))&&(pressed.has('jump')||this.actionDown('jump')||held.has('jump')||pad.held.has('jump')),
       x: Number(this.actionDown('right') || pad.held.has('right') || held.has('right')) - Number(this.actionDown('left') || pad.held.has('left') || held.has('left')),
       y: Number(this.actionDown('down') || pad.held.has('down') || held.has('down')) - Number(this.actionDown('up') || pad.held.has('up') || held.has('up')),
@@ -308,7 +318,7 @@ class Battle extends Phaser.Scene {
       const fresh=partnerPressed.has('attack'),jump=partnerPressed.has('jump');
       const x=Number(down('right'))-Number(down('left'));
       const auto=preferences.autoAttack&&m.partner.hp>0&&down('attack')&&!settingsOpen&&m.time>=this.autoAttack2At;if(auto)this.autoAttack2At=m.time+.2;
-      input.partner={x,y:Number(down('down'))-Number(down('up')),attack:fresh||auto,grappleAttack:fresh,throwX:fresh&&x?x:undefined,jump,dodge:partnerPressed.has('dodge'),special:partnerPressed.has('command-special'),horseSpecial:partnerPressed.has('horse-special'),dropWeapon:(fresh||jump)&&down('attack')&&down('jump')};partnerPressed.clear();
+      input.partner={comboY:takeComboDirection(partnerPressed),x,y:Number(down('down'))-Number(down('up')),attack:fresh||auto,grappleAttack:fresh,throwX:fresh&&x?x:undefined,jump,dodge:partnerPressed.has('dodge'),special:partnerPressed.has('command-special'),horseSpecial:partnerPressed.has('horse-special'),dropWeapon:(fresh||jump)&&down('attack')&&down('jump')};partnerPressed.clear();
     }
     if(this.performanceQA&&!this.performanceQA.done){input.attack=Math.floor(m.time*5)%2===0;input.special=(m.hero.specialCooldown??0)<=0;input.jump=Math.floor(m.time*2)%2===0;}
     const partnerMounted=m.partner?.mounted;
@@ -339,10 +349,10 @@ class Battle extends Phaser.Scene {
       const fx=this.add.graphics().setPosition(e.x,e.y).setDepth(e.y);drawHorse(fx,0,0,1,0,true);fx.setScale(e.value??1,1);
       this.tweens.add({targets:fx,x:e.x+(e.value??1)*420,alpha:0,duration:900,onComplete:()=>fx.destroy()});tone(120,.15);setText('#command-feedback','敵方騎將落馬，進入步戰');
     }else if(e.type==='rescue'){
-      setText('#command-feedback','解困震退 · 氣血 -8');soundtrack.specialImpact(e.heroId??'guanyu');
+      setText('#command-feedback',e.value?'解困震退 · 氣血 -8':'解困揮空 · 不扣血');soundtrack.specialImpact(e.heroId??'guanyu');
       const ring=this.add.ellipse(e.x,e.y-30,100,68,0xf3d7a0,.25).setStrokeStyle(5,0xffe4af).setDepth(e.y+100);
       this.tweens.add({targets:ring,scaleX:2.5,scaleY:2,alpha:0,duration:preferences.reducedMotion?180:400,onComplete:()=>ring.destroy()});
-      const label=this.add.text(e.x,e.y-110,'解困 -8',{fontSize:'20px',color:'#ffcf8e',stroke:'#28332a',strokeThickness:3}).setOrigin(.5).setDepth(8000);this.tweens.add({targets:label,y:label.y-20,alpha:0,duration:700,onComplete:()=>label.destroy()});
+      const label=this.add.text(e.x,e.y-110,e.value?'解困 -8':'解困 · 不扣血',{fontSize:'20px',color:'#ffcf8e',stroke:'#28332a',strokeThickness:3}).setOrigin(.5).setDepth(8000);this.tweens.add({targets:label,y:label.y-20,alpha:0,duration:700,onComplete:()=>label.destroy()});
     }else if(e.type==='bonus'||e.type==='arcade-bonus'){
       tone(780,.15);const label=this.add.text(e.x,e.y-45,e.type==='bonus'?'銅鑼 +1000':e.value?`破桶 +${e.value}`:'破桶挑戰！',{fontSize:'20px',color:'#ffdc8c',stroke:'#27332e',strokeThickness:3}).setDepth(8000);this.tweens.add({targets:label,y:label.y-35,alpha:0,duration:850,onComplete:()=>label.destroy()});
     }else if(e.type==='weapon-drop'){
@@ -473,7 +483,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * (m.partner?m.cameraLeft+340:m.hero.x) / WORLD_WIDTH, 3);
     this.label.setText(`${m.partner?'1P · ':''}${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 衝突擊／左右＋攻擊貫穿箭':'騎乘 · 衝突擊／左右＋攻擊刀波'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v2.0.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v2.1.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,69,80,4);g.fillStyle(0x8acfe5).fillRect(695,69,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,51,235,10);g.fillStyle(0x8acfe5).fillRect(697,53,231*p.hp/p.max,6);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?70:18).setFontSize(m.partner?11:14);
@@ -505,7 +515,7 @@ class Battle extends Phaser.Scene {
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))) card.setAttribute('aria-pressed', String(card.dataset.hero === m.hero.heroId));
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${m.champion.description} 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.0.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.1.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -532,7 +542,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.0.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.1.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -576,7 +586,7 @@ function suspend() {
   current()?.clock.reset(); current()?.pad.reset();current()?.padHeld.clear(); keyboardHeld.clear();
   clearTouches(); pressed.clear();commands.reset();
   const scene = game.scene.getScene('Battle') as Battle;
-  if (scene?.model.status === 'playing') { scene.model.paused = true; scene.input.keyboard?.resetKeys(); }
+  if (scene?.model.status === 'playing') { scene.model.paused = true;scene.model.clearPendingInputs(); scene.input.keyboard?.resetKeys(); }
 }
 window.addEventListener('blur', suspend);
 document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); });
@@ -680,7 +690,7 @@ function renderControls() {
 }
 function updateKeyGuide(){
  const label=(a:Action)=>bindings[a].slice(3);
- setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · 攻擊＋跳躍 解困（耗血8；持拾取武器時丟下） · ${label('dodge')} 步戰衝撞／馬上突擊 · 馬上反方向＋攻擊回身 · ↓↑＋攻擊 必殺 · ${label('pause')} 暫停`);
+ setText('#key-guide',`${label('up')}${label('left')}${label('down')}${label('right')}／方向鍵移動 · ${label('attack')} 攻擊 · ${label('jump')}／空白鍵跳躍 · 攻擊＋跳躍 解困（命中耗血8；持拾取武器時丟下） · ${label('dodge')} 步戰衝撞／馬上突擊 · 馬上反方向＋攻擊回身 · ↓↑＋攻擊 必殺 · ${label('pause')} 暫停`);
  const keys=document.querySelectorAll('.controls kbd');
  if(keys.length>=8){keys[0].textContent=`${label('up')} ${label('left')} ${label('down')} ${label('right')}`;keys[2].textContent=label('attack');keys[3].textContent=label('jump');keys[5].textContent=label('dodge');keys[6].textContent=label('pause');}
 }

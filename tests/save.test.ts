@@ -6,7 +6,8 @@ const make=()=>{const m=new Campaign();m.start();return m;};
 const mutate=(f:(s:any)=>void)=>{const s:any=captureSave(make());f(s);return JSON.stringify(s);};
 test('battle snapshot round trip preserves health, foes, pickups, attacks and credits',()=>{
  const m=make();m.hero.hp=112;m.tick(1/60,{x:0,y:0,attack:true});const s=captureSave(m,1234,true),n=restoreSave(s);
- assert.deepEqual(n.hero,m.hero);assert.deepEqual(n.enemies,m.enemies);assert.deepEqual(n.supplies,m.supplies);assert.equal(n.paused,true);assert.equal(n.continues,2);assert.equal(s.best,1234);assert.equal(s.muted,true);
+ const {comboHit,comboAttack,...legacyHero}=m.hero;assert.deepEqual(n.hero,legacyHero); // Legacy v1.3 archives exclude transient v2.1 combo state.
+assert.deepEqual(n.enemies,m.enemies);assert.deepEqual(n.supplies,m.supplies);assert.equal(n.paused,true);assert.equal(n.continues,2);assert.equal(s.best,1234);assert.equal(s.muted,true);
 });
 test('loaded battle advances identically after unpausing',()=>{
  const a=make();for(let i=0;i<100;i++)a.tick(1/60,{x:1,y:0,attack:i%12===0});const b=restoreSave(captureSave(a));b.togglePause();

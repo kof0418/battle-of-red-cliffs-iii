@@ -26,7 +26,7 @@ test('continue restores the same roster schedule and props and rolls back this-w
  const m=encounter(2,4,2),roster=encounterRoster(2,4,2);m.hero.hp=0;m.tick(1/60,idle);assert(m.continueRun());assert.equal(m.encounterSeed,2);assert.deepEqual([...m.enemies.map(e=>e.kind),...m.pending.flatMap(g=>g.kinds)],roster);assert.equal(m.props.length,1);assert.equal(m.props[0].hp,32);assert.equal(m.stageRetries,1);
 });
 for(let stage=0;stage<5;stage++)test(`${PROPS[stage].name}: ground attacks activate once; no health or pickup reward`,()=>{
- const {m,p}=trap(stage);m.hero.hp=80;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(p.hp,0);assert(p.activated);assert(m.events.some(e=>e.type==='scene-action'));assert.equal(m.hero.hp,80);assert.equal(m.pickups.length,0);const score=m.score;m.activateProp(p);assert.equal(m.score,score);assert.equal(m.stageInteractions.size,1);
+ const {m,p}=trap(stage);m.hero.hp=80;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(p.hp,0);assert(p.activated);assert(m.events.some(e=>e.type==='scene-action'));assert.equal(m.hero.hp,80);assert.equal(m.pickups.length,0);const score=m.score;m.activateProp(p);assert.equal(m.score,score);assert.equal(m.stageInteractions.size,1);
 });
 test('shooting ballista retains its newly launched bolt through projectile filtering',()=>{
  const {m,p}=trap(0);m.hero.heroId='huangzhong';p.hp=1;m.hero.x=p.x-140;m.hero.y=p.y;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);assert(p.activated);assert(m.projectiles.some(b=>b.damage===40));

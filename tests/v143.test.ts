@@ -8,7 +8,7 @@ test('dash ignores high and off-lane targets, pauses cleanly',()=>{
  const m=setup(),e=m.enemies[0];e.z=70;const off=m.fighter('heavy',490,480);off.cooldown=99;m.enemies.push(off);m.tick(1/60,{x:1,y:0,dodge:true});assert.equal(e.hp,180);assert.equal(off.hp,180);m.paused=true;m.events=[];const before=JSON.stringify(m);ticks(m,30,{x:1,y:0,dodge:true});assert.equal(JSON.stringify(m),before);
 });
 test('combat locks player to screen while enemies can be knocked beyond both sides and return',()=>{
- for(const face of [-1,1]){const m=setup();m.hero.x=face<0?25:935;m.hero.face=face;const e=m.enemies[0];e.x=face<0?2:958;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert(face<0?e.x<0:e.x>960);m.hero.attack=null;ticks(m,10,{x:face,y:0});assert(m.hero.x>=25&&m.hero.x<=935);assert.equal(m.cameraLeft,0);ticks(m,35);e.stun=0;e.attack=null;const before=e.x;m.ai(e,0,.1);assert(face<0?e.x>before:e.x<before);}
+ for(const face of [-1,1]){const m=setup();m.hero.x=face<0?25:935;m.hero.face=face;const e=m.enemies[0];e.x=face<0?2:958;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert(face<0?e.x<0:e.x>960);m.hero.attack=null;ticks(m,10,{x:face,y:0});assert(m.hero.x>=25&&m.hero.x<=935);assert.equal(m.cameraLeft,0);ticks(m,35);e.stun=0;e.attack=null;const before=e.x;m.ai(e,0,.1);assert(face<0?e.x>before:e.x<before);}
 });
 test('cleared screens scroll only forward; next arena locks and player cannot return',()=>{
  const m=setup();m.enemies=[];m.hero.x=700;m.tick(1/60,idle);const camera=m.cameraLeft;assert(camera>0);ticks(m,40,{x:-1,y:0});assert(m.cameraLeft>=camera);assert(m.hero.x>=camera+25);

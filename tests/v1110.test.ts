@@ -19,7 +19,7 @@ test('charge cannot start during windup; damage knocks rider down and cancels ch
  const m=setup();m.swing();ticks(m,1,{...idle,dodge:true});assert.equal(m.hero.attack?.move,'mounted');m.hero.attack=null;m.hero.rideDashCooldown=0;ticks(m,1,{...idle,dodge:true});const e=m.enemies[0];e.x=m.hero.x+20;e.y=412;m.resolve(e,{move:'slash',x:e.x,y:412,face:-1,elapsed:0,duration:1,impact:0,hit:false});assert(!m.hero.mounted);assert.equal(m.hero.rideDash,0);assert.equal(m.horses.length,1);assert.equal(m.horses[0].falls,1);
 });
 test('mounted Huang arrows travel and third shot pierces; special remains a penetrating arrow',()=>{
- const m=setup('huangzhong');const a=m.fighter('soldier',520,412),b=m.fighter('soldier',580,412);m.enemies=[a,b];m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(a.hp,a.max);assert(m.projectiles[0].arrow&&m.projectiles[0].piercing);m.updateProjectiles(.3);assert(a.hp<a.max&&b.hp<b.max);
+ const m=setup('huangzhong');const a=m.fighter('soldier',520,412),b=m.fighter('soldier',580,412);m.enemies=[a,b];m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(a.hp,a.max);assert(m.projectiles[0].arrow&&m.projectiles[0].piercing);m.updateProjectiles(.3);assert(a.hp<a.max&&b.hp<b.max);
  m.hero.attack=null;ticks(m,1,{...idle,horseSpecial:true});m.resolve(m.hero,m.hero.attack!);assert(m.projectiles.some(p=>p.arrow&&p.wave));
 });
 test('second-stage Boss rides only once per encounter and cannot be grabbed before being unseated',()=>{

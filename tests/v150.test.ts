@@ -37,7 +37,7 @@ test('shield guard is finite, commits its facing, blocks frontal light hits and 
  e.stun=0;ticks(m,55);assert.equal(e.guard,0);assert((e.guardCooldown??0)>0);
 });
 for(const id of HERO_IDS)test(`${id}: finisher or piercing third arrow breaks a frontal shield with a real opening`,()=>{
- const {m,e}=setup();m.hero.heroId=id;e.guard=1;e.face=-1;if(id==='huangzhong')e.x=m.hero.x+150;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);
+ const {m,e}=setup();m.hero.heroId=id;e.guard=1;e.face=-1;if(id==='huangzhong')e.x=m.hero.x+150;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.2);
  assert.equal(e.guard,0);assert(e.hp<e.max);assert(e.stun>=.6);assert(m.events.some(e=>e.type==='guard-break'));
 });
 test('aerial, special, heavy pickup weapons and grab all bypass shield defense',()=>{

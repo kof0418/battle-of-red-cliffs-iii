@@ -8,7 +8,7 @@ test('third arena clear starts one optional bonus, no enemies, healing or repeat
 });
 test('three broken barrels award exactly 1900, no loot, and cannot be scored twice',()=>{
  const m=setup();tick(m);const score=m.score;
- for(const box of [...m.barrels]){m.hero.x=box.x-40;m.hero.y=box.y;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.breakSupply(box);}
+ for(const box of [...m.barrels]){m.hero.x=box.x-40;m.hero.y=box.y;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.breakSupply(box);}
  assert.equal(m.score-score,1900);assert(m.bonusRound?.finished);assert.equal(m.pickups.length,0);assert.equal(m.hero.hp,80);m.startBonusRound();assert.equal(m.barrels.length,0);
 });
 test('paused and hit-stop frames preserve timer; expiration removes only bonus barrels',()=>{

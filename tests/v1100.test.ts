@@ -8,7 +8,7 @@ for(const id of HERO_IDS)test(`${id}: confirmed light attack can link to a close
  for(let i=0;i<6&&!m.grapple;i++)ticks(m,1,{x:1,y:0});assert.equal(m.grapple?.target,e.id);assert(m.time<a.duration);assert.equal(e.hp,hp);assert.equal(m.hero.attack,null);
 });
 test('miss, finisher, holding attack, weapon and movement away cannot cancel into a recovery grab',()=>{
- for(const mode of ['miss','finisher','held','weapon','away']){const m=setup();if(mode==='miss')m.enemies[0].inv=1;if(mode==='weapon')m.hero.equipped={id:'sword',uses:18};if(mode==='finisher'){m.hero.step=2;m.hero.last=m.time;}
+ for(const mode of ['miss','finisher','held','weapon','away']){const m=setup();if(mode==='miss')m.enemies[0].inv=1;if(mode==='weapon')m.hero.equipped={id:'sword',uses:18};if(mode==='finisher'){m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;}
  m.swing();const a=m.hero.attack!;ticks(m,Math.ceil((a.impact+.081)*60));ticks(m,1,{x:mode==='away'?-1:1,y:0,...(mode==='held'?{attack:true}:{})});assert(!m.grapple,mode);assert(m.hero.attack,mode);}
 });
 test('confirmed attack may only cancel into grabbing its own damaged target',()=>{

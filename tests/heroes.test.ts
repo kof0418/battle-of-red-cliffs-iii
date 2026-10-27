@@ -6,7 +6,8 @@ import { captureSave, restoreSave, parseSave } from '../legacy/save.ts';
 for (const id of HERO_IDS) test(`${id}: selection, save, continue and next-stage retain hero`, () => {
  const m = new Campaign(); assert.ok(m.selectHero(id)); m.start(); assert.equal(m.selectHero('guanyu'),false);
  m.tick(1/60,{x:0,y:0,attack:true}); const n=restoreSave(captureSave(m));
- assert.equal(n.hero.heroId,id);assert.deepEqual(n.hero,m.hero);
+ assert.equal(n.hero.heroId,id);const {comboHit,comboAttack,...legacyHero}=m.hero;assert.deepEqual(n.hero,legacyHero); // Legacy v1.3 archives exclude transient v2.1 combo state.
+
  n.hero.hp=0;n.status='lost';assert.ok(n.continueRun());assert.equal(n.hero.heroId,id);
  n.status='stage-clear';assert.ok(n.nextStage());assert.equal(n.hero.heroId,id);
 });
@@ -28,7 +29,7 @@ test('Huang Zhong arrows hit the nearest target, respect lanes, and third shot p
  const front=m.fighter('heavy',350,412),back=m.fighter('heavy',420,412),off=m.fighter('heavy',300,465);
  m.enemies=[back,off,front];m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(front.hp,180);m.updateProjectiles(.3);
  assert.ok(front.hp<180);assert.equal(back.hp,180);assert.equal(off.hp,180);assert.equal(m.projectiles.length,0);
- front.inv=0;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.4);
+ front.inv=0;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);m.updateProjectiles(.4);
  assert.ok(back.hp<180);assert.equal(off.hp,180);
 });
 test('a crate blocks ordinary arrows and can be destroyed from range',()=>{

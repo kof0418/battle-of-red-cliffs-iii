@@ -7,7 +7,7 @@ export class FixedStep {
   advance(seconds: number, input: Input, active: boolean, tick: (dt: number, input: Input) => void) {
     if (!active) { this.reset(); return; }
     if (!Number.isFinite(seconds) || seconds < 0) return;
-    this.pending = { partner:input.partner?mergeInput(this.pending.partner,input.partner):undefined,x: input.x, y: input.y, attack: this.pending.attack || input.attack,
+    this.pending = { comboY:input.attack?(input.comboY??input.y):this.pending.comboY,partner:input.partner?mergeInput(this.pending.partner,input.partner):undefined,x: input.x, y: input.y, attack: this.pending.attack || input.attack,
       dropWeapon:this.pending.dropWeapon||input.dropWeapon, horseSpecial:this.pending.horseSpecial||input.horseSpecial, throwX: input.throwX??this.pending.throwX, grappleAttack: this.pending.grappleAttack || input.grappleAttack, special: this.pending.special || input.special, jump: this.pending.jump || input.jump, dodge: this.pending.dodge || input.dodge };
     // Bound catch-up after a stall; normal 10–144 Hz rendering preserves elapsed time.
     this.remaining += Math.min(seconds, .25);
@@ -21,7 +21,7 @@ export class FixedStep {
 }
 
 function mergeInput(previous:Input|undefined,next:Input):Input{
- const result:Input={x:next.x,y:next.y,throwX:next.throwX??previous?.throwX};
+ const result:Input={comboY:next.attack?(next.comboY??next.y):previous?.comboY,x:next.x,y:next.y,throwX:next.throwX??previous?.throwX};
  for(const key of ['attack','jump','dodge','special','horseSpecial','dropWeapon','grappleAttack'] as const)result[key]=!!next[key]||!!previous?.[key];
  return result;
 }

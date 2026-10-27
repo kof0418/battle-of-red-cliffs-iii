@@ -12,7 +12,7 @@ test('clearing every arena and advancing every stage never heals',()=>{
 });
 test('all thirty crates are accessible at a wall; each stage offers food and all four weapons',()=>{
  for(let stage=0;stage<5;stage++){const seen=new Set();const m=new Campaign();m.stage=stage;m.status='playing';
- for(let wave=1;wave<=6;wave++){m.spawn();const b=m.supplies[0];assert(b.y===354||b.y===499);assert(b.x<m.arenaEnd);m.hero.x=b.x-50;m.hero.y=b.y;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(m.pickups.length,1);seen.add(m.pickups[0].loot);assert.equal(m.pickups[0].loot,crateLoot(stage,wave));}
+ for(let wave=1;wave<=6;wave++){m.spawn();const b=m.supplies[0];assert(b.y===354||b.y===499);assert(b.x<m.arenaEnd);m.hero.x=b.x-50;m.hero.y=b.y;m.hero.comboHit=true;m.hero.step=2;m.hero.last=m.time;m.swing();m.resolve(m.hero,m.hero.attack!);assert.equal(m.pickups.length,1);seen.add(m.pickups[0].loot);assert.equal(m.pickups[0].loot,crateLoot(stage,wave));}
  assert.equal(seen.size,6);}
 });
 test('food stays at full health; weapons pick up at full health and do not heal or replace held weapons',()=>{
