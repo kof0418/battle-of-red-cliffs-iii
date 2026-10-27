@@ -14,11 +14,9 @@ export function attackPhase(elapsed:number,impact:number,duration:number){
  if(elapsed<impact+(duration-impact)*.25)return 2;
  if(elapsed<impact+(duration-impact)*.65)return 3;return 4;
 }
-export function heroMotion(id:HeroId,combo:number,phase:number,stance='original'){
+export function heroMotion(id:HeroId,combo:number,phase:number){
  const p=Math.max(0,Math.min(4,phase)),[x,y,lean,angle]=MOTION[id][Math.max(0,Math.min(2,combo-1))][p];
- const bare=stance==='classic'&&(id==='guanyu'||id==='zhangfei');
- const hand=bare?(id==='guanyu'?[[12,-49],[6,-54],[combo===2?22:34,combo===2?-69:combo===3?-21:-43],[30,combo===2?-74:-30],[18,-48]]:[[10,-44],[-8,combo===3?-94:-48],[combo===2?24:40,combo===2?-67:combo===3?-13:-43],[36,combo===3?-8:-39],[18,-47]])[p]:[x,y];
- return {x:hand[0],y:hand[1],lean:bare&&id==='zhangfei'&&combo===2&&(p===2||p===3)?-14:lean,angle:stance==='classic'&&id==='zhaoyun'?(p<2?-1:.2):angle,phase:p,stride:p===4?0:combo===3?9:6,crouch:p===2&&combo===3?(id==='zhangfei'?12:5):0};
+ return {x,y,lean,angle,phase:p,stride:p===4?0:combo===3?9:6,crouch:p===2&&combo===3?(id==='zhangfei'?12:5):0};
 }
 export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  const thrust=id==='zhaoyun',bow=id==='huangzhong';

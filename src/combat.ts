@@ -1,5 +1,5 @@
 import {duelForm,duelHits,isDuelHero,DUEL_SPECIAL_TIMES} from './duel-forms.ts';
-import {heroLoadout,bladeTip,type Stance} from './techniques.ts';
+import {bladeTip} from './techniques.ts';
 import {mountedArrowVisual} from './motion.ts';
 import {HERO_STYLES,BOW_STRIKE} from './hero-styles.ts';
 import {REINFORCEMENT_CAP,BONUS_NAMES,encounterPlan,PROPS,RHYTHMS,type Reinforcement,type StageProp} from './encounters.ts';
@@ -55,7 +55,7 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  stance?:Stance; airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -81,7 +81,7 @@ export class Campaign {
   private playerControls=new Map<number,PlayerControl>();
   get players(){return [this.rootHero??this.hero,...(this.partner?[this.partner]:[])];}
   get livingPlayers(){return this.players.filter(p=>p.hp>0);}
-  enableCoop(id:HeroId){if(this.status!=='ready')return false;this.partner=this.fighter('hero',260,455);this.partner.heroId=id;this.partner.stance='original';this.ranked=false;return true;}
+  enableCoop(id:HeroId){if(this.status!=='ready')return false;this.partner=this.fighter('hero',260,455);this.partner.heroId=id;this.ranked=false;return true;}
   private control():PlayerControl{return {queuedY:this.queuedY,specialUntil:this.specialUntil,grapple:this.grapple,queuedUntil:this.queuedUntil,specialQueued:this.specialQueued,horseQueued:this.horseQueued,dropQueued:this.dropQueued,rideAttackFace:this.rideAttackFace,dashHits:this.dashHits};}
   withPlayer<T>(player:Fighter,action:()=>T):T{
     if(player===this.hero)return action();
@@ -95,8 +95,8 @@ export class Campaign {
   private inGrapple(f:Fighter){return this.players.some(p=>{const g=this.grappleOf(p);return g&&(p.id===f.id||g.target===f.id);});}
   rejoin(player:Fighter){
     if(!this.partner||this.status!=='playing'||this.paused||player.hp>0||!this.livingPlayers.length||this.continues<=0)return false;
-    const ally=this.livingPlayers[0],id=player.heroId,stance=player.stance;this.continues--;this.continuesUsed++;this.stageRetries++;
-    this.withPlayer(player,()=>{this.releaseGrapple(false);if(player.mounted)this.dismount(true);Object.assign(player,this.fighter('hero',ally.x,clamp(ally.y+35,350,503)),{id:player.id,heroId:id,stance,inv:1.5,equipped:undefined,mounted:false,steed:undefined,grapplePose:undefined,grappleProgress:undefined,grappleBack:undefined,comboHit:false,comboAttack:undefined,airAttackUsed:false,airStrikes:0,airFollowQueued:false,grappleSpin:false,throwRecovery:0,throwSpin:0,rideDash:0,knockdown:0});this.queuedUntil=0;this.specialQueued=false;this.dropQueued=false;this.horseQueued=false;});
+    const ally=this.livingPlayers[0],id=player.heroId;this.continues--;this.continuesUsed++;this.stageRetries++;
+    this.withPlayer(player,()=>{this.releaseGrapple(false);if(player.mounted)this.dismount(true);Object.assign(player,this.fighter('hero',ally.x,clamp(ally.y+35,350,503)),{id:player.id,heroId:id,inv:1.5,equipped:undefined,mounted:false,steed:undefined,grapplePose:undefined,grappleProgress:undefined,grappleBack:undefined,comboHit:false,comboAttack:undefined,airAttackUsed:false,airStrikes:0,airFollowQueued:false,grappleSpin:false,throwRecovery:0,throwSpin:0,rideDash:0,knockdown:0});this.queuedUntil=0;this.specialQueued=false;this.dropQueued=false;this.horseQueued=false;});
     this.message='隊友重新出陣 · 消耗 1 次隊伍續關';this.messageUntil=this.time+2;return true;
   }
 
@@ -160,20 +160,19 @@ export class Campaign {
   constructor(heroId: HeroId = 'guanyu',difficulty:Difficulty='normal',encounterSeed=0) { this.encounterSeed=encounterSeed;this.difficulty=difficulty;this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
   get attackLimit(){return DIFFICULTIES[this.difficulty].attackers;}
   get style(){return HERO_STYLES[this.hero.heroId??'guanyu'];}
-  get champion() { return heroLoadout(this.hero.heroId??'guanyu',this.hero.stance); }
-  selectStance(player:Fighter,stance:Stance){if(this.status!=='ready'||!this.players.includes(player)||(stance!=='original'&&stance!=='classic'))return false;player.stance=stance;this.ranked=!this.partner&&this.players.every(p=>p.stance!=='classic');return true;}
+  get champion() { return HEROES[this.hero.heroId??'guanyu']; }
   selectHero(id: HeroId) { if (this.status !== 'ready') return false; this.hero.heroId = id; return true; }
   slash(step: number) {
     const s = SLASHES[Math.max(0, step - 1)], c = this.champion;
     const result={ duration: s.duration * c.tempo, impact: s.impact * c.tempo, damage: Math.round(s.damage * c.damage), reach: s.reach * c.reach, push: s.push * c.push };
-    const form=duelForm(this.hero.heroId??'guanyu',step,this.hero.stance);if(form)return {duration:form.duration,impact:form.impact,damage:form.damage,reach:form.reach,push:form.push};
+    const form=duelForm(this.hero.heroId??'guanyu',step);if(form)return {duration:form.duration,impact:form.impact,damage:form.damage,reach:form.reach,push:form.push};
     if(this.hero.heroId==='weiyan'&&step===2){result.duration=.27;result.impact=.095;result.reach=80;result.push=8;}
     if(this.hero.heroId==='weiyan'&&step===3){result.duration=.38;result.impact=.14;result.reach=92;result.push=48;}
     if(this.hero.heroId==='lubu'&&step===3){result.duration=.60;result.impact=.23;}
     return result;
   }
   fighter(kind: Kind, x: number, y: number): Fighter {
-    return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu',...(this.hero?.stance?{stance:this.hero.stance}:{}) } : {}), id: ++this.serial, kind, x, y, hp: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)), max: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)),
+    return { ...(kind === 'hero' ? { heroId: this.hero?.heroId ?? 'guanyu' } : {}), id: ++this.serial, kind, x, y, hp: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)), max: Math.round(stats[kind].hp*(this.partner&&kind!=='hero'?1.5:1)),
       face: kind === 'hero' ? 1 : -1, z: 0, vz: 0, inv: 0, stun: 0, cooldown: .9,
       step: 0, last: -10, attack: null, moving: false, specialCooldown: 0, dodge: 0, dodgeCooldown: 0,
       dashX: 0, dashY: 0, attacks: 0 };
@@ -190,7 +189,7 @@ export class Campaign {
     const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++; this.wave = 0;this.stageStarted=this.time;this.stageDamage=0;this.stageRetries=0;this.stageBestHit=0;this.stageInteractions.clear(); this.hero = this.fighter('hero', 180, 412);
     this.hero.hp=hp;this.hero.equipped=equipped;
-    if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.stance=old.stance;this.partner.hp=old.hp;this.partner.equipped=old.equipped;}
+    if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.hp=old.hp;this.partner.equipped=old.equipped;}
 
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
@@ -201,7 +200,7 @@ export class Campaign {
     this.score = this.checkpointScore; this.kills = this.checkpointKills;
     const x = arenaStart(this.wave)+180;
     this.hero = this.fighter('hero', x, 412); this.hero.inv = 1.5;
-    if(this.partner){const id=this.partner.heroId,stance=this.partner.stance;this.partner=this.fighter('hero',x+80,455);this.partner.heroId=id;this.partner.stance=stance;this.partner.inv=1.5;}
+    if(this.partner){const id=this.partner.heroId;this.partner=this.fighter('hero',x+80,455);this.partner.heroId=id;this.partner.inv=1.5;}
     this.cameraLeft=clamp(x-340,0,WORLD_WIDTH-960);
     this.wave--; this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }

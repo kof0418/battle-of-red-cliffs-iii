@@ -23,7 +23,7 @@ export class Actor {
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
-    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase,f.stance)):null;
+    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
     const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
@@ -38,7 +38,7 @@ export class Actor {
     }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${f.stance}/${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
+    const key = `${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if(f.mounted)drawHorse(g,0,38,1,time,f.moving);

@@ -1,21 +1,17 @@
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
-import {classicUnarmed} from './techniques.ts';
-/** Guan Yu's open palm/elbow and Zhang Fei's closed fists never share one arm pose. */
+/** Zhang Fei's command special uses his fists even with his default spear. */
 export function drawDuelBare(g:Phaser.GameObjects.Graphics,f:Fighter,hx:number,hy:number,phase:number){
- if(!classicUnarmed(f)&&!(f.heroId==='zhangfei'&&f.attack?.move==='special'))return false;
- const guan=f.heroId==='guanyu',active=!!f.attack&&(phase===2||phase===3),cloth=guan?0x427a51:0xbb7b4b,skin=guan?0xc28a59:0xb67a50;
- const arm=(x:number,y:number,rear=false)=>{const shoulder=rear?-12:12,elbow=guan&&f.step===2?x-15:x-12;
+ if(f.heroId!=='zhangfei'||f.attack?.move!=='special'||f.equipped||f.mounted)return false;
+ const active=phase===2||phase===3;
+ const arm=(x:number,y:number,rear=false)=>{const shoulder=rear?-12:12,elbow=x-12;
   g.lineStyle(11,0x263b32).lineBetween(shoulder,-54,elbow,y+9).lineBetween(elbow,y+9,x,y);
-  g.lineStyle(7,cloth).lineBetween(shoulder,-54,elbow,y+9).lineBetween(elbow,y+9,x,y);
-  const palm=guan&&f.step!==2;g.fillStyle(0x67432e).fillRect(x-2,y-(palm?9:5),palm?9:15,palm?17:12);
-  g.fillStyle(skin).fillRect(x,y-(palm?8:4),palm?6:12,palm?14:9);g.fillStyle(0xe5bd8b).fillRect(x,y-(palm?8:4),palm?5:10,2);
-  if(palm)for(let i=0;i<3;i++)g.lineStyle(1,0x734e37).lineBetween(x+i*2,y-7,x+i*2,y-2);
+  g.lineStyle(7,0xbb7b4b).lineBetween(shoulder,-54,elbow,y+9).lineBetween(elbow,y+9,x,y);
+  g.fillStyle(0x67432e).fillRect(x-2,y-5,15,12);g.fillStyle(0xb67a50).fillRect(x,y-4,12,9);g.fillStyle(0xe5bd8b).fillRect(x,y-4,10,2);
  };
- if(guan){arm(8,-46,true);arm(active?hx:20,active?hy:-49);}
- else if(f.step===3&&active){arm(hx-12,hy-2,true);arm(hx+8,hy);}
- else{arm(f.step===2&&active?hx-10:6,f.step===2&&active?hy-8:-46,true);arm(active?hx:21,active?hy:-48);}
- if(active){g.lineStyle(3,guan?0xc4ecc3:0xffc789,.7);if(guan)g.beginPath().arc(hx-8,hy,24,-1.5,.8).strokePath();else g.lineBetween(hx+15,hy-4,hx+34,hy-4).lineBetween(hx+15,hy+5,hx+29,hy+9);}
+ if(active&&f.attack.elapsed>=.5){arm(hx-12,hy-2,true);arm(hx+8,hy);}
+ else{arm(6,-46,true);arm(active?hx:21,active?hy:-48);}
+ if(active)g.lineStyle(3,0xffc789,.7).lineBetween(hx+15,hy-4,hx+34,hy-4).lineBetween(hx+15,hy+5,hx+29,hy+9);
  return true;
 }
 export function duelSpecialPose(f:Fighter){

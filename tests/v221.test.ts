@@ -5,8 +5,8 @@ import {duelForm} from '../src/duel-forms.ts';
 import {specialMotion} from '../src/special-motion.ts';
 import {drawDuelBare} from '../src/duel-art.ts';
 const idle={x:0,y:0};
-function setup(id:'guanyu'|'zhangfei',stance:'original'|'classic'='original'){
- const m=new Campaign(id);m.selectStance(m.hero,stance);m.start();m.hero.x=400;m.hero.y=412;m.hero.inv=0;m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.enemies=[];return m;
+function setup(id:'guanyu'|'zhangfei'){
+ const m=new Campaign(id);m.start();m.hero.x=400;m.hero.y=412;m.hero.inv=0;m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.enemies=[];return m;
 }
 function enemy(m:Campaign,x:number,y:number){const e=m.fighter('soldier',x,y);e.hp=e.max=1000;e.cooldown=999;m.enemies.push(e);return e;}
 function ticks(m:Campaign,n:number,i:Input=idle){for(let k=0;k<n;k++){m.freeze=0;m.tick(1/60,i);}}
@@ -18,14 +18,13 @@ test('Zhang Fei opens earlier; Guan Yu keeps the rising cut longer, with differe
  const a=setup('guanyu'),b=setup('zhangfei');for(const m of [a,b]){enemy(m,450,412);m.tick(1/60,{...idle,attack:true});ticks(m,4);}
  assert.equal(a.enemies[0].hp,1000);assert(b.enemies[0].hp<1000);assert(a.slash(2).duration>b.slash(2).duration);assert.notEqual(a.slash(3).impact,b.slash(3).impact);
 });
-for(const stance of ['original','classic'] as const)test(`${stance}: each of the three moves has a different Guan Yu/Zhang Fei silhouette`,()=>{
- for(const step of [1,2,3]){const a=heroMotion('guanyu',step,2,stance),b=heroMotion('zhangfei',step,2,stance);assert.notDeepEqual(a,b);assert.notEqual(a.angle,b.angle);assert.notEqual(duelForm('guanyu',step,stance)!.name,duelForm('zhangfei',step,stance)!.name);}
+test(`each of the three moves has a different Guan Yu/Zhang Fei silhouette`,()=>{
+ for(const step of [1,2,3]){const a=heroMotion('guanyu',step,2),b=heroMotion('zhangfei',step,2);assert.notDeepEqual(a,b);assert.notEqual(a.angle,b.angle);assert.notEqual(duelForm('guanyu',step)!.name,duelForm('zhangfei',step)!.name);}
  assert.notDeepEqual(aerialMotion('guanyu',true),aerialMotion('zhangfei',true));
 });
-test('classic Guan Yu uses a tall open palm while Zhang Fei uses wide fists',()=>{
- const rectangles:number[][]=[];const g:any={lineStyle(){return this;},lineBetween(){return this;},fillStyle(){return this;},fillRect(...r:number[]){rectangles.push(r);return this;},beginPath(){return this;},arc(){return this;},strokePath(){return this;}};
- const a=setup('guanyu','classic');a.hero.step=1;a.swing();drawDuelBare(g,a.hero,34,-43,2);assert(rectangles.some(r=>r[3]>r[2]));rectangles.length=0;
- const b=setup('zhangfei','classic');b.swing();drawDuelBare(g,b.hero,40,-43,2);assert(rectangles.every(r=>r[2]>r[3]));
+test('Zhang Fei keeps fist animation only for his command special',()=>{
+ const m=setup('zhangfei'),g:any={lineStyle(){return this;},lineBetween(){return this;},fillStyle(){return this;},fillRect(){return this;}};
+ m.swing();assert.equal(drawDuelBare(g,m.hero,40,-43,2),false);m.hero.attack=null;assert(m.special());assert.equal(drawDuelBare(g,m.hero,40,-43,2),true);
 });
 for(const id of ['guanyu','zhangfei'] as const)test(`${id}: three special contacts have different rear coverage without a health cost`,()=>{
  const m=setup(id),front=enemy(m,440,412),rear=enemy(m,350,412);m.special();const a=m.hero.attack!;for(let pulse=0;pulse<3;pulse++){front.inv=rear.inv=0;front.x=440;rear.x=350;a.pulses=pulse;m.resolve(m.hero,a);if(pulse<2)assert.equal(rear.hp, id==='guanyu'?1000-24*(pulse+1):1000);}
