@@ -1,3 +1,4 @@
+import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose} from './vanguard-art';
 import {rangedSpecialPose} from './ranged-art';
 import {duelSpecialPose} from './duel-art';
@@ -24,15 +25,15 @@ export class Actor {
     const champion = f.kind === 'hero' ? HEROES[f.heroId ?? 'guanyu'] : undefined;
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
-    const phase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4;
-    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
-    const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack):null;
+    const rawPhase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4,phase=f.mounted&&f.attack?.move==='mounted'?mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,rawPhase):rawPhase;
+    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
+    const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
     this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0)+(grip?.crouch??motion?.crouch??0))).setDepth(f.y+(grip?.5:0)).setScale(s * f.face, s);
-    this.body.setAngle((f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?(f.grappleSpin||f.heroId==='guanyu'&&f.z>0?f.throwSpin??0:grip?grip.lean*f.face:f.throwSpin??0):f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-5:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : (f.throwRecovery??0)>0?f.face*6:f.stun > 0 ? -f.face * 13 : (grip?.lean??motion?.lean??0)*f.face);
+    this.body.setAngle(f.mounted?0:(f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?(f.mounted?0:f.grappleSpin||f.heroId==='guanyu'&&f.z>0?f.throwSpin??0:grip?grip.lean*f.face:f.throwSpin??0):f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-5:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : (f.throwRecovery??0)>0?f.face*6:f.stun > 0 ? -f.face * 13 : (grip?.lean??motion?.lean??0)*f.face);
     // Rotate thrown bodies around the torso rather than their feet.
-    if(f.heroId==='weiyan'&&f.attack?.move==='special'||f.grapplePose==='throw'&&(f.grappleSpin||f.heroId==='guanyu'&&f.z>0)||f.grapplePose==='held'||f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
+    if(f.heroId==='weiyan'&&f.attack?.move==='special'||!f.mounted&&f.grapplePose==='throw'&&(f.grappleSpin||f.heroId==='guanyu'&&f.z>0)||f.grapplePose==='held'||f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
       const angle=this.body.angle*Math.PI/180,center=42*s;
       this.body.x-=Math.sin(angle)*center;
       this.body.y+=center*(Math.cos(angle)-1);

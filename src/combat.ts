@@ -6,7 +6,7 @@ import {REINFORCEMENT_CAP,BONUS_NAMES,encounterPlan,PROPS,RHYTHMS,type Reinforce
 import {gradeStage,type StageResult} from './stage-grade.ts';
 import {BOSS_STYLE,enemyTempo,DIFFICULTIES,bossPlan,bossPhase,frontalGuard,type Difficulty} from './tactics.ts';
 import {AERIALS,descendingContact} from './aerial.ts';
-import {MOUNT_SLASH,MOUNT_WAVE,mountedStrike,type Horse} from './horse.ts';
+import {MOUNT_THROW,mountedContacts,cavalryRecovery,MOUNT_SLASH,MOUNT_WAVE,mountedStrike,type Horse} from './horse.ts';
 import {WEAPON_ROLES,enemyWeapon,weaponPickupReady,WEAPONS,crateLoot,barrelLoot,isWeapon,type WeaponId,type LootId} from './loot.ts';
 import {THROWS,throwWeight,groundThrowWeight,bossGrabWindow,sweptThrowContact,type Grapple} from './throws.ts';
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
@@ -51,11 +51,11 @@ export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: nu
 }
 export interface Pickup { id: number; x: number; y: number; amount: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export interface Attack {
-  comboThrow?:number; hitTargets?:number[]; connected?:boolean; weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
+  rapid?:boolean; comboThrow?:number; hitTargets?:number[]; connected?:boolean; weapon?:WeaponId; pulses?: number; move: Move; elapsed: number; duration: number; impact: number; hit: boolean;
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -107,7 +107,7 @@ export class Campaign {
   barrels:Supply[]=[];
   horses:Horse[]=[];
   pickups: Pickup[] = [];
-  projectiles:{comboAttack?:Attack;owner?:number;id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;drawOffsetX?:number;drawHeight?:number;piercing?:boolean;push?:number;hits?:number[]}[]=[];
+  projectiles:{rapid?:boolean;comboAttack?:Attack;owner?:number;id:number;x:number;y:number;face:number;remaining:number;damage:number;wave?:boolean;arrow?:boolean;drawOffsetX?:number;drawHeight?:number;piercing?:boolean;push?:number;hits?:number[]}[]=[];
   pending:Reinforcement[]=[];props:StageProp[]=[];fieldSuppressed=false;
   stageStarted=0;stageDamage=0;stageRetries=0;stageBestHit=0;stageInteractions=new Set<number>();stageResults:StageResult[]=[];rallyUntil=0;
   encounterSeed:number;
@@ -322,7 +322,10 @@ export class Campaign {
     if(h.rideDashCooldown!==undefined)h.rideDashCooldown=Math.max(0,h.rideDashCooldown-dt);
     if(h.mountCooldown!==undefined)h.mountCooldown=Math.max(0,h.mountCooldown-dt);
 
-    if(this.horseQueued&&h.mounted&&(h.specialCooldown??0)<=0&&h.stun<=0&&!h.attack){
+    if(this.horses.some(horse=>horse.remountAt!==undefined))h.mountApproach=!!(input.x||input.y);else delete h.mountApproach;
+    const rideLink=!!h.attack&&((h.attack.move==='mounted'&&h.step<3&&h.attack.connected&&h.attack.elapsed>=h.attack.impact+.06)||(h.attack.move==='ride-charge'&&this.dashHits.size>0&&h.attack.elapsed>=.14));
+    if(this.horseQueued&&h.mounted&&(h.specialCooldown??0)<=0&&h.stun<=0&&(!h.attack||rideLink)&&!this.grapple){
+      h.rideDash=0;
       h.specialCooldown=1.3;h.attack={move:'wave',elapsed:0,duration:.8,impact:.32,hit:false,face:h.face,x:h.x,y:h.y};this.queuedUntil=0;
       this.message=h.heroId==='huangzhong'?'騎乘必殺 · 貫陣火矢！':'騎乘必殺 · 斬風刀波！';this.messageUntil=this.time+1.2;
     }
@@ -336,6 +339,7 @@ export class Campaign {
     }
     this.dropQueued=false;
     if(input.jump&&h.mounted)this.dismount(false);
+    if(h.mounted&&h.attack?.move==='ride-charge'&&this.dashHits.size>0&&h.attack.elapsed>=.14&&this.queuedUntil>this.time){h.rideDash=0;h.attack=null;}
     const occupied=!!this.grapple;
     if(this.grapple)this.updateGrapple(dt,input);
     if(this.specialQueued){
@@ -347,7 +351,7 @@ export class Campaign {
     }
     const casting=occupied||h.attack?.move==='special'||h.attack?.move==='rescue';
     if(h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
-    if(input.dodge&&h.mounted&&h.stun<=0&&!h.attack&&(h.rideDashCooldown??0)<=0){
+    if(input.dodge&&h.mounted&&!this.grapple&&h.stun<=0&&!h.attack&&(h.rideDashCooldown??0)<=0){
       h.rideDash=.32;h.rideDashCooldown=1.15;this.dashHits.clear();h.rideTurn=0;h.rideFacing=undefined;
       h.attack={move:'ride-charge',elapsed:0,duration:.42,impact:.04,hit:true,face:h.face,x:h.x,y:h.y};this.queuedUntil=0;
       this.message='馬匹突擊！';this.messageUntil=this.time+.8;this.events.push({type:'dodge',x:h.x,y:h.y});
@@ -394,10 +398,13 @@ export class Campaign {
   private tickAttack(f:Fighter,dt:number){const h=this.hero;
       if (f.hp <= 0 || !f.attack) return;
       const a = f.attack; a.elapsed += dt;
-      if(a.move==='cavalry'){
+      if(a.move==='mounted'&&f.step===2){
+        const times=mountedContacts(f.step,f.heroId==='huangzhong');let pulse=a.pulses??0;a.rapid=true;
+        while(pulse<times.length&&a.elapsed>=times[pulse]){a.pulses=pulse;this.resolve(f,a);pulse++;}a.pulses=pulse;a.hit=pulse>=times.length;
+      }else if(a.move==='cavalry'){
         if(a.elapsed>=a.impact&&a.elapsed<a.impact+.42){a.x=f.x;a.y=f.y;f.x=clamp(f.x+a.face*380*dt,this.enemyLeft,this.enemyRight);f.moving=true;
           if(!a.hit&&this.livingPlayers.some(p=>attackHits(a,p,70))){a.hit=true;this.resolve(f,a);}}
-        if(a.elapsed>=a.impact+.42)a.hit=true;
+        if(a.elapsed>=a.impact+.42){if(a.elapsed-dt<a.impact+.42){this.message='騎將收勢 · 第二段連打或連珠箭可打落馬！';this.messageUntil=this.time+.8;}a.hit=true;}
       }else if(a.move==='special'){
         const times=isDuelHero(f.heroId)?DUEL_SPECIAL_TIMES[f.heroId as keyof typeof DUEL_SPECIAL_TIMES]:[.18,.38,.58];let pulse=a.pulses??0;
         while(pulse<times.length&&a.elapsed>=times[pulse]){this.resolve(f,a);pulse++;}a.pulses=pulse;a.hit=pulse>=3;
@@ -490,12 +497,13 @@ export class Campaign {
   }
   dismount(hit:boolean){
     const h=this.hero;if(!h.mounted)return;
+    if(this.grapple?.mounted)this.releaseGrapple(false);
     const horse=h.steed??{id:++this.serial,x:h.x,y:h.y,target:h.x,life:20,moving:false,falls:0};
     horse.x=h.x;horse.y=h.y;horse.target=h.x;
     if(hit)horse.falls=(horse.falls??0)+1;
-    horse.fleeing=(horse.falls??0)>=2;horse.waiting=!horse.fleeing;horse.awaitSeparation=true;horse.moving=!!horse.fleeing;horse.life=20;
-    h.rideDash=0;h.rideSpeed=0;h.rideTurn=0;h.rideFacing=undefined;this.rideAttackFace=undefined;this.horses.push(horse);h.steed=undefined;h.mounted=false;h.mountCooldown=hit?1.8:1.2;h.attack=null;this.queuedUntil=0;this.horseQueued=false;
-    if(hit){h.z=28;h.vz=150;h.stun=.8;h.knockdown=.8;}
+    horse.fleeing=(horse.falls??0)>=2;horse.waiting=!horse.fleeing;horse.awaitSeparation=true;horse.moving=!!horse.fleeing;horse.life=20;horse.remountAt=hit?this.time+1.25:undefined;
+    h.rideDash=0;h.rideSpeed=0;h.rideTurn=0;h.rideFacing=undefined;this.rideAttackFace=undefined;this.horses.push(horse);h.steed=undefined;h.mounted=false;h.mountCooldown=hit?1.25:1.2;h.attack=null;this.queuedUntil=0;this.horseQueued=false;
+    if(hit){h.inv=Math.max(h.inv,1.15);h.z=28;h.vz=150;h.stun=.8;h.knockdown=.8;}
     this.message=horse.fleeing?'第二次落馬！馬匹受驚跑走':hit?'落馬！馬匹留在原地，可再次上馬':'下馬，馬匹留在原地等待';this.messageUntil=this.time+3;
   }
   damageEquipment(){
@@ -514,9 +522,10 @@ export class Campaign {
     this.horses=this.horses.filter(horse=>{
       if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&(h.mounted===true||horse.x>horse.target));
       if(horse.moving)horse.x=Math.max(h.mounted||horse.fleeing?-200:horse.target,horse.x-260*dt);
+      if(horse.awaitSeparation&&horse.remountAt!==undefined&&this.time>=horse.remountAt&&h.mountApproach&&h.stun<=0&&(h.knockdown??0)<=0)horse.awaitSeparation=false;
       if(horse.awaitSeparation&&this.players.every(p=>Math.abs(horse.x-p.x)>60||Math.abs(horse.y-p.y)>36))horse.awaitSeparation=false;
       if(h.hp>0&&!horse.awaitSeparation&&!horse.fleeing&&!h.mounted&&(h.mountCooldown??0)<=0&&h.z<=8&&h.stun<=0&&!h.attack&&!this.grapple&&Math.abs(horse.x-h.x)<48&&Math.abs(horse.y-h.y)<28){
-        h.mounted=true;h.rideSpeed=0;h.rideDash=0;h.rideTurn=0;h.rideFacing=undefined;h.step=0;h.last=-10;h.steed=horse;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！連攻三段 · 反向攻擊回身 · 衝撞突擊 · 跳躍下馬';this.messageUntil=this.time+4;return false;
+        h.mounted=true;h.rideSpeed=0;h.rideDash=0;h.rideTurn=0;h.rideFacing=undefined;h.step=0;h.last=-10;h.steed=horse;delete horse.remountAt;h.attack=null;this.queuedUntil=0;this.events.push({type:'mount',x:h.x,y:h.y});this.message='上馬！第二段連打 · 第三段上下攻擊挑摔／黃忠貫穿箭';this.messageUntil=this.time+4;return false;
       }
       return horse.life>0&&horse.x>-100;
     });
@@ -534,10 +543,11 @@ export class Campaign {
         }else if(target.inv<=0){
           if(this.blocked(target,p.x,p.y,!!p.piercing||!!p.wave)){if(!p.wave&&!p.piercing)return false;continue;}
           if(p.comboAttack&&this.hero.comboAttack===p.comboAttack){p.comboAttack.connected=true;(p.comboAttack.hitTargets??=[]).push(target.id);this.hero.comboHit=true;}
-          target.inv=.2;
+          const counter=p.rapid&&cavalryRecovery(target.attack);
+          target.inv=p.rapid?.10:.2;
           if(!p.arrow||!isBoss(target.kind)||target.attack?.hit){target.stun=Math.max(target.stun,p.wave?.55:.32);target.attack=null;}
           target.x=clamp(target.x+p.face*(p.push??(p.wave?40:24)),this.enemyLeft,this.enemyRight);
-          if(p.wave||p.piercing)this.unseatEnemy(target);
+          if(p.wave||p.piercing||counter)this.unseatEnemy(target);
           if(p.arrow)this.score+=Math.floor(Math.min(target.hp,p.damage)*Math.min(this.hits,20)*.5);
           this.grappleDamage(target,p.damage);this.freeze=p.piercing?.065:.035;
         }
@@ -563,6 +573,19 @@ export class Campaign {
     this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});
     return true;
   }
+  private mountedThrow(a:Attack){
+    const h=this.hero;if(!h.mounted||h.heroId==='huangzhong'||!a.comboThrow||this.grapple)return false;
+    const e=this.enemies.filter(e=>e.hp>0&&!e.mounted&&!this.grappleOwner(e.id)&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&!(e.inv>0&&e.stun<=0)&&inRange(a.x,a.y,e.x,e.y,a.face,150)&&Math.abs(e.y-a.y)<=26&&(!isBoss(e.kind)||bossGrabWindow(e.attack)!=='unsafe'))
+     .sort((x,y)=>Math.abs(x.x-a.x)-Math.abs(y.x-a.x))[0];
+    if(!e)return false;
+    h.attack=null;h.comboHit=false;h.comboAttack=undefined;h.moving=false;h.rideDash=0;h.rideSpeed=0;
+    this.breakGuard(e);e.attack=null;e.grapplePose='thrown';
+    const direction=a.comboThrow<0?-a.face:a.face;
+    this.grapple={mounted:true,target:e.id,hits:0,deadline:this.time+2,started:this.time,phase:'throw',elapsed:0,direction,air:false,startX:e.x,startZ:0,back:direction!==h.face,collisions:[]};
+    h.grapplePose='throw';h.grappleBack=direction!==h.face;this.queuedUntil=0;
+    this.message=direction===h.face?'馬上挑起前摔！':'馬上挑起背摔！';this.messageUntil=this.time+1.2;
+    this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});return true;
+  }
   canLinkGrab(){
     const h=this.hero,a=h.attack;
     return !!(a&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick')&&!a.weapon&&!h.equipped&&!h.mounted&&h.step<3&&a.connected&&a.elapsed>=a.impact+.08&&a.hitTargets?.length);
@@ -582,7 +605,7 @@ export class Campaign {
   releaseGrapple(escape:boolean){
     const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
     h.grapplePose=undefined;delete h.grappleBack;delete h.grappleSpin;h.grappleProgress=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
-    if(e){e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
+    if(e){if(state.mounted&&e.z>0){e.z=0;e.stun=Math.max(e.stun,.5);e.knockdown=.5;}e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
       if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,this.enemyLeft,this.enemyRight);}}
     this.grapple=null;
     if(escape){h.stun=Math.max(h.stun,.2);this.message=e&&isBoss(e.kind)?'頭目掙脫！拉開距離，等待下次抓取空檔':'接招太慢，敵人掙脫！';this.messageUntil=this.time+1.3;this.events.push({type:'escape',x:h.x,y:h.y});}
@@ -602,7 +625,7 @@ export class Campaign {
   }
   updateGrapple(dt:number,input:Input){
     const state=this.grapple!,h=this.hero,e=this.enemies.find(e=>e.id===state.target);if(!e){this.releaseGrapple(false);return;}
-    e.attack=null;e.moving=false;h.moving=false;h.grappleProgress=state.phase==='throw'?Math.min(1,state.elapsed/(state.air?throwWeight(e.kind).fall:groundThrowWeight(h.heroId!,e.kind).lift+groundThrowWeight(h.heroId!,e.kind).flight)):0;this.queuedUntil=0;this.specialQueued=false;
+    e.attack=null;e.moving=false;h.moving=false;h.grappleProgress=state.phase==='throw'?Math.min(1,state.elapsed/(state.mounted?MOUNT_THROW.lift+MOUNT_THROW.flight:state.air?throwWeight(e.kind).fall:groundThrowWeight(h.heroId!,e.kind).lift+groundThrowWeight(h.heroId!,e.kind).flight)):0;this.queuedUntil=0;this.specialQueued=false;
     const fresh=input.grappleAttack??input.attack;
     if(state.phase==='hold'){
       if(this.time>state.deadline||this.time-state.started>8){this.releaseGrapple(true);return;}
@@ -617,7 +640,7 @@ export class Campaign {
       state.elapsed+=dt;h.x=clamp(h.x+(state.jumpDirection??0)*155*dt,this.cameraLeft+25,this.cameraLeft+935);h.z=Math.sin(Math.min(1,state.elapsed/1.05)*Math.PI)*throwWeight(e.kind).jump;e.z=h.z+(h.heroId==='zhangfei'?42:24);e.x=clamp(h.x+h.face*24,this.enemyLeft,this.enemyRight);e.y=h.y;
       if(fresh){this.beginThrow(h.face,true);}else if(state.elapsed>=1.05){h.z=0;this.releaseGrapple(true);}
     }else{
-      state.elapsed+=dt;const spec=THROWS[h.heroId!],limit=this.enemyRight;
+      state.elapsed+=dt;const spec=state.mounted?MOUNT_THROW:THROWS[h.heroId!],limit=this.enemyRight;
       if(state.air){
         const progress=Math.min(1,state.elapsed/throwWeight(e.kind).fall),fall=1-progress*progress;
         h.z=Math.max(0,state.startZ-24)*fall;e.z=state.startZ*fall;
@@ -635,9 +658,9 @@ export class Campaign {
         return;
       }
       // First pull the enemy to the shoulder, then release into an accelerating fall.
-      const baseWeight=groundThrowWeight(h.heroId!,e.kind),weight=h.heroId==='zhangfei'?{...baseWeight,height:baseWeight.height+22}:baseWeight,lift=Math.min(1,state.elapsed/weight.lift),flight=Math.max(0,Math.min(1,(state.elapsed-weight.lift)/weight.flight));
+      const baseWeight=state.mounted?MOUNT_THROW:groundThrowWeight(h.heroId!,e.kind),weight=!state.mounted&&h.heroId==='zhangfei'?{...baseWeight,height:baseWeight.height+22}:baseWeight,lift=Math.min(1,state.elapsed/weight.lift),flight=Math.max(0,Math.min(1,(state.elapsed-weight.lift)/weight.flight));
       const shoulder=h.x+state.direction*12,previous={x:e.x,y:e.y,z:e.z},easedLift=lift*lift*(3-2*lift),travel=flight*flight*(3-2*flight);
-      e.y=h.y;h.throwSpin=state.direction*(flight>0?24*(1-flight):-12*lift);
+      e.y=h.y;h.throwSpin=state.mounted?0:state.direction*(flight>0?24*(1-flight):-12*lift);
       if(state.elapsed<weight.lift){
         e.x=state.startX+(shoulder-state.startX)*easedLift;
         e.z=state.startZ+(weight.height-state.startZ)*easedLift;e.throwSpin=(state.back?1:-1)*state.direction*65*lift;
@@ -719,7 +742,7 @@ export class Campaign {
 
     const s=h.mounted?mountedStrike(h.step,h.heroId==='huangzhong'):weapon?WEAPONS[weapon]:bowStrike?bowStrikeSpec(h.step):this.slash(h.step);
     h.comboHit=false;
-    h.attack = { ...(!weapon&&!h.mounted&&h.step===3&&comboY?{comboThrow:Math.sign(comboY)}:{}),...(weapon?{weapon}:{}), move: h.mounted?'mounted':bowStrike?'bow-strike':kick?'kick':'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.mounted?(rideFace??h.face):h.face, x: h.x, y: h.y };
+    h.attack = { ...(!weapon&&h.step===3&&comboY?{comboThrow:Math.sign(comboY)}:{}),...(weapon?{weapon}:{}), move: h.mounted?'mounted':bowStrike?'bow-strike':kick?'kick':'slash', elapsed: 0, duration: s.duration, impact: s.impact, hit: false, face: h.mounted?(rideFace??h.face):h.face, x: h.x, y: h.y };
     h.comboAttack=h.attack;
     this.events.push({ type: 'swing',step:h.step, x: h.x, y: h.y, value: h.step, heroId: h.heroId });
   }
@@ -804,7 +827,7 @@ export class Campaign {
     // Ground targets can only be struck within the same low-height band.
     if (f.z > (a.move==='aerial'?(f.heroId==='zhaoyun'&&f.vz<0?96:54):38) && a.move!=='special') return;
     const heroAttack = f === this.hero, special=heroAttack&&a.move==='special', s = a.move==='bow-strike'?bowStrikeSpec(f.step):a.move==='aerial'?{...AERIALS[f.heroId!],...(f.heroId==='zhaoyun'&&f.airStrikes===2?{damage:18,reach:104,push:25}:{}),duration:1,impact:.08}:a.move==='mounted'?mountedStrike(f.step,f.heroId==='huangzhong'):a.move==='wave'?MOUNT_WAVE:special?SPECIALS[f.heroId!]:a.weapon?WEAPONS[a.weapon]:this.slash(f.step);
-    if(heroAttack&&a.comboThrow&&this.comboThrow(a))return;
+    if(heroAttack&&a.comboThrow&&(f.mounted?this.mountedThrow(a):this.comboThrow(a)))return;
     if(heroAttack&&a.weapon==='knife'&&!special){f.equipped=undefined;this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:620,damage:WEAPONS.knife.damage});return;}
     if(heroAttack&&a.move==='wave'){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,...(f.heroId==='huangzhong'?{arrow:true,...mountedArrowVisual(f.face,a.face,24)}:{}),hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
     if(special)this.events.push({type:'special',pulse:a.pulses??0,x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
@@ -812,24 +835,25 @@ export class Campaign {
     if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !f.mounted && !a.weapon && !special && heroAttack && a.move==='slash' && f.heroId === 'huangzhong';
-    if(heroAttack&&a.move==='mounted'&&f.heroId==='huangzhong'){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:s.reach,damage:s.damage,arrow:true,...mountedArrowVisual(f.face,a.face),piercing:f.step===3,push:s.push,hits:[]});return;}
+    if(heroAttack&&a.move==='mounted'&&f.heroId==='huangzhong'){this.projectiles.push({comboAttack:a,owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:s.reach,damage:s.damage,rapid:a.rapid,arrow:true,...mountedArrowVisual(f.face,a.face),piercing:f.step===3,push:s.push,hits:[]});return;}
     if(bow){this.projectiles.push({comboAttack:a,owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:reach,damage:s.damage,arrow:true,...groundArrowVisual(a.face,f.step),piercing:f.step===3,push:s.push,hits:[]});return;}
     for (const t of heroAttack ? this.enemies : [this.hero]) {
       if (heroAttack&&this.grappleOwner(t.id)&&this.grappleOwner(t.id)!==f)continue;
       if (t.hp <= 0 || t.inv > 0 || !(special?specialHits(f.heroId!,a.x,a.y,a.face,t.x,t.y,t.z,a.pulses??0):heroAttack&&a.move==='bow-strike'?(t.z<=38&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach&&Math.abs(t.y-a.y)<=bowStrikeSpec(f.step).depth):heroAttack&&isDuelHero(f.heroId)&&(a.move==='slash'||a.move==='kick')&&!a.weapon&&!f.mounted?(t.z<=38&&duelHits(f.heroId!,f.step,a.x,a.y,a.face,t.x,t.y,reach)):heroAttack&&f.heroId==='lubu'&&a.move==='slash'&&!a.weapon&&f.step===3?(t.z<=38&&Math.abs(t.y-a.y)<=42&&(t.x-a.x)*a.face>=-12&&(t.x-a.x)*a.face<=reach):attackHits(a, t, reach))) continue;
       const tip=heroAttack&&bladeTip(f.heroId!,a.move,f.step,a.weapon,f.mounted,(t.x-a.x)*a.face);
       if(heroAttack&&this.blocked(t,f.x,f.y,tip||special||a.move==='aerial'||(!a.weapon&&f.step===3)||a.weapon==='hammer'||a.weapon==='axe'||a.move==='mounted'))continue;
-      const damage = heroAttack ? Math.round(s.damage*(tip?1.25:1)) : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
+      const damage = heroAttack ? Math.round(s.damage*(a.rapid?.5:1)*(tip?1.25:1)) : stats[f.kind].damage + (a.move === 'slam' ? 7 : 0);
+      if(heroAttack&&a.move==='mounted'&&f.step===2&&cavalryRecovery(t.attack))this.unseatEnemy(t);
       if(heroAttack&&(special||a.move==='aerial'||a.move==='mounted'&&f.step===3||!a.weapon&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick')&&f.step===3||a.weapon==='hammer'||a.weapon==='axe'))this.unseatEnemy(t);
       if(heroAttack){if(!a.weapon&&!f.mounted&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick'))f.comboHit=true;a.connected=true;(a.hitTargets??=[]).push(t.id);}
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
-      t.inv = heroAttack ? (special?.12:.16) : .75;
+      t.inv = heroAttack ? (a.rapid?.10:special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
       if (!isBoss(t.kind) || special || t.attack?.hit) { t.stun = Math.max(t.stun,heroAttack ? (f.heroId==='guanyu'&&a.move==='slash'&&!a.weapon&&f.step<3?.36:.30) : .22); t.attack = null; }
       if(heroAttack&&f.heroId==='guanyu'&&!a.weapon&&a.move==='slash'&&f.step===3&&(!isBoss(t.kind)||!t.attack)){t.stun=Math.max(t.stun,.65);}
       if(heroAttack&&a.weapon==='hammer'&&(!isBoss(t.kind)||!t.attack)){t.stun=Math.max(t.stun,.8);if(!isBoss(t.kind))t.knockdown=.6;}
       if(heroAttack&&!special&&!a.weapon&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick')&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
-      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
+      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:a.rapid?s.push*.5:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = a.move==='aerial'?.06:f.step === 3 ? .065 : .035;

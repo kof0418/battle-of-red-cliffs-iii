@@ -29,8 +29,9 @@ export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  if(bow)return {x:descending?30:8,y:descending?-33:-58,lean:descending?7:-12,angle:descending?.4:-1,stride:11,crouch:0,phase:descending?2:1};
  return {x:descending?(thrust?38:bow?26:30):10,y:descending?-26:-65,lean:descending?12:-6,angle:descending?(thrust?.3:bow?.65:.9):-1.1,stride:descending?10:6,crouch:0,phase:descending?2:1};
 }
-export function grappleMotion(id:HeroId,pose:string,progress=0,back=false){
+export function grappleMotion(id:HeroId,pose:string,progress=0,back=false,mounted=false){
  const heavy=id==='zhangfei'||id==='lubu',p=Math.max(0,Math.min(1,progress));
+ if(mounted)return {x:(back?-1:1)*(20+12*Math.sin(p*Math.PI)),y:p<.36?-30-150*p:-84+(p-.36)*95,lean:0,stride:0,crouch:0};
  if(pose==='throw'&&id==='weiyan')return {x:24-38*Math.sin(p*Math.PI),y:-40-18*Math.sin(p*Math.PI),lean:-24*Math.sin(p*Math.PI),stride:18,crouch:10*Math.sin(p*Math.PI)};
  if(pose==='throw'&&id==='lubu')return {x:18+16*Math.sin(p*Math.PI),y:-104+74*Math.sin(p*Math.PI),lean:20*Math.sin(p*Math.PI),stride:20,crouch:7*Math.sin(p*Math.PI)};
  if(pose==='throw'&&id==='zhaoyun')return {x:28+18*Math.sin(p*Math.PI),y:-48+22*Math.sin(p*Math.PI),lean:14*Math.sin(p*Math.PI),stride:14,crouch:7*Math.sin(p*Math.PI)};
@@ -53,9 +54,10 @@ export function closeMotion(move:'kick'|'bow-strike',phase:number,combo=3){
  :{x:active?32:14,y:active?-35:-46,lean:active?8:-3,angle:.65,stride:active?8:0,crouch:0,phase};
 }
 
-export function mountedMotion(phase:number,back=false,charging=false){
+export function mountedMotion(phase:number,back=false,charging=false,step=1,bow=false){
  const active=phase===2||phase===3;
-
+ if(!charging&&!bow&&step===3)return {x:(back?-1:1)*(active?34:5),y:active?-16:-88,lean:back?-6:active?10:-6,angle:active?1.0:-1.5,stride:0,crouch:0,phase};
+ if(!charging&&!bow&&step===2)return {x:(back?-1:1)*(active?41:9),y:-48,lean:back?-8:active?9:-4,angle:0,stride:0,crouch:0,phase};
  return {x:(back?-1:1)*(active?28:18),y:-50,lean:charging?12:back?-7:active?6:0,angle:0,stride:0,crouch:0,phase};
 }
 
@@ -64,7 +66,7 @@ export function mountedMotion(phase:number,back=false,charging=false){
  */
 export function mountedArrowVisual(face:number,shotFace:number,originOffset=20){
  const relative=shotFace*face,m=mountedMotion(2,relative<0);
- const angle=m.lean*face*Math.PI/180,scale=1.12;
+ const angle=0,scale=1.12;
  const x=(m.x+40*relative)*scale*face,y=(m.y-5)*scale;
  return {drawOffsetX:x*Math.cos(angle)-y*Math.sin(angle)-shotFace*originOffset,
   drawHeight:42-(x*Math.sin(angle)+y*Math.cos(angle))};

@@ -1,3 +1,4 @@
+import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose,drawVanguardLegs,drawVanguardTrail} from './vanguard-art';
 import {rangedSpecialPose,drawRangedWeapon} from './ranged-art';
 import {duelSpecialPose,drawDuelTrail} from './duel-art';
@@ -10,6 +11,7 @@ import {drawGrip} from './grip-art';
 
 /** Original layered pixel silhouettes. Gameplay geometry remains in combat.ts. */
 export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number){
+ if(f.mounted&&f.attack?.move==='mounted')phase=mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,phase);
  const id=f.heroId!,lu=id==='lubu',zhang=id==='zhangfei',zhao=id==='zhaoyun',huang=id==='huangzhong';
  const cloth=lu?0x8f302f:zhang?0x854a32:zhao?0x496f81:huang?0x867046:0x713e50;
  const light=lu?0xdb8855:zhang?0xbb7b4b:zhao?0xa4c2ce:huang?0xc1a365:0xae7080;
@@ -18,8 +20,8 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase):null;
- const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack):null;
+ const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase):null;
+ const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
  poly(0x1c2a2b,[-w,-61,-w-8,-52,-w-13-tail,-15,-w+2,-24,-3,-56]);

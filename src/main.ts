@@ -49,7 +49,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.2.4';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.3.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -162,6 +162,12 @@ class Battle extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
+      if(preview==='mounted-advanced'||preview==='mounted-toss'||preview==='mounted-volley'){
+        const m=this.model;m.selectHero(preview==='mounted-volley'?'huangzhong':'guanyu');m.start();m.hero.x=400;m.hero.y=412;m.hero.mounted=true;m.hero.inv=0;m.pending=[];m.props=[];m.supplies=[];m.barrels=[];m.fieldSuppressed=true;
+        m.enemies=[m.fighter('soldier',preview==='mounted-volley'?650:475,412),m.fighter('soldier',700,412)];for(const e of m.enemies){e.hp=e.max=1000;e.stun=e.cooldown=999;}
+        if(preview==='mounted-volley'){m.hero.step=1;m.hero.last=m.time;}
+        if(preview==='mounted-toss'){m.hero.step=2;m.hero.last=m.time;m.swing(undefined,new URLSearchParams(location.search).has('back')?-1:1);m.resolve(m.hero,m.hero.attack!);for(let k=0;k<19;k++){m.freeze=0;m.tick(1/60,{x:0,y:0});}m.paused=true;this.posePreview=true;}
+      }
       if(preview==='duel-combat'){
         const m=this.model,hero=new URLSearchParams(location.search).get('hero');m.selectHero(hero==='zhaoyun'||hero==='huangzhong'||hero==='zhangfei'||hero==='weiyan'||hero==='lubu'?hero:'guanyu');m.start();m.hero.x=400;m.hero.y=412;m.hero.inv=0;m.pending=[];m.props=[];m.supplies=[];m.barrels=[];
         m.enemies=[m.fighter('soldier',450,412),m.fighter('soldier',350,412)];for(const e of m.enemies){e.hp=e.max=1000;e.stun=999;e.cooldown=999;}
@@ -228,7 +234,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v2.2.4 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v2.3.0 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -535,14 +541,14 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x263e3b).fillRect(26, 69, 80, 4); g.fillStyle(0x67b9a7).fillRect(26, 69, 80 * (1 - (m.hero.mounted?(m.hero.rideDashCooldown??0)/1.15:m.hero.dodgeCooldown/.95)), 4);
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * (m.partner?m.cameraLeft+340:m.hero.x) / WORLD_WIDTH, 3);
     this.label.setText(`${m.partner?'1P · ':''}${m.champion.name} / ${m.champion.title}`);
-    this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 衝突擊／左右＋攻擊貫穿箭':'騎乘 · 衝突擊／左右＋攻擊刀波'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='bow-strike'?bowStrike(m.hero.step).name:(m.hero.attack?.move==='slash'||m.hero.attack?.move==='kick')&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v2.2.4 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 第二段連珠三箭':'騎乘 · 第二段連打／第三段上下＋攻擊挑摔'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='bow-strike'?bowStrike(m.hero.step).name:(m.hero.attack?.move==='slash'||m.hero.attack?.move==='kick')&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
+    this.stageLabel.setText(`赤壁之戰三 · v2.3.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,69,80,4);g.fillStyle(0x8acfe5).fillRect(695,69,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,51,235,10);g.fillStyle(0x8acfe5).fillRect(697,53,231*p.hp/p.max,6);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?70:18).setFontSize(m.partner?11:14);
     this.scoreLabel.setText(m.partner?`TEAM ${String(m.score).padStart(6,'0')} · 續關 ${m.continues}`:`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
-    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':m.grapple.air?(m.hero.grappleSpin?'旋轉重摔':'共同落地重摔'):m.grapple.back?'過肩背摔':'向前拋摔') : m.partner&&m.players.some(p=>p.hp<=0)?`隊友倒下 · ${m.continues?'倒下者按攻擊消耗 1 次隊伍續關':'續關用盡，由隊友繼續作戰'}` : m.bonusHint ? m.bonusHint : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
+    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':m.grapple.air?(m.hero.grappleSpin?'旋轉重摔':'共同落地重摔'):m.grapple.mounted?(m.grapple.back?'馬上挑起背摔':'馬上挑起前摔'):m.grapple.back?'過肩背摔':'向前拋摔') : m.partner&&m.players.some(p=>p.hp<=0)?`隊友倒下 · ${m.continues?'倒下者按攻擊消耗 1 次隊伍續關':'續關用盡，由隊友繼續作戰'}` : m.bonusHint ? m.bonusHint : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
     this.combo.setText(m.hits > 0 ? `${m.hits} HIT${m.hits>1?'S':''}` : '');
     if(m.hits>0){const remaining=Phaser.Math.Clamp((m.hitDeadline-m.time)/1.7,0,1);g.fillStyle(0x20312d,.95).fillRect(780,171,140,6);g.fillStyle(remaining<.3?0xe77754:0xf9d38a).fillRect(780,171,140*remaining,6);}
 
@@ -569,7 +575,7 @@ class Battle extends Phaser.Scene {
     for(const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))){const c=HEROES[card.dataset.hero as HeroId];card.querySelector('span')!.textContent=c.weapon;card.querySelector('small')!.textContent='0'+(HERO_IDS.indexOf(card.dataset.hero as HeroId)+1)+' / '+c.title;card.setAttribute('aria-label',c.name+'，'+c.weapon);}
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${TECHNIQUES[m.hero.heroId!]} 兵器：${m.champion.weapon}。 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.2.4 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.3.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -596,7 +602,7 @@ class Battle extends Phaser.Scene {
   showOverlay(state: string) {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.2.4' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.3.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
