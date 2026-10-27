@@ -1,3 +1,4 @@
+import {drawStyleWeapon} from './style-art';
 import {heroMotion,aerialMotion,grappleMotion,mountedMotion} from './motion';
 import {drawGrip} from './grip-art';
 import {heldWeapon} from './loot-art';
@@ -7,7 +8,7 @@ import type {Fighter} from './combat';
 export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number) {
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase):null;
+ const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase,f.stance):null;
  const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
@@ -66,6 +67,7 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  poly(0x244d35,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
  line(0x779062,2,[14,-57,18,-52,hx,hy+2]);
  if(heldWeapon(g,f,hx,hy,phase))return;
+ if(drawStyleWeapon(g,f,hx,hy,phase))return;
  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
  g.fillStyle(0x362b20).fillRect(-2,-36,5,87);
  g.fillStyle(0x8e7650).fillRect(-1,-36,2,87);

@@ -4,7 +4,7 @@ import {HEROES} from './heroes';
 import {grappleMotion} from './motion';
 /** Both arms stay at the held torso; weapons are stowed while grappling. */
 export function drawGrip(g:Phaser.GameObjects.Graphics,f:Fighter){
- if(!['hold','air','throw'].includes(f.grapplePose??''))return false;
+ if(!['hold','lift','air','throw'].includes(f.grapplePose??''))return false;
  const id=f.heroId!,pose=grappleMotion(id,f.grapplePose!,f.grappleProgress,f.grappleBack),color=HEROES[id].color;
  const hx=pose.x,hy=pose.y,elbowX=id==='zhangfei'?12:8;
  g.lineStyle(10,0x1d302d).lineBetween(-10,-54,elbowX,hy+14).lineBetween(elbowX,hy+14,hx-6,hy+8);

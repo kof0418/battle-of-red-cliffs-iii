@@ -14,23 +14,27 @@ export function attackPhase(elapsed:number,impact:number,duration:number){
  if(elapsed<impact+(duration-impact)*.25)return 2;
  if(elapsed<impact+(duration-impact)*.65)return 3;return 4;
 }
-export function heroMotion(id:HeroId,combo:number,phase:number){
+export function heroMotion(id:HeroId,combo:number,phase:number,stance='original'){
  const p=Math.max(0,Math.min(4,phase)),[x,y,lean,angle]=MOTION[id][Math.max(0,Math.min(2,combo-1))][p];
- return {x,y,lean,angle,phase:p,stride:p===4?0:combo===3?9:6,crouch:p===2&&combo===3?3:0};
+ const bare=stance==='classic'&&(id==='guanyu'||id==='zhangfei');
+ return {x:bare?[14,7,combo===3?40:34,28,18][p]:x,y:bare?[ -48,-51,-43,-39,-48][p]:y,lean,angle:stance==='classic'&&id==='zhaoyun'?(p<2?-1:.2):angle,phase:p,stride:p===4?0:combo===3?9:6,crouch:p===2&&combo===3?3:0};
 }
-export function aerialMotion(id:HeroId,descending:boolean){
+export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  const thrust=id==='zhaoyun',bow=id==='huangzhong';
+ if(follow&&thrust)return {x:44,y:-18,lean:18,angle:.65,stride:12,crouch:2,phase:2};
  return {x:descending?(thrust?38:bow?26:30):10,y:descending?-26:-65,lean:descending?12:-6,angle:descending?(thrust?.3:bow?.65:.9):-1.1,stride:descending?10:6,crouch:0,phase:descending?2:1};
 }
 export function grappleMotion(id:HeroId,pose:string,progress=0,back=false){
  const heavy=id==='zhangfei'||id==='lubu',p=Math.max(0,Math.min(1,progress));
  if(pose==='throw')return {x:back?26-42*Math.sin(p*Math.PI):26,y:-66+Math.sin(p*Math.PI)*26,lean:(back?-1:1)*(heavy?10:7)*Math.sin(p*Math.PI),stride:10,crouch:Math.sin(p*Math.PI)*4};
+ if(pose==='lift')return {x:27,y:-96,lean:-4,stride:9,crouch:2};
  if(pose==='air')return {x:27,y:-66,lean:-5,stride:8,crouch:0};
  return {x:27,y:-49,lean:heavy?-3:-1,stride:7,crouch:2};
 }
 
-export function closeMotion(move:'kick'|'bow-strike',phase:number){
+export function closeMotion(move:'kick'|'bow-strike',phase:number,combo=3){
  const active=phase===2||phase===3;
+ if(move==='kick'&&combo===2)return {x:12,y:-50,lean:active?-5:0,angle:-1.2,stride:0,crouch:2,phase};
  return move==='kick'?{x:active?-2:12,y:-52,lean:active?-9:0,angle:-1.2,stride:0,crouch:0,phase}
  :{x:active?32:14,y:active?-35:-46,lean:active?8:-3,angle:.65,stride:active?8:0,crouch:0,phase};
 }

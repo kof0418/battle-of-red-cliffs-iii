@@ -1,3 +1,4 @@
+import {drawStyleWeapon} from './style-art';
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
@@ -14,7 +15,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0):f.attack?heroMotion(id,f.step,phase):null;
+ const action=f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase,f.stance):null;
  const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
@@ -35,7 +36,8 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   poly(0x142020,[x-6,-10+d,x+5,-10+d,x+7,-4+d,x+11,-1+d,x+11,2+d,x-7,2+d]);
   line(0x7f7560,1,[x-5,-6+d,x+4,-6+d,x+6,-2+d]);
  }
- if(kicking){line(0x222d2b,12,[4,-25,25,-30,53,-33]);line(metal,8,[27,-30,49,-33]);poly(0x142020,[47,-39,60,-40,66,-33,64,-27,48,-28]);line(edge,2,[30,-34,50,-37]);}
+ if(kicking&&f.step===2){line(0x222d2b,12,[4,-25,24,-45,32,-29]);line(metal,8,[24,-45,32,-29]);poly(0x142020,[28,-32,39,-31,42,-24,30,-23]);}
+ if(kicking&&f.step!==2){line(0x222d2b,12,[4,-25,25,-30,53,-33]);line(metal,8,[27,-30,49,-33]);poly(0x142020,[47,-39,60,-40,66,-33,64,-27,48,-28]);line(edge,2,[30,-34,50,-37]);}
  poly(cloth,[-w+2,-43,w-2,-43,w+5,-18,10,-12,1,-19,-10,-13,-w-5,-20]);
  for(let i=-w+4;i<w;i+=7){poly(i<0?light:metal,[i,-39,i+4,-39,i+6,-20,i+1,-18]);line(0x283a34,1,[i+4,-37,i+6,-22]);}
  line(edge,1,[-w-3,-20,-10,-15,1,-21,10,-14,w+3,-19]);
@@ -121,6 +123,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  line(light,2,[w-2,-55,hx-3,hy+2]);
  line(metal,6,[hx-6,hy,hx,hy+2]);line(edge,1,[hx-7,hy-2,hx,hy]);
  if(heldWeapon(g,f,hx,hy,phase))return;
+ if(drawStyleWeapon(g,f,hx,hy,phase))return;
  if(zhang&&f.attack?.move==='special'){
   line(cloth,10,[10,-55,hx,hy]);g.fillStyle(skin).fillRect(hx-1,hy-6,13,12);line(0xe7bf8e,2,[hx+2,hy-4,hx+10,hy-4]);
  }else if(huang){
@@ -171,6 +174,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   poly(0xc1d3cf,[11,-3,39,-5,52,-10,45,-2,34,1,11,1]);
   line(0xf0e8cd,1,[11,4,37,5,50,-1,54,-12]);g.restore();
  }
+ if(lu&&f.attack&&f.step>=2&&(phase===2||phase===3)){g.lineStyle(2,0xffe8a4,.85).strokeCircle(hx+93,hy,7);}
  g.fillStyle(0x754e38).fillRect(hx-2,hy-2,7,7);g.fillStyle(skin).fillRect(hx-2,hy-2,6,4);g.fillStyle(0xe7c397).fillRect(hx-2,hy-2,5,1);
  if(f.attack&&phase>=2&&phase<=3&&!huang&&!kicking){
   if(zhao){g.lineStyle(2,0xc7eaf0,.7).lineBetween(hx+15,hy,hx+85,hy);}

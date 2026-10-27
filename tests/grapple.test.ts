@@ -12,7 +12,7 @@ test('all five heroes grab, punch exactly twice and throw in either direction',(
  }
 });
 test('all five heroes can lift and perform aerial throws after two punches',()=>{
- for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,180-2*HERO_STYLES[id].grabDamage-THROWS[id].damage-14));}
+ for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});punch(m);punch(m);m.tick(1/60,{...idle,jump:true});step(m,12);assert(m.hero.z>0);assert(e.z>m.hero.z);punch(m);assert.equal(m.grapple?.phase,'throw');step(m,45);assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.hp,Math.max(0,180-2*HERO_STYLES[id].grabDamage-THROWS[id].damage-(id==='zhangfei'?22:14)));}
 });
 test('idle time escapes, and button spam after two punches cannot renew hold',()=>{
  const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,175);assert.equal(m.grapple,null);assert.equal(e.grapplePose,undefined);assert(!m.tryGrab({x:1,y:0}));
@@ -51,7 +51,7 @@ test('nearer enemy behind does not mask a grabbable enemy ahead; moving away doe
 });
 
 test('all heroes can jump immediately after grabbing without prerequisite punches',()=>{
- for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});m.tick(1/60,{...idle,jump:true});step(m,20);assert.equal(m.grapple?.phase,'jump');assert(m.hero.z>0&&e.z>m.hero.z);punch(m);step(m,30);assert.equal(e.hp,Math.max(0,180-THROWS[id].damage-14));assert((e.knockdown??0)>0);}
+ for(const id of HERO_IDS){const {m,e}=setup(id);m.tryGrab({x:1,y:0});m.tick(1/60,{...idle,jump:true});step(m,20);assert.equal(m.grapple?.phase,'jump');assert(m.hero.z>0&&e.z>m.hero.z);punch(m);step(m,30);assert.equal(e.hp,Math.max(0,180-THROWS[id].damage-(id==='zhangfei'?22:14)));assert((e.knockdown??0)>0);}
 });
 test('hold allows a deliberate pause and throw has shoulder preparation before release',()=>{
  const {m,e}=setup();m.tryGrab({x:1,y:0});step(m,120);assert(m.grapple);punch(m);step(m,120);assert(m.grapple);punch(m);m.tick(1/60,{x:1,y:0,attack:true,grappleAttack:true});step(m,6);assert(e.z>0);assert(Math.abs(e.x-m.hero.x)<30);step(m,36);assert.equal(m.grapple,null);assert.equal(e.z,0);assert((e.knockdown??0)>0);

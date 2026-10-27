@@ -8,8 +8,8 @@ test('walking into next wave never snaps player or camera; spawns ahead and lock
 });
 for(const id of HERO_IDS)for(const direction of [-1,0,1])test(`${id} held enemy jumps ${direction} and slams straight down with landing splash`,()=>{
  const m=new Campaign(id);m.start();m.hero.x=450;const e=m.fighter('heavy',478,412);e.cooldown=99;m.enemies=[e];assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:direction,y:0,jump:true});ticks(m,15);const landingX=m.hero.x;assert(direction===0?landingX===450:(landingX-450)*direction>30);assert(m.hero.z>0&&e.z>m.hero.z);
- const nearby=m.fighter('heavy',landingX-65,412),outside=m.fighter('heavy',landingX+50,480);nearby.cooldown=99;outside.cooldown=99;m.enemies.push(nearby,outside);
+ const nearby=m.fighter('heavy',landingX-65,412),outside=m.fighter('heavy',landingX+220,480);nearby.cooldown=99;outside.cooldown=99;m.enemies.push(nearby,outside);
  m.tick(1/60,{...idle,grappleAttack:true});assert.equal(nearby.hp,nearby.max);ticks(m,8);assert(m.hero.z>0);assert.equal(nearby.hp,nearby.max);ticks(m,18);
- assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.z,0);assert(Math.abs(e.x-landingX)<35);assert.equal(e.hp,e.max-THROWS[id].damage-14);assert.equal(nearby.hp,nearby.max-30);assert.equal(outside.hp,outside.max);const hp=nearby.hp;ticks(m,10);assert.equal(nearby.hp,hp);
+ assert.equal(m.grapple,null);assert.equal(m.hero.z,0);assert.equal(e.z,0);assert(Math.abs(e.x-landingX)<35);assert.equal(e.hp,e.max-THROWS[id].damage-(id==='zhangfei'?22:14));assert.equal(nearby.hp,nearby.max-(id==='zhangfei'?38:30));assert.equal(outside.hp,outside.max);const hp=nearby.hp;ticks(m,10);assert.equal(nearby.hp,hp);
 });
 test('ground throws travel farther in either direction',()=>{for(const direction of [-1,1]){const m=new Campaign();m.start();m.hero.x=450;const e=m.fighter('heavy',478,412);m.enemies=[e];e.cooldown=99;assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:direction,y:0,grappleAttack:true});ticks(m,40);assert((e.x-450)*direction>=175);}});
