@@ -55,7 +55,7 @@ for(const seed of [0,1,2,3])for (const id of HERO_IDS) test(`${id} roster ${seed
   m.tick(1/60,input);
  }
  assert.equal(m.status,'won',`status=${m.status}, wave=${m.wave}, hp=${m.hero.hp}, enemies=${m.enemies.length}`);
- assert.equal(m.stage,LEVELS.length-1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills,LEVELS.flatMap(l=>l.waves.flat()).length);
+ assert.equal(m.stage,LEVELS.length-1);assert.equal(m.wave,m.level.waves.length);assert.ok(m.score>18000);assert.equal(m.kills+m.escapes,LEVELS.flatMap(l=>l.waves.flat()).length);
 });
 test('hit streak starts at one, refreshes on enemy contact, expires and pauses with combat',()=>{
  const m=isolated();const e=m.enemies[0];m.grappleDamage(e,1);assert.equal(m.hits,1);

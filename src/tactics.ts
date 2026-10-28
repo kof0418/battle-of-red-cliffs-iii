@@ -37,6 +37,7 @@ export const BOSS_STYLE:Record<string,{name:string;reach:number;lane:number;stop
  regent:{name:'交叉封路',reach:300,lane:120,stop:180},
 };
 export function enemyTempo(kind:string,attacks:number){
+ if(kind==='thrower')return {windup:.95,recovery:.7,gap:1.1};
  if(kind==='brute')return {windup:attacks%2?.52:.65,recovery:attacks%2?.85:.26,gap:attacks%2?.7:.12};
  if(kind==='mauler')return {windup:1.15,recovery:1.05,gap:.45};
  if(kind==='hammer')return {windup:1.05,recovery:.85,gap:.4};

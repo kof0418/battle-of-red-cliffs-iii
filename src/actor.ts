@@ -49,7 +49,7 @@ export class Actor {
     if (champion) { drawWarrior(g,f,frame,phase);
       return; }
     if(f.kind==='brute'||f.kind==='mauler'){drawHeavyInfantry(g,f,frame);return;}
-    const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
+    const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='thrower'?0x826747:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
     // Cape, boots, segmented armour, face and original helmet silhouette.
@@ -82,13 +82,16 @@ export class Actor {
     const handX = motion ? motion.x : attacking ? [8, 23, 34, 17][step] : 17;
     g.fillStyle(color).fillRect(9, -44, handX - 1, 10);
     g.fillStyle(0xe2b588).fillRect(handX, y, 8, 8);
-    if ((f.kind==='archer'||f.kind==='hunter')||f.heroId === 'huangzhong') {
+    if(f.kind==='thrower'){
+      g.fillStyle(0x4e3428).fillEllipse(handX+12,y,24,27);g.fillStyle(0xb5834c).fillEllipse(handX+10,y-3,17,18);g.fillStyle(0x263633).fillRect(handX+4,y-18,16,6);g.lineStyle(2,0xe8b565).lineBetween(handX+13,y-18,handX+17,y-24);
+      g.fillStyle(0x725334).fillRect(-24,-48,14,27);g.lineStyle(2,0xd3bb7e).lineBetween(-23,-50,-12,-47);
+    }else if ((f.kind==='archer'||f.kind==='hunter')||f.heroId === 'huangzhong') {
       const bowX = handX + 10;
       g.lineStyle(4, 0xc4a66b).beginPath().arc(bowX - 8, y, 27, -1.2, 1.2).strokePath();
       g.lineStyle(1, 0xf3e3be).lineBetween(bowX + 2, y - 25, bowX - (attacking ? [8,19,0,2,0][phase] : 0), y).lineBetween(bowX - (attacking ? [8,19,0,2,0][phase] : 0), y, bowX + 2, y + 25);
       g.lineStyle(2, 0xf0d8a0).lineBetween(bowX - 20, y, bowX + 26, y);
     } else if (f.kind==='spearman'||f.heroId === 'zhaoyun' || f.heroId === 'zhangfei') {
-      const tip = handX + (attacking ? 63 : 38), sy = y + 3;
+      const tip = handX + (attacking ? f.kind==='spearman'?110:63 : 38), sy = y + 3;
       g.lineStyle(4, 0x8c7352).lineBetween(handX - 35, sy + (attacking ? 0 : 34), tip, sy - (attacking ? 0 : 30));
       g.fillStyle(0xdbe4dc).fillTriangle(tip, sy - (attacking ? 5 : 35), tip + 22, sy - (attacking ? 0 : 38), tip, sy - (attacking ? -5 : 25));
       if (f.heroId === 'zhangfei') g.lineStyle(3, 0xc7d4c8).lineBetween(tip, sy-5, tip+7, sy-10).lineBetween(tip+7, sy-10, tip+13, sy-5);

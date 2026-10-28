@@ -70,7 +70,7 @@ for(const [one,two] of [['guanyu','zhangfei'],['zhaoyun','huangzhong'],['weiyan'
    if(m.grappleOf(h))i={x:h.face,y:0,grappleAttack:true};return i;
   });m.tick(1/60,{...inputs[0],partner:inputs[1]});
  }
- assert.equal(m.status,'won',`stage ${m.stage} wave ${m.wave}, HP ${m.players.map(p=>p.hp)}, credits ${m.continues}`);assert.equal(m.kills,185);
+ assert.equal(m.status,'won',`stage ${m.stage} wave ${m.wave}, HP ${m.players.map(p=>p.hp)}, credits ${m.continues}`);assert.equal(m.kills+m.escapes,185);
 });
 
 test('controller replacement takes the vacant player slot, retaining the other controller',()=>{

@@ -41,7 +41,7 @@ test('Guan Yu air throw arches backward while Zhang Fei rotates through a full t
  assert(angles[0]<0);assert(angles[1]>180);
 });
 test('different move geometry remains independent in co-op and pickup weapons bypass it',()=>{
- const m=new Campaign('guanyu');m.enableCoop('zhangfei');m.start();m.pending=[];m.supplies=[];m.barrels=[];m.hero.x=400;m.hero.y=380;const p=m.partner!;p.x=400;p.y=465;const a=enemy(m,450,412),b=enemy(m,450,497);
+ const m=new Campaign('guanyu');m.enableCoop('zhangfei');m.start();m.pending=[];m.supplies=[];m.barrels=[];m.hero.x=400;m.hero.y=380;const p=m.partner!;p.x=400;p.y=465;const a=enemy(m,450,412),b=enemy(m,450,497);a.stun=b.stun=999;
  m.tick(1/60,{...idle,attack:true,partner:{...idle,attack:true}});ticks(m,9);assert(a.hp<1000);assert.equal(b.hp,1000);
  for(const f of m.players){m.withPlayer(f,()=>{f.attack=null;f.equipped={id:'sword',uses:18};m.swing();assert.equal(f.attack?.weapon,'sword');assert.equal(f.attack?.duration,.26);});}
 });
