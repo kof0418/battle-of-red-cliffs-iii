@@ -3,8 +3,14 @@ export type Difficulty='easy'|'normal'|'hard';
 export const DIFFICULTIES={easy:{name:'休閒',attackers:1},normal:{name:'標準',attackers:2},hard:{name:'挑戰',attackers:3}} as const;
 export function isDifficulty(v:unknown):v is Difficulty{return v==='easy'||v==='normal'||v==='hard';}
 export function bossPhase(hp:number,max:number){return hp>max*.65?0:hp>max*.3?1:2;}
-export type BossMove='slam'|'charge'|'sweep'|'fan'|'ring'|'cross';
+export type BossMove='slam'|'charge'|'sweep'|'fan'|'ring'|'cross'|'lanes'|'fork'|'surge';
 const PLANS:Record<string,readonly (readonly BossMove[])[]>={
+ bridgeguard:[['sweep','slam'],['slam','charge','sweep'],['charge','sweep','slam']],
+ bridgearcher:[['fan','surge'],['surge','fan','charge'],['fan','charge','surge']],
+ admiral:[['surge','sweep'],['ring','surge','charge'],['surge','ring','sweep']],
+ firelord:[['lanes','slam'],['lanes','charge','slam'],['charge','lanes','sweep']],
+ pursuer:[['fork','charge'],['charge','fork','sweep'],['fork','sweep','charge']],
+ warlord:[['fork','cross','surge'],['cross','lanes','fork'],['lanes','fork','charge','cross']],
  boss:[['slam','charge'],['slam','charge','sweep'],['charge','sweep','slam']],
  marshal:[['sweep','charge','slam'],['charge','sweep','charge','slam'],['sweep','charge','sweep','slam']],
  hunter:[['fan','charge','fan'],['fan','charge','sweep'],['fan','charge','fan','sweep']],
@@ -22,7 +28,7 @@ export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing
   else if(kind==='boss')move=x>125?'charge':phase>0&&attacks%2?'sweep':'slam';
   else if(kind==='regent')move=phase===2&&attacks%3===2&&x<100&&y<27?'slam':y>28||attacks%2===0?'cross':x<155?'sweep':'charge';
  }
- const base=move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:.85;
+ const base=['lanes','fork','surge'].includes(move)?1.10:move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:.85;
  // Even the final phase keeps at least 650 ms of warning. Every sequence ends in a large opening.
  const windup=Math.max(.65,base-phase*.09),finisher=attacks%moves.length===moves.length-1;
  return {move,windup,recovery:finisher?1.05:phase===2?.6:.7,gap:finisher?.45:.18,phase};
@@ -30,6 +36,7 @@ export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing
 export function frontalGuard(face:number,x:number,y:number,sourceX:number,sourceY:number){return (sourceX-x)*face>=-6&&Math.abs(sourceY-y)<40;}
 
 export const BOSS_STYLE:Record<string,{name:string;reach:number;lane:number;stop:number}>={
+ bridgeguard:{name:'裂石重戟',reach:240,lane:35,stop:110},bridgearcher:{name:'逐浪箭扇',reach:310,lane:75,stop:210},admiral:{name:'鐵錨潮衝',reach:280,lane:70,stop:140},firelord:{name:'焰舵三線',reach:300,lane:90,stop:160},pursuer:{name:'夜隼雙叉',reach:290,lane:80,stop:160},warlord:{name:'玄甲追斬',reach:310,lane:95,stop:170},
  boss:{name:'近身重砸',reach:250,lane:27,stop:110},
  marshal:{name:'突進橫掃',reach:250,lane:27,stop:140},
  hunter:{name:'游擊箭陣',reach:320,lane:80,stop:225},

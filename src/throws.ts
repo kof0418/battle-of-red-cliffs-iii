@@ -8,7 +8,7 @@ export interface Grapple {mounted?:boolean;target:number;hits:number;deadline:nu
 
 /** Heavy bodies take longer to lift; distance remains the hero's established throw distance. */
 export function throwWeight(kind:string){
- const boss=['boss','marshal','hunter','frostlord','regent'].includes(kind);
+ const boss=['boss','marshal','hunter','frostlord','regent','bridgeguard','bridgearcher','admiral','firelord','pursuer','warlord'].includes(kind);
  return boss?{lift:.24,flight:.48,height:56,jump:60,fall:.42}:['heavy','brute','mauler','hammer'].includes(kind)?{lift:.21,flight:.45,height:64,jump:68,fall:.38}:{lift:.18,flight:.42,height:72,jump:78,fall:.34};
 }
 export function bossGrabWindow(attack:{elapsed:number;impact:number;hit:boolean}|null|undefined){

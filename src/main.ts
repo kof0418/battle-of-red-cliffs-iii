@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {FINAL_BOSS_NAMES} from './final-boss-art';
 import {drawSecret} from './secret-art';
 import {LOB} from './counterplay';
 import {duelForm,isDuelHero} from './duel-forms';
@@ -12,7 +13,7 @@ import {DIFFICULTIES,bossPhase} from './tactics';
 import {drawHorse} from './horse-art';
 import {drawLoot,drawWeapon} from './loot-art';
 import {WEAPONS,WEAPON_ROLES} from './loot';
-import {WORLD_WIDTH,LEVELS} from './levels';
+import {WORLD_WIDTH,LEVELS,EXTENDED_LEVELS,arenaStart,type CampaignLength} from './levels';
 import {CommandBank,type InputSource} from './command-input';
 import {TouchInput,directionAt,touchLayout} from './touch-input';
 import {enterFullscreen,toggleFullscreen} from './immersive';
@@ -32,12 +33,13 @@ import { readPreferences, PREFERENCES_KEY } from './preferences';
 import { parseRecords, recordVictory, recordsKey, bestKey, type Records } from './records';
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
+let campaignLength:CampaignLength='full';
 let settingsOpen = false;
 let pendingExit:'title'|'select'|null=null;
 let titleScreen = true;
 let settingsReturnFocus: HTMLElement | null = null;
 let records: Records = {};
-try { records = parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty)) ?? '{}')); } catch { /* optional storage */ }
+try { records = parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty,campaignLength)) ?? '{}')); } catch { /* optional storage */ }
 window.addEventListener('pointerdown', () => soundtrack.unlock(), { capture: true });
 window.addEventListener('keydown', () => soundtrack.unlock(), { capture: true });
 import { HEROES, HERO_IDS, type HeroId } from './heroes';
@@ -51,7 +53,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.5.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.7.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -91,11 +93,11 @@ async function mobileFullscreen(){if(touchDevice){await enterFullscreen(document
 
 let muted = preferences.muted;
 function tone(frequency = 130, duration = .07) { soundtrack.effect(frequency, duration); }
-function readBest() { try { const n = Number(profileStorage.getItem(bestKey(preferences.difficulty))); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
+function readBest() { try { const n = Number(profileStorage.getItem(bestKey(preferences.difficulty,campaignLength))); return Number.isFinite(n) && n >= 0 && n <= 1e8 ? n : 0; } catch { return 0; } }
 class Battle extends Phaser.Scene {
   private posePreview=false;
   private performanceQA?:PerformanceQA;
-  model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3)); actors = new Map<number, Actor>();
+  model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3),campaignLength); actors = new Map<number, Actor>();
   partnerLabel!:Phaser.GameObjects.Text;playerTags:Phaser.GameObjects.Text[]=[];
   pad2=new PadInput();coopPads=new CoopPads();autoAttack2At=0;
   courierLabel!:Phaser.GameObjects.Text;propLabel!:Phaser.GameObjects.Text;
@@ -113,7 +115,9 @@ class Battle extends Phaser.Scene {
     const restore=()=>{this.drawnStage=-1;this.shellKey='';};this.game.renderer.on(Phaser.Renderer.Events.RESTORE_WEBGL,restore);
     this.events.once('shutdown',()=>{soundtrack.pause();this.game.renderer.off(Phaser.Renderer.Events.RESTORE_WEBGL,restore);this.actors.clear();});
     this.portraits=createPortraits(this);this.portraitFrame=-1;this.selectionKey='';this.shellKey='';
-    this.model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3)); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
+    this.model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3),campaignLength); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
+    document.querySelector<HTMLSelectElement>('#campaign-length')!.value=campaignLength;
+    document.querySelector('.route')!.innerHTML=this.model.levels.map((l,i)=>`<article data-stage="${i}" data-state="locked"><b>${String(i+1).padStart(2,'0')}</b><div><h2>${l.title}</h2><p>${l.boss}</p></div><small>突破前關後開放</small></article>`).join('');
     document.querySelector<HTMLSelectElement>('#play-mode')!.value=coopMode?'coop':'solo';document.querySelector<HTMLSelectElement>('#partner-hero')!.value=partnerHero;document.querySelector<HTMLElement>('#partner-choice')!.hidden=!coopMode;document.querySelector<HTMLElement>('#coop-help')!.hidden=!coopMode;
     if(coopMode)this.model.enableCoop(partnerHero);this.pad2.reset();this.coopPads.reset();partnerCommands.reset();partnerPressed.clear();this.autoAttack2At=0;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
@@ -129,6 +133,7 @@ class Battle extends Phaser.Scene {
     const onKey = (event: KeyboardEvent) => {
       if(titleScreen && !settingsOpen){if(event.code==='Enter'){event.preventDefault();document.querySelector<HTMLButtonElement>('#title-start')!.click();}return;}
       if (event.target instanceof HTMLSelectElement || settingsOpen || event.ctrlKey || event.metaKey || event.altKey) return;
+      if(this.model.status==='stage-clear'&&this.model.stage===7&&['ArrowLeft','ArrowRight','KeyA','KeyD'].includes(event.code)){event.preventDefault();this.model.chooseEnding(['ArrowLeft','KeyA'].includes(event.code)?'pursuit':'rescue');this.draw();return;}
       const second=coopMode?coopKey(event.code,2):undefined;
       if(second&&this.model.status==='playing'){event.preventDefault();keyboardHeld.add(event.code);if(!event.repeat)queuePartner(second);return;}
       const mapped = coopMode?coopKey(event.code,1):keyAction(event.code, bindings);
@@ -165,6 +170,14 @@ class Battle extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const preview = new URLSearchParams(location.search).get('preview');
       if(preview)titleScreen=false;
+      if(['chapter','ending-route','ending','salvage','long-transition'].includes(preview??'')){
+        const params=new URLSearchParams(location.search),m=this.model=new Campaign(selectedHero,preferences.difficulty,0,'full');
+        m.stage=preview==='ending-route'?7:preview==='ending'?8:preview==='long-transition'?4:Math.max(5,Math.min(8,Number(params.get('stage'))||5));m.wave=Math.max(0,Math.min(m.level.waves.length-1,Number(params.get('wave'))-1||0));m.status='playing';if(preview==='chapter')m.cameraLeft=Math.min(WORLD_WIDTH-960,arenaStart(m.wave+1,m.level));m.spawn();m.hero.x=m.cameraLeft+230;m.hero.y=445;m.hero.inv=99;
+        if(preview==='chapter'){if(params.has('boss')){m.pending=[];m.enemies=m.level.waves.at(-1)!.filter(k=>isBoss(k)).map((k,i)=>{const f=m.fighter(k,m.cameraLeft+590+i*150,390+i*85);f.cooldown=99;return f;});}m.paused=true;this.posePreview=true;}
+        if(preview==='ending-route'||preview==='long-transition'){m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.finishStage();m.status='stage-clear';}
+        if(preview==='ending'){m.ranked=false;m.endingRoute=params.get('route')==='rescue'?'rescue':'pursuit';m.stageInteractions.add(2);m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.finishStage();m.status='won';}
+        if(preview==='salvage'){m.wave=2;m.enemies=[];m.pending=[];m.supplies=[];m.barrels=[];m.startBonusRound();}
+      }
       if(preview==='pot-combat'||preview==='cache-combat'){
         const m=this.model;m.wave=3;m.status='playing';m.spawn();m.hero.x=400;m.hero.y=preview==='cache-combat'?354:412;m.hero.inv=0;m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.fieldSuppressed=true;m.enemies=[];
         if(preview==='pot-combat'){m.secrets=[];const e=m.fighter('thrower',650,412);e.cooldown=.2;m.enemies=[e];}
@@ -253,7 +266,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v2.5.0 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v2.7.0 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -372,6 +385,7 @@ class Battle extends Phaser.Scene {
       }
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else if(m.status !== 'playing') {
+      if(m.status==='stage-clear'&&m.stage===7&&(pad.pressed.has('left')||pad.pressed.has('right')))m.chooseEnding(pad.pressed.has('left')?'pursuit':'rescue');
       if(pad.pressed.has('attack') || pad.pressed.has('pause')){if(titleScreen)document.querySelector<HTMLButtonElement>('#title-start')!.click();else this.activate();}
     } else { for(const action of pad.pressed)queueAction(action,'pad'); }
     if (pressed.delete('restart')) { requestRestart(); return; }
@@ -488,7 +502,7 @@ class Battle extends Phaser.Scene {
       tone(e.type==='block'?620:140,e.type==='block'?.07:.18);
       const ring=this.add.circle(e.x,e.y,e.type==='block'?12:22,0xffdc8e,.2).setStrokeStyle(2,0xffdc8e).setDepth(e.y+100);this.tweens.add({targets:ring,scale:1.6,alpha:0,duration:180,onComplete:()=>ring.destroy()});
     } else if (e.type === 'swing') soundtrack.weapon(e.heroId ?? 'guanyu',false,e.value===3);
-    else if(e.type==='volley'||e.type==='fire')tone(e.type==='fire'?65:480,.16);
+    else if(e.type==='volley'||e.type==='fire'||e.type==='surge'||e.type==='stones')tone(e.type==='fire'?65:480,.16);
     else if (e.type === 'jump') tone(300, .07);
     else if (e.type === 'wave') tone(410, .18);
   }
@@ -510,6 +524,7 @@ class Battle extends Phaser.Scene {
       if(box.hp<24)supply.lineStyle(3,0x2b241e).lineBetween(box.x-5,box.y-44,box.x+6,box.y-25).lineBetween(box.x+6,box.y-25,box.x-3,box.y-8);
     }
     for(const barrel of m.barrels){
+      if(barrel.bonusTarget){const x=barrel.x,y=barrel.y;supply.lineStyle(2,0xd7bd88).lineBetween(x,y-72,x,y-20);supply.fillStyle(0x8a724c).fillRect(x-19,y-31,38,31);supply.lineStyle(3,0xffdc8d).strokeRect(x-19,y-31,38,31).lineBetween(x-19,y-31,x+19,y);supply.fillStyle(0xffdc8d).fillCircle(x,y-16,5);continue;}
       const x=barrel.x,y=barrel.y;supply.fillStyle(0x583d29).fillRoundedRect(x-23,y-53,46,53,12);supply.fillStyle(0x997144).fillEllipse(x,y-48,46,15);
       supply.lineStyle(2,0x442f23);for(const dx of [-13,-3,9])supply.lineBetween(x+dx,y-40,x+dx,y-4);
       supply.lineStyle(5,barrel.bonus?0xf2ca67:0x66726c).strokeEllipse(x,y-35,46,12).strokeEllipse(x,y-9,46,12);
@@ -533,13 +548,15 @@ class Battle extends Phaser.Scene {
     const d = this.danger; d.clear();
     const field=m.field;
     if(field) {
-      const color=field.kind==='fire'?0xff9a52:0x91d5dc;
+      const color=field.kind==='fire'?0xff9a52:field.kind==='stones'?0xc9b18c:0x91d5dc;
       d.fillStyle(color,field.active?.08:.10+field.progress*.15).fillRect(field.x,field.y,field.width,field.height);
       d.lineStyle(field.active?4:2,color,.95).strokeRect(field.x,field.y,field.width,field.height);
       // A growing bar communicates timing without relying on flashing or colour alone.
       d.fillStyle(0xf7e9b3,.9).fillRect(field.x,field.y-6,field.width*field.progress,3);
       if(field.active)for(let x=field.x+12;x<field.x+field.width;x+=24) {
-        if(field.kind==='volley') {d.lineStyle(2,0xe3e7cc).lineBetween(x-13,field.y-23,x,field.y+25);d.fillStyle(0xe3e7cc).fillTriangle(x,field.y+27,x-6,field.y+17,x+2,field.y+16);}
+        if(field.kind==='stones'){d.fillStyle(0x877b65).fillEllipse(x,field.y+30,14,10);}
+        else if(field.kind==='surge'){d.lineStyle(3,0xadd4d4).beginPath().arc(x,field.y+24,12,Math.PI,Math.PI*2).strokePath();}
+        else if(field.kind==='volley') {d.lineStyle(2,0xe3e7cc).lineBetween(x-13,field.y-23,x,field.y+25);d.fillStyle(0xe3e7cc).fillTriangle(x,field.y+27,x-6,field.y+17,x+2,field.y+16);}
         else if(m.time-field.impactAt<.08){d.fillStyle(0xe9b25d).fillTriangle(x-9,field.y+30,x+2,field.y-14,x+10,field.y+30);}else{d.fillStyle(0x9b7454,.45).fillRect(x,field.y+25,9,3);}
       }
     }
@@ -550,7 +567,10 @@ class Battle extends Phaser.Scene {
       const progress=Math.min(1,a.elapsed/a.impact),pulse=.12+progress*.2;
       d.fillStyle(0xffd58b,.95).fillRect(e.x-22,e.y-112,44*progress,3);
       d.fillStyle(0xe77948, pulse); d.lineStyle(2, 0xffb568, .85);
-      if(a.move==='lob'){d.fillCircle(a.x,a.y,LOB.radius);d.strokeCircle(a.x,a.y,LOB.radius);d.lineStyle(2,0xffdf93).lineBetween(a.x-8,a.y,a.x+8,a.y).lineBetween(a.x,a.y-8,a.x,a.y+8);}
+      if(a.move==='lanes'){for(const y of [-60,0,60]){const x=a.face>0?a.x-20:a.x-300;d.fillRect(x,a.y+y-16,320,32);d.strokeRect(x,a.y+y-16,320,32);}}
+      else if(a.move==='fork'){for(const side of [-1,1]){d.lineStyle(30,0xd9b579,.18).lineBetween(a.x,a.y,a.x+a.face*300,a.y+side*84);d.lineStyle(2,0xffd38d,.9).lineBetween(a.x,a.y,a.x+a.face*300,a.y+side*84);}}
+      else if(a.move==='surge'){const x=a.face>0?a.x:a.x-250;d.fillStyle(0x83c7d6,.23).fillRect(x,a.y-22,250,44);d.lineStyle(2,0xc3e5e5).strokeRect(x,a.y-22,250,44);}
+      else if(a.move==='lob'){d.fillCircle(a.x,a.y,LOB.radius);d.strokeCircle(a.x,a.y,LOB.radius);d.lineStyle(2,0xffdf93).lineBetween(a.x-8,a.y,a.x+8,a.y).lineBetween(a.x,a.y-8,a.x,a.y+8);}
       else if(a.move==='thrust'){const x=a.face>0?a.x:a.x-170;d.fillRect(x,a.y-17,170,34);d.strokeRect(x,a.y-17,170,34);}
       else if(a.move==='press'){const x=a.face>0?a.x:a.x-110;d.fillRect(x,a.y-37,110,74);d.strokeRect(x,a.y-37,110,74);}
       else if(a.move==='fan'){for(const slope of [-.3,0,.3]){d.lineStyle(20,0xe4b85b,.16).lineBetween(a.x,a.y,a.x+a.face*330,a.y+slope*330);d.lineStyle(2,0xffd78b,.9).lineBetween(a.x,a.y,a.x+a.face*330,a.y+slope*330);}}
@@ -569,21 +589,21 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * (m.partner?m.cameraLeft+340:m.hero.x) / WORLD_WIDTH, 3);
     this.label.setText(`${m.partner?'1P · ':''}${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 第二段連珠三箭':'騎乘 · 第二段連打／第三段上下＋攻擊挑摔'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='bow-strike'?bowStrike(m.hero.step).name:(m.hero.attack?.move==='slash'||m.hero.attack?.move==='kick')&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v2.5.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${LEVELS.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v2.7.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${m.levels.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,69,80,4);g.fillStyle(0x8acfe5).fillRect(695,69,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,51,235,10);g.fillStyle(0x8acfe5).fillRect(697,53,231*p.hp/p.max,6);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?70:18).setFontSize(m.partner?11:14);
     this.scoreLabel.setText(m.partner?`TEAM ${String(m.score).padStart(6,'0')} · 續關 ${m.continues}`:`SCORE ${String(m.score).padStart(6,'0')}\nBEST ${this.best}`);
     const fullNearSupply = m.hero.hp >= m.hero.max && m.pickups.some(item => item.amount>0&&nearPickup(m.hero, item));
-    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':m.grapple.air?(m.hero.grappleSpin?'旋轉重摔':'共同落地重摔'):m.grapple.mounted?(m.grapple.back?'馬上挑起背摔':'馬上挑起前摔'):m.grapple.back?'過肩背摔':'向前拋摔') : m.partner&&m.players.some(p=>p.hp<=0)?`隊友倒下 · ${m.continues?'倒下者按攻擊消耗 1 次隊伍續關':'續關用盡，由隊友繼續作戰'}` : m.bonusHint ? m.bonusHint : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
+    this.notice.setText(m.grapple?(m.grapple.phase==='hold'?`抓住 ${m.grapple.hits}/2 · ${Math.max(0,m.grapple.deadline-m.time).toFixed(1)}秒 · 跳＋攻擊空中摔／左右＋攻擊`:m.grapple.phase==='jump'?'空中抓住！按攻擊共同落地重摔':m.grapple.air?(m.hero.grappleSpin?'旋轉重摔':'共同落地重摔'):m.grapple.mounted?(m.grapple.back?'馬上挑起背摔':'馬上挑起前摔'):m.grapple.back?'過肩背摔':'向前拋摔') : m.partner&&m.players.some(p=>p.hp<=0)?`隊友倒下 · ${m.continues?'倒下者按攻擊消耗 1 次隊伍續關':'續關用盡，由隊友繼續作戰'}` : m.bonusHint ? m.bonusHint : field ? (field.active?'爆發已結束 · 餘燼不再造成傷害':field.kind==='stones'?'落石警戒 · 離開框線':field.kind==='surge'?'船舷浪襲 · 換線或跳躍':field.kind==='volley'?'箭雨警戒 · 移出框線，跳躍無法躲避':'火船來襲 · 離開火線或跳躍／衝撞') : m.reinforcementHint ? m.reinforcementHint : fullNearSupply ? '氣血已滿 · 補給保留，受傷後再取' : m.time < m.messageUntil ? m.message : prop&&Math.abs(prop.x-m.hero.x)<130&&Math.abs(prop.y-m.hero.y)<65?PROPS[m.stage].hint:'');
     this.combo.setText(m.hits > 0 ? `${m.hits} HIT${m.hits>1?'S':''}` : '');
     if(m.hits>0){const remaining=Phaser.Math.Clamp((m.hitDeadline-m.time)/1.7,0,1);g.fillStyle(0x20312d,.95).fillRect(780,171,140,6);g.fillStyle(remaining<.3?0xe77754:0xf9d38a).fillRect(780,171,140*remaining,6);}
 
-    const boss = m.enemies.find(e => isBoss(e.kind));
-    this.bossLabel.setText(boss ? `${m.level.boss} · ${['試探','變招','決戰'][bossPhase(boss.hp,boss.max)]}${boss.mounted?' · 騎將／重擊可落馬':(boss.knockdown??0)>0||boss.grapplePose?' · 倒地／擒拿中':(boss.grappleCooldown??0)>0?' · 擒拿冷卻':boss.inv>0&&boss.stun<=0?' · 起身保護':bossGrabWindow(boss.attack)==='recovery'?' · 收招可抓':bossGrabWindow(boss.attack)==='windup'?' · 蓄力可抓':bossGrabWindow(boss.attack)==='unsafe'?' · 出招中':' · 近身可抓'}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
-    if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * boss.hp / boss.max, 10); }
+    const bosses=m.enemies.filter(e=>isBoss(e.kind)&&e.hp>0),boss=bosses[0];
+    this.bossLabel.setText(bosses.length>1?`${m.level.boss} · 雙將總氣血 ${Math.ceil(bosses.reduce((n,e)=>n+e.hp,0))} / ${bosses.reduce((n,e)=>n+e.max,0)}`:boss ? `${bosses.length>1?m.level.boss:m.stage>=5?(FINAL_BOSS_NAMES[boss.kind]??m.level.boss):m.level.boss} · ${['試探','變招','決戰'][bossPhase(boss.hp,boss.max)]}${boss.mounted?' · 騎將／重擊可落馬':(boss.knockdown??0)>0||boss.grapplePose?' · 倒地／擒拿中':(boss.grappleCooldown??0)>0?' · 擒拿冷卻':boss.inv>0&&boss.stun<=0?' · 起身保護':bossGrabWindow(boss.attack)==='recovery'?' · 收招可抓':bossGrabWindow(boss.attack)==='windup'?' · 蓄力可抓':bossGrabWindow(boss.attack)==='unsafe'?' · 出招中':' · 近身可抓'}　${Math.ceil(boss.hp)} / ${boss.max}` : '');
+    if (boss) { g.fillStyle(0x142322, .95).fillRect(280, 498, 400, 25); g.fillStyle(0xb65440).fillRect(288, 505, 384 * bosses.reduce((n,e)=>n+e.hp,0)/bosses.reduce((n,e)=>n+e.max,0), 10); }
     const state = m.paused && !(import.meta.env.DEV&&this.posePreview) ? 'paused' : m.status;
-    const overlayKey=state;
+    const overlayKey=state+'/'+m.endingRoute;
     const shellKey=`${state}/${titleScreen}/${settingsOpen}`;
     if(this.shellKey!==shellKey){this.shellKey=shellKey;
     document.querySelector<HTMLElement>('#hero-select')!.hidden = state !== 'ready' || titleScreen;
@@ -595,6 +615,9 @@ class Battle extends Phaser.Scene {
     document.querySelector<HTMLElement>('#app')!.inert = state === 'ready' || settingsOpen;
     document.querySelector<HTMLElement>('#hero-select')!.inert = settingsOpen;
     }
+    if(state==='ready')setText('.select-note',m.campaignLength==='full'?'九關完整戰役 · 第八關後選擇追擊或護送':'五關短戰役 · 在赤焰宮城完成出征');
+    const branch=m.campaignLength==='full'&&m.stage===7&&m.status==='stage-clear'&&!settingsOpen;document.querySelector<HTMLElement>('#ending-choice')!.hidden=!branch;
+    document.querySelectorAll<HTMLButtonElement>('[data-ending]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.ending===(m.endingRoute??'pursuit'))));
     if(state==='ready')setText('.select-hint',coopMode?'點選下方卡片選 1P，使用上方選單選 2P；雙人模式使用固定鍵位。':this.padConnected?`方向鍵／左搖桿選將 · ${PAD_LABELS[preferences.pad.attack]} 出陣`:document.body.classList.contains('touch-controls')?'點選武將，再按出陣':'方向鍵 ← → 或 1–6 選將 · Enter 出陣');
     const selectionKey=`${m.partner?.heroId??'solo'}/${m.hero.heroId}/${records[m.hero.heroId??'guanyu']?.score??0}`;
     if(state==='ready' && this.selectionKey!==selectionKey){this.selectionKey=selectionKey;this.portraitFrame=-1;
@@ -602,7 +625,7 @@ class Battle extends Phaser.Scene {
     for(const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))){const c=HEROES[card.dataset.hero as HeroId];card.querySelector('span')!.textContent=c.weapon;card.querySelector('small')!.textContent='0'+(HERO_IDS.indexOf(card.dataset.hero as HeroId)+1)+' / '+c.title;card.setAttribute('aria-label',c.name+'，'+c.weapon);}
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${TECHNIQUES[m.hero.heroId!]} 兵器：${m.champion.weapon}。 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.5.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成五關留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.7.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成本戰役留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -613,14 +636,14 @@ class Battle extends Phaser.Scene {
     const pause = document.querySelector<HTMLButtonElement>('#pause');
     if (pause) { setText('#pause',this.padConnected?'Ⅱ Start':document.body.classList.contains('touch-controls')?'Ⅱ':'Ⅱ Esc'); pause.disabled = m.status === 'ready'; }
     const status = document.querySelector('#game-status');
-    if (status) setText('#game-status', state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `五關完成 · ${m.score} 分` : state === 'lost' ? `敗陣 · 續關剩 ${m.continues} 次` : state === 'stage-clear' ? `第 ${m.stage+1} 關完成` : `第 ${m.stage + 1} 關 · ${m.remainingEnemies} 名敵人（含援軍）`);
+    if (status) setText('#game-status', state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `${m.levels.length}關完成 · ${m.score} 分` : state === 'lost' ? `敗陣 · 續關剩 ${m.continues} 次` : state === 'stage-clear' ? `第 ${m.stage+1} 關完成` : `第 ${m.stage + 1} 關 · ${m.remainingEnemies} 名敵人（含援軍）`);
     const action = document.querySelector<HTMLButtonElement>('#advance');
     if (action) {
       action.hidden = state === 'playing' || state === 'paused';
-      setText('#advance', state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? `前往${LEVELS[m.stage+1]?.title} ▶` : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻');
+      setText('#advance', state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? `前往${m.levels[m.stage+1]?.title} ▶` : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻');
     }
     setText('#credits',`續關 ${m.continues} / 2`);
-    const progressKey=`${m.stage}/${state}`;if(progressKey!==this.progressKey){this.progressKey=progressKey;
+    const progressKey=`${m.campaignLength}/${m.stage}/${state}`;if(progressKey!==this.progressKey){this.progressKey=progressKey;
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-stage]'))) {
       const index = Number(card.dataset.stage); card.dataset.state = index < m.stage || state === 'won' || (state === 'stage-clear' && index === m.stage) ? 'cleared' : index === m.stage ? 'current' : 'locked';
       card.querySelector('small')!.textContent = card.dataset.state === 'cleared' ? '已突破' : card.dataset.state === 'current' ? '目前關卡' : '突破前關後開放';
@@ -628,15 +651,16 @@ class Battle extends Phaser.Scene {
   }
   showOverlay(state: string) {
     const m = this.model;
-    const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? '凱 旋 而 歸' : '勝 敗 乃 常';
-    const sub = state === 'ready' ? '五關戰役 · 赤壁之戰三 v2.5.0' : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.level.story : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
-    const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${LEVELS[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
-    const hint = state === 'won' ? m.level.story : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
+    const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? m.ending.title : '勝 敗 乃 常';
+    const branch=state==='stage-clear'&&m.stage===7&&m.campaignLength==='full';
+    const sub = branch?'江岸航道已開放。選擇追擊敵帥，或護送百姓。':state === 'ready' ? `${m.levels.length}關戰役 · 赤壁之戰三 v2.7.0` : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.stageStory : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${m.levels[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
+    const hint = state === 'won' ? m.ending.text : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
     const text = (y: number, value: string, size: number, color: string) => this.add.text(480, y, value, { fontFamily: 'serif', fontSize: `${size}px`, color, wordWrap: { width: 830 }, align: 'center' }).setOrigin(.5);
     const result=m.stageResults.find(r=>r.stage===m.stage);
     const gradeLine=result&&(state==='stage-clear'||state==='won')?`${Math.round(result.seconds)}秒 · 受傷${result.damage} · ${result.bestHit} HIT · 續關${result.retries} · 機關${result.interactions}/2 · +${result.bonus}分`:'';
-    this.overlay = this.add.container(0, 0, [bg, text(result?183:207, title, result?52:62, '#e8c27e'),text(242,result&&(state==='stage-clear'||state==='won')?'本關評價 '+result.grade:'',30,'#e8c27e'), text(286, sub, 18, '#ddd2b6'), text(350, action, 18, '#e9bd64'), text(313,gradeLine,14,'#e8c27e'),text(399, hint, 14, '#9eaf9b'),text(443,state==='won'?m.stageResults.map(r=>`第${r.stage+1}關 ${r.grade}`).join('　'):'',14,'#ddd2b6')]).setScrollFactor(0).setDepth(10000);
+    this.overlay = this.add.container(0, 0, [bg, text(result?165:207, title, result?46:62, '#e8c27e'),text(220,result&&(state==='stage-clear'||state==='won')?'本關評價 '+result.grade:'',30,'#e8c27e'), text(branch?263:273, sub, 17, '#ddd2b6'), text(375, action, 16, '#e9bd64'), text(327,gradeLine,12,'#e8c27e'),text(422,branch?'':hint,14, '#9eaf9b'),text(465,state==='won'?m.stageResults.map(r=>`第${r.stage+1}關 ${r.grade}`).join('　'):'',14,'#ddd2b6')]).setScrollFactor(0).setDepth(10000);
   }
 }
 const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, pixelArt: true, roundPixels: true,
@@ -683,6 +707,12 @@ document.querySelectorAll<HTMLElement>('[data-hero]').forEach(card => card.addEv
   const id = card.dataset.hero as HeroId;
   if (current().model.selectHero(id)) selectedHero = id;
 }));
+document.querySelector<HTMLSelectElement>('#campaign-length')!.addEventListener('change',e=>{
+ if(current().model.status!=='ready')return;campaignLength=(e.target as HTMLSelectElement).value==='short'?'short':'full';
+ try{records=parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty,campaignLength))??'{}'));}catch{records={};}current().scene.restart({});
+});
+document.querySelectorAll<HTMLButtonElement>('[data-ending]').forEach(b=>b.addEventListener('click',()=>{current().model.chooseEnding(b.dataset.ending as 'pursuit'|'rescue');current().draw();}));
+document.querySelector('#ending-advance')!.addEventListener('click',()=>{current().activate();current().draw();});
 document.querySelector<HTMLSelectElement>('#play-mode')!.addEventListener('change',e=>{
  if(current().model.status!=='ready')return;
  coopMode=(e.target as HTMLSelectElement).value==='coop';
@@ -736,7 +766,7 @@ document.querySelector<HTMLSelectElement>('#difficulty')!.addEventListener('chan
   const value=(event.target as HTMLSelectElement).value;
   if(current().model.status!=='ready'||!(value in DIFFICULTIES))return;
   preferences.difficulty=value as typeof preferences.difficulty;current().model.difficulty=preferences.difficulty;
-  try{records=parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty))??'{}'));}catch{records={};}
+  try{records=parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty,campaignLength))??'{}'));}catch{records={};}
   current().best=readBest();current().selectionKey='';savePreferences();renderHistory();
 });
 function refreshVolumeLabels() {

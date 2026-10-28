@@ -3,9 +3,13 @@ const scores=[
  {bpm:144,roots:[40,43,45,40,48,43,45,47],motif:[76,0,79,83,81,79,76,74,76,79,83,86,83,81,79,76]},
  {bpm:120,roots:[38,38,41,43,46,41,43,45],motif:[62,69,0,74,72,69,65,62,65,69,74,77,76,74,69,65]},
  {bpm:156,roots:[36,39,44,43,36,44,39,43],motif:[72,75,79,0,82,79,75,72,79,82,84,87,84,82,79,75]},
+ {bpm:138,roots:[38,41,45,43,38,46,43,45],motif:[74,77,81,0,79,77,74,72,77,81,84,81,79,77,74,69]},
+ {bpm:148,roots:[35,38,42,40,35,43,40,42],motif:[71,0,78,81,78,76,74,71,78,81,83,86,83,81,78,74]},
+ {bpm:164,roots:[36,39,42,43,48,43,39,46],motif:[72,79,84,82,0,79,75,72,84,87,86,84,82,79,75,72]},
+ {bpm:152,roots:[40,43,47,45,48,47,43,40],motif:[76,83,86,88,86,83,79,0,81,84,88,91,88,86,83,76]},
 ];
 export function musicStep(stage:number,boss:boolean,step:number){
- const score=scores[Math.max(0,Math.min(2,stage-2))],interval=60/(score.bpm+(boss?16:0))/4;
+ const score=scores[Math.max(0,Math.min(6,stage-2))],interval=60/(score.bpm+(boss?16:0))/4;
  const bar=Math.floor(step/16)%16,beat=step%16,root=score.roots[bar%8],section=Math.floor(bar/4),notes:ScoreNote[]=[];
  const add=(midi:number,duration:number,gain:number,type:OscillatorType='triangle',end?:number)=>notes.push({midi,duration,gain,type,end});
  // Sixteen bars: establish pulse, build harmony, answer the melody, then a climactic return.

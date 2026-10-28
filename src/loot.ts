@@ -1,3 +1,4 @@
+import {levelAt} from './levels.ts';
 export type WeaponId='chain'|'crescent'|'knife'|'hammer'|'sword'|'axe';
 export type LootId='meat'|'bun'|'book'|'gong'|WeaponId;
 export const WEAPONS={
@@ -11,6 +12,7 @@ export const WEAPONS={
 export const isWeapon=(id:LootId):id is WeaponId=>id in WEAPONS;
 // A varied, reproducible six-arena supply route; one crate per arena.
 export function crateLoot(stage:number,wave:number):LootId{
+ if(stage>=5){if(wave===levelAt(stage).waves.length-1)return 'meat';if(wave===2)return 'bun';}
  if(wave===2)return 'bun';
  if(wave===5)return 'meat';
  const weapons:WeaponId[]=['knife','sword','hammer','axe'];

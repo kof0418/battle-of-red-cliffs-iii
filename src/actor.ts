@@ -1,3 +1,4 @@
+import {drawFinalBoss} from './final-boss-art';
 import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose} from './vanguard-art';
 import {rangedSpecialPose} from './ranged-art';
@@ -48,6 +49,7 @@ export class Actor {
     if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
     if (champion) { drawWarrior(g,f,frame,phase);
       return; }
+    if(drawFinalBoss(g,f,time))return;
     if(f.kind==='brute'||f.kind==='mauler'){drawHeavyInfantry(g,f,frame);return;}
     const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='thrower'?0x826747:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;

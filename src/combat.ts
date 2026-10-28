@@ -13,11 +13,13 @@ import {WEAPON_ROLES,enemyWeapon,weaponPickupReady,WEAPONS,crateLoot,barrelLoot,
 import {THROWS,throwWeight,groundThrowWeight,bossGrabWindow,sweptThrowContact,type Grapple} from './throws.ts';
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
-import { LEVELS, WORLD_WIDTH, ARENA_ENDS, arenaStart } from './levels.ts';
+import { LEVELS, WORLD_WIDTH, ARENA_ENDS, arenaStart,campaignLevels,endingStory,type CampaignLength } from './levels.ts';
 import { fieldEvent, fieldHits } from './battlefield.ts';
 /** Pure combat rules, in seconds and world pixels. */
-export type Kind = 'thrower' | 'brute' | 'mauler' | 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
+export type Kind = 'bridgeguard'|'bridgearcher'|'admiral'|'firelord'|'pursuer'|'warlord'|'thrower' | 'brute' | 'mauler' | 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
 export const stats = {
+  bridgeguard:{hp:420,speed:57,damage:16},bridgearcher:{hp:400,speed:74,damage:14},
+  admiral:{hp:760,speed:60,damage:18},firelord:{hp:800,speed:55,damage:18},pursuer:{hp:420,speed:92,damage:15},warlord:{hp:900,speed:72,damage:19},
   thrower:{hp:72,speed:59,damage:12},
   brute:{hp:160,speed:67,damage:14},
   mauler:{hp:240,speed:32,damage:19},
@@ -46,9 +48,9 @@ export function comboStep(previous: number, last: number, now: number) {
   return now - last < 650 ? previous % 3 + 1 : 1;
 }
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent';
-export type Move = 'lob'|'thrust'|'press'|'ride-charge'|'cavalry'|'kick'|'bow-strike'|'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
-export interface Supply {secret?:boolean; bonus?:boolean;opened?:boolean; id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
+export const isBoss = (kind: Kind) => kind === 'boss' || kind === 'marshal' || kind==='hunter'||kind==='frostlord'||kind==='regent'||['bridgeguard','bridgearcher','admiral','firelord','pursuer','warlord'].includes(kind);
+export type Move = 'lanes'|'fork'|'surge'|'lob'|'thrust'|'press'|'ride-charge'|'cavalry'|'kick'|'bow-strike'|'rescue'|'aerial'|'mounted'|'wave'|'fan'|'ring'|'cross'|'shot' | 'special' | 'slash' | 'slam' | 'charge' | 'sweep';
+export interface Supply {secret?:boolean; bonusTarget?:boolean;bonusX?:number;bonusY?:number;bonus?:boolean;opened?:boolean; id: number; x: number; y: number; hp: number; loot?:LootId; availableAt?:number; weaponHits?:number; }
 export function nearPickup(hero: {x: number; y: number; z: number}, item: {x: number; y: number}) {
   return hero.z <= 8 && Math.abs(item.x - hero.x) <= 32 && Math.abs(item.y - hero.y) <= 32;
 }
@@ -64,12 +66,15 @@ export interface Fighter {
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
 }
 export interface Input { partner?:Input; comboY?:number; x: number; y: number; dropWeapon?:boolean; horseSpecial?:boolean; throwX?:number; grappleAttack?: boolean; special?: boolean; attack?: boolean; jump?: boolean; dodge?: boolean; }
-export type Effect = { pulse?:number;step?:number; type: 'arcade-bonus'|'enemy-dismount'|'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
+export type Effect = { pulse?:number;step?:number; type: 'surge'|'stones'|'arcade-bonus'|'enemy-dismount'|'rescue'|'bonus'|'scene-action'|'reinforcement'|'block'|'guard-break'|'weapon-drop'|'gong'|'mount'|'blade-wave'|'book'|'equip' | 'grapple-hit' | 'grab-air' | 'grab' | 'throw' | 'escape' | 'special-start' | 'special' | 'hit' | 'swing' | 'jump' | 'dodge' | 'death' | 'wave' | 'end' | 'heal' | 'crate' | 'arrow' | 'volley' | 'fire'; x: number; y: number; value?: number; heavy?: boolean; heroId?: HeroId;dy?:number;weapon?:WeaponId };
 export function attackHits(a: Attack, target: Fighter, reach: number) {
   if (target.z > 38) return false;
   if(a.move==='fan'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<330&&[-.3,0,.3].some(slope=>Math.abs(target.y-a.y-dx*slope)<16);}
   if(a.move==='ring'){const r=Math.hypot(target.x-a.x,target.y-a.y);return r>48&&r<155;}
   if(a.move==='cross')return (Math.abs(target.x-a.x)<28&&Math.abs(target.y-a.y)<155)||(Math.abs(target.x-a.x)<180&&Math.abs(target.y-a.y)<24);
+  if(a.move==='lanes')return (target.x-a.x)*a.face>=-20&&(target.x-a.x)*a.face<=300&&[-60,0,60].some(d=>Math.abs(target.y-a.y-d)<=16);
+  if(a.move==='fork'){const dx=(target.x-a.x)*a.face;return dx>0&&dx<300&&Math.abs(Math.abs(target.y-a.y)-dx*.28)<17;}
+  if(a.move==='surge')return inRange(a.x,a.y,target.x,target.y,a.face,250)&&Math.abs(target.y-a.y)<=22;
   if(a.move==='lob')return false;
   if(a.move==='thrust')return target.z<=38&&Math.abs(target.y-a.y)<=17&&(target.x-a.x)*a.face>=0&&(target.x-a.x)*a.face<=170;
   if(a.move==='press')return target.z<=38&&Math.abs(target.y-a.y)<=37&&(target.x-a.x)*a.face>=-8&&(target.x-a.x)*a.face<=110;
@@ -140,12 +145,16 @@ export class Campaign {
   waveStarted = 0;
   waveDamage = 0;
   waveReward = -1;
-  bonusRound?:{until:number;broken:number;finished:boolean};
-  get bonusHint(){const b=this.bonusRound;return !b?'':b.finished?'破桶全破！額外 +1000 · 向右前進 →':`${BONUS_NAMES[this.stage]} ${b.broken}/3 · ${Math.max(0,b.until-this.time).toFixed(1)}秒 · 金箍桶每個 +300，可直接前進 →`;}
+  bonusRound?:{kind?:'salvage';started?:number;until:number;broken:number;finished:boolean};
+  get bonusHint(){const b=this.bonusRound;return !b?'':b.finished?(b.kind==='salvage'?'物資全收！':'破桶全破！')+'額外 +1000 · 向右前進 →':`${BONUS_NAMES[this.stage]} ${b.broken}/3 · ${Math.max(0,b.until-this.time).toFixed(1)}秒 · ${b.kind==='salvage'?'移動物資':'金箍桶'}每個 +300，可直接前進 →`;}
 
-  get arenaEnd(){return ARENA_ENDS[this.wave-1]??ARENA_ENDS[0];}
-  get level() { return LEVELS[this.stage]; }
-  get field() { const f=this.status==='playing'&&this.encounterActive&&!this.fieldSuppressed?fieldEvent(this.stage,this.wave,this.time,this.waveStarted):null;if(f)f.x+=this.cameraLeft-arenaStart(this.wave);return f; }
+  get arenaEnd(){return (this.level.ends??ARENA_ENDS)[this.wave-1]??ARENA_ENDS[0];}
+  get levels(){return campaignLevels(this.campaignLength);}
+  get level() { return this.levels[this.stage]; }
+  get stageStory(){return this.campaignLength==='full'&&this.stage===4?'宮城守軍雖已潰退，江上長橋仍有殘軍封鎖。眾將沿江出發，直取風雷長橋。':this.level.story;}
+  get ending(){return this.campaignLength==='full'?endingStory(this.endingRoute??'pursuit',this.stageInteractions.size):{title:'五路告捷',text:this.level.story};}
+  chooseEnding(route:'pursuit'|'rescue'){if(this.campaignLength!=='full'||this.stage!==7||this.status!=='stage-clear')return false;this.endingRoute=route;return true;}
+  get field() { const f=this.status==='playing'&&this.encounterActive&&!this.fieldSuppressed?fieldEvent(this.stage,this.wave,this.time,this.waveStarted):null;if(f)f.x+=this.cameraLeft-arenaStart(this.wave,this.level);return f; }
   get rank() { return this.continuesUsed === 0 && this.players.reduce((sum,p)=>sum+p.hp,0)/this.players.length >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
   time = 0;
   wave = 0;
@@ -167,8 +176,8 @@ export class Campaign {
   freeze = 0;
   clearedAt = -1;
   private serial = 0;
-  difficulty:Difficulty;
-  constructor(heroId: HeroId = 'guanyu',difficulty:Difficulty='normal',encounterSeed=0) { this.encounterSeed=encounterSeed;this.difficulty=difficulty;this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
+  difficulty:Difficulty;campaignLength:CampaignLength;endingRoute:'pursuit'|'rescue'|null=null;
+  constructor(heroId: HeroId = 'guanyu',difficulty:Difficulty='normal',encounterSeed=0,campaignLength:CampaignLength='short') {this.campaignLength=campaignLength; this.encounterSeed=encounterSeed;this.difficulty=difficulty;this.hero = this.fighter('hero', 180, 412); this.hero.heroId = heroId; }
   get attackLimit(){return DIFFICULTIES[this.difficulty].attackers;}
   get style(){return HERO_STYLES[this.hero.heroId??'guanyu'];}
   get champion() { return HEROES[this.hero.heroId??'guanyu']; }
@@ -193,7 +202,8 @@ export class Campaign {
   clearPendingInputs(){for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
-    if (this.status !== 'stage-clear' || this.stage >= LEVELS.length - 1) return false;
+    if (this.status !== 'stage-clear' || this.stage >= this.levels.length - 1) return false;
+    if(this.campaignLength==='full'&&this.stage===7)this.endingRoute??='pursuit';
     const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++;this.routeAdvantage=false; this.wave = 0;this.stageStarted=this.time;this.stageDamage=0;this.stageRetries=0;this.stageBestHit=0;this.stageInteractions.clear(); this.hero = this.fighter('hero', 180, 412);
     this.hero.hp=hp;this.hero.equipped=equipped;
@@ -206,7 +216,7 @@ export class Campaign {
     if (this.status !== 'lost' || this.continues <= 0) return false;
     this.continues--; this.continuesUsed++;this.stageRetries++;
     this.escapes=this.checkpointEscapes;this.score = this.checkpointScore; this.kills = this.checkpointKills;
-    const x = arenaStart(this.wave)+180;
+    const x = arenaStart(this.wave,this.level)+180;
     this.hero = this.fighter('hero', x, 412); this.hero.inv = 1.5;
     if(this.partner){const id=this.partner.heroId;this.partner=this.fighter('hero',x+80,455);this.partner.heroId=id;this.partner.inv=1.5;}
     this.cameraLeft=clamp(x-340,0,WORLD_WIDTH-960);
@@ -228,7 +238,7 @@ export class Campaign {
     this.waveStarted = this.time; this.waveDamage = 0; this.waveReward = -1;
     this.checkpointEscapes=this.escapes;this.checkpointRoute=this.routeAdvantage;this.checkpointScore = this.score; this.checkpointKills = this.kills;
     const base = this.cameraLeft+500;
-    const plan=encounterPlan(this.stage,this.wave,this.encounterSeed),kinds=plan.initial;this.pending=plan.groups;if(this.routeAdvantage){this.pending=this.pending.map(g=>({...g,side:'front' as const,due:g.due+2}));this.routeAdvantage=false;}this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
+    const plan=encounterPlan(this.stage,this.wave,this.encounterSeed),kinds=plan.initial.map(k=>this.stage===8&&this.endingRoute==='rescue'?(k==='thrower'?'soldier':k==='archer'?'raider':k):k);this.pending=plan.groups.map(g=>this.stage===8&&this.endingRoute==='rescue'?{...g,side:'front' as const,kinds:g.kinds.map(k=>k==='thrower'?'soldier' as const:k)}:g);if(this.routeAdvantage){this.pending=this.pending.map(g=>({...g,side:'front' as const,due:g.due+2}));this.routeAdvantage=false;}this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
     this.props=(this.wave===2||this.wave===4)?[{id:++this.serial,x:this.cameraLeft+630,y:this.wave===2?354:499,hp:32,stageKind:PROPS[this.stage].stageKind}]:[];
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 58, 370 + i % 3 * 49));
     if(this.stage===1&&this.wave===6){const rider=this.enemies.find(e=>e.kind==='marshal');if(rider)rider.mounted=true;}
@@ -252,6 +262,7 @@ export class Campaign {
     this.time += dt;
     if(this.bonusRound&&this.time>=this.bonusRound.until){this.barrels=this.barrels.filter(b=>!b.bonus);this.bonusRound=undefined;}
 
+    if(this.bonusRound?.kind==='salvage'&&!this.bonusRound.finished)for(const b of this.barrels)if(b.bonusTarget){b.x=b.bonusX!+Math.sin((this.time-this.bonusRound.started!)*1.7+b.id)*55;b.y=clamp(b.bonusY!+Math.sin((this.time-this.bonusRound.started!)*1.3+b.id)*20,350,503);}
     if (this.time > this.hitDeadline) this.hits = 0;
     const h = this.hero;
     for(const p of this.players)this.withPlayer(p,()=>this.tickFighter(p,dt));
@@ -295,9 +306,9 @@ export class Campaign {
         const speed = Math.max(0, 1200 - Math.floor(this.time - this.waveStarted) * 10);
         this.waveReward = speed + (this.waveDamage === 0 ? 800 : 0);
         this.score += this.waveReward;
-        if(this.wave===3)this.startBonusRound();
+        if(this.stage<5?this.wave===3:this.wave===this.level.bonusWave)this.startBonusRound();
       }
-      if (this.wave === this.level.waves.length) { this.finishStage();this.status = this.stage === LEVELS.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
+      if (this.wave === this.level.waves.length) { this.finishStage();this.status = this.stage === this.levels.length - 1 ? 'won' : 'stage-clear'; this.events.push({ type: 'end', x: h.x, y: h.y }); }
       else if (this.clearedAt < 0) {
         this.clearedAt = this.time;
         this.message = `破陣！獎勵 +${this.waveReward}　向右前進 →`; this.messageUntil = Infinity;
@@ -463,10 +474,10 @@ export class Campaign {
   }
   startBonusRound(){
     if(this.bonusRound||this.encounterActive)return;
-    this.bonusRound={until:this.time+12,broken:0,finished:false};
+    this.bonusRound={...(this.level.bonusKind?{kind:this.level.bonusKind,started:this.time}:{}),until:this.time+(this.level.bonusKind?15:12),broken:0,finished:false};
     const player=this.livingPlayers[0]??this.hero;
     const start=clamp(player.x+65,this.cameraLeft+90,this.cameraLeft+580);
-    for(let i=0;i<3;i++)this.barrels.push({id:++this.serial,x:start+i*130,y:player.y<427?354:499,hp:24,bonus:true});
+    for(let i=0;i<3;i++)this.barrels.push({id:++this.serial,x:start+i*130,y:player.y<427?354:499,hp:24,bonus:true,...(this.level.bonusKind?{bonusTarget:true,bonusX:start+i*130,bonusY:player.y<427?370:475}:{} )});
     this.events.push({type:'arcade-bonus',x:this.hero.x,y:this.hero.y,value:0});
   }
   breakSupply(box:Supply){
@@ -483,6 +494,7 @@ export class Campaign {
   updateReinforcements(){
     const group=this.pending[0];if(!group)return;
     const elapsed=this.time-this.waveStarted;
+    if(group.clearFirst){if(this.enemies.length)return;group.readyAt??=elapsed+.9;if(elapsed<group.readyAt)return;}
     if(!this.enemies.length)group.due=Math.min(group.due,elapsed+.9);
     if(elapsed<group.due)return;
     if(this.enemies.length>REINFORCEMENT_CAP[this.stage]&&elapsed<group.due+6){group.held=true;return;}
@@ -499,15 +511,15 @@ export class Campaign {
     if(this.wave===2||this.wave===4)this.routeAdvantage=true;
     this.stageInteractions.add(this.wave);this.score+=100;this.message=PROPS[this.stage].hint.replace('擊破','已啟動').replace('擊斷','已斬斷').replace('擊碎','已擊碎').replace('擊倒','已擊倒');this.message+=' · 下一陣援軍正面延後抵達';this.messageUntil=this.time+2.8;
     this.events.push({type:'scene-action',x:p.x,y:p.y,value:this.stage});
-    if(p.stageKind==='sluice'){this.fieldSuppressed=true;return;}
+    if(['sluice','winch','pump'].includes(p.stageKind)){this.fieldSuppressed=true;return;}
     if(p.stageKind==='ballista'){this.propShots.push({id:++this.serial,x:p.x,y:this.hero.y,face:this.hero.face,remaining:900,damage:40,arrow:true,piercing:true,push:22,hits:[]});return;}
-    if(p.stageKind==='banner')this.rallyUntil=this.time+5;
+    if(['banner','beacon','capstan'].includes(p.stageKind))this.rallyUntil=this.time+5;
     for(const e of this.enemies){
       if(this.grappleOwner(e.id)||e.hp<=0||e.inv>0)continue;
       if(p.stageKind==='bamboo'&&Math.abs(e.x-p.x)>80)continue;
       if(p.stageKind==='ice'&&Math.hypot((e.x-p.x)/1.3,e.y-p.y)>150)continue;
       this.breakGuard(e);e.attack=null;e.stun=Math.max(e.stun,p.stageKind==='banner'?1.25:.9);e.guardCooldown=3;
-      if(p.stageKind==='banner')continue;
+      if(['banner','beacon','capstan'].includes(p.stageKind))continue;
       e.knockdown=.8;e.inv=.35;this.grappleDamage(e,p.stageKind==='bamboo'?42:35);
     }
   }
@@ -816,6 +828,7 @@ export class Campaign {
     const slots=this.attackLimit-(bossReady?1:0);
     if(!retreat&&!flanking&&e.cooldown<=0&&activeAttackers<slots&&Math.abs(dy)<(boss?BOSS_STYLE[e.kind].lane:27)&&Math.abs(dx)<reach){
       let move:Move=e.kind==='thrower'?'lob':spear?'thrust':e.kind==='brute'&&e.attacks%3===2?'press':ranged?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';
+      if(['bridgeguard','bridgearcher'].includes(e.kind)&&this.enemies.some(other=>other!==e&&['bridgeguard','bridgearcher'].includes(other.kind)&&other.attack&&!other.attack.hit)){e.cooldown=.3;return;}
       let plan=boss?bossPlan(e.kind,e.hp,e.max,e.attacks,{dx,dy}):null;
       const read=this.reads.get(e.id);const adaptive=!!(boss&&read&&read.owner===h.id&&read.count>=3&&this.time-read.at<=6&&this.time>=read.ready);
       if(adaptive){plan={...plan!,move:adaptiveMove(e.kind),windup:1.05,recovery:1.10,gap:.45};read!.count=0;read!.ready=this.time+6;}
@@ -827,7 +840,7 @@ export class Campaign {
       const recovery=plan?.recovery??(move==='press'?.9:tempo.recovery);
       e.attack={...(adaptive?{adaptive:true}:{}),move,elapsed:0,duration:windup+recovery,impact:windup,hit:false,face:e.face,x:e.x,y:e.y};
       if(move==='cross'||move==='lob'){e.attack.x=h.x;e.attack.y=h.y;}
-      if(boss){this.message=(adaptive?'識破重複招式 · ':'')+(move==='fan'?'三路箭陣 · 換線或跳躍':move==='ring'?'震地環 · 內圈安全或跳躍':move==='cross'?'十字斬 · 離開交叉線':move==='charge'?'突進 · 移出前方警戒線':move==='sweep'?'橫掃 · 拉開距離或跳躍':'重砸 · 離開地面警戒圈');this.messageUntil=this.time+windup;}
+      if(boss){this.message=(adaptive?'識破重複招式 · ':'')+(move==='lanes'?'焰舵三線 · 移到火線間隙或跳躍':move==='fork'?'雙叉追斬 · 保持中線或跳躍':move==='surge'?'錨潮直衝 · 換線或跳躍':move==='fan'?'三路箭陣 · 換線或跳躍':move==='ring'?'震地環 · 內圈安全或跳躍':move==='cross'?'十字斬 · 離開交叉線':move==='charge'?'突進 · 移出前方警戒線':move==='sweep'?'橫掃 · 拉開距離或跳躍':'重砸 · 離開地面警戒圈');this.messageUntil=this.time+windup;}
       else if(move==='lob'){this.message='投壺落點已鎖定 · 換位或跳躍躲避';this.messageUntil=this.time+windup+LOB.flight;}
       e.cooldown=windup+recovery+(plan?.gap??tempo.gap)+(!boss?index%3*.05:0);e.attacks++;return;
     }
