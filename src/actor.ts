@@ -22,6 +22,7 @@ export class Actor {
     this.ink = scene.add.graphics(); this.body = scene.add.container(0, 0, [this.ink]);
     this.shadow = scene.add.ellipse(0, 0, 43, 12, 0x101c1a, .4);
   }
+  setVisible(visible:boolean){this.body.setVisible(visible);this.shadow.setVisible(visible);}
   draw(f: Fighter, time: number) {
     const champion = f.kind === 'hero' ? HEROES[f.heroId ?? 'guanyu'] : undefined;
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;

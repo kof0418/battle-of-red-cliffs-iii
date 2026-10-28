@@ -1,11 +1,12 @@
 /// <reference types="vite/client" />
+import {inView} from './scenery-plan';
 import {FINAL_BOSS_NAMES} from './final-boss-art';
 import {drawSecret} from './secret-art';
 import {LOB} from './counterplay';
 import {duelForm,isDuelHero} from './duel-forms';
 import {TECHNIQUES} from './techniques';
 import {coopKey,CoopPads} from './coop-controls';
-import {cacheScenery} from './scenery-cache';
+import {cacheScenery,cullScenery} from './scenery-cache';
 import {PerformanceQA} from './performance-qa';
 import {drawStageProp} from './stage-props';
 import {PROPS,RHYTHMS} from './encounters';
@@ -30,7 +31,7 @@ try { bindings = parseBindings(JSON.parse(profileStorage.getItem(CONTROL_KEY) ??
 const keyboardHeld = new Set<string>();
 import { Soundtrack } from './audio';
 import { readPreferences, PREFERENCES_KEY } from './preferences';
-import { parseRecords, recordVictory, recordsKey, bestKey, type Records } from './records';
+import { parseRecords, settleRun, recordsKey, bestKey, type Records } from './records';
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let campaignLength:CampaignLength='full';
@@ -53,7 +54,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.7.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v2.9.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -266,7 +267,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v2.7.0 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v2.9.0 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -323,8 +324,9 @@ class Battle extends Phaser.Scene {
         };this.events.once('shutdown',()=>{clearInterval(timer);button.remove();report.remove();soundtrack.configure(preferences);});
       }
       if(preview==='performance'){
-        const configure=(stage:number)=>{this.model=new Campaign('guanyu','hard',1);this.model.stage=stage;this.model.start();this.model.wave=5;this.model.spawn();this.model.pending=[];this.model.hero.x=500;this.model.hero.hp=this.model.hero.max=999999;this.model.enemies.forEach((e,i)=>{e.x=340+(i%4)*75;e.y=375+i%3*35;e.hp=e.max=999999;});this.model.supplies=[];this.model.barrels=[];this.model.paused=false;};
-        this.performanceQA=new PerformanceQA(configure,()=>({children:this.children.length,textures:this.textures.getTextureKeys().length,actors:this.actors.size,audio:soundtrack.diagnostics(),heapBytes:(performance as Performance&{memory?:{usedJSHeapSize:number}}).memory?.usedJSHeapSize??null}),Number(new URLSearchParams(location.search).get('cycles'))||2);
+        const params=new URLSearchParams(location.search),length=params.get('campaign')==='short'?'short':'full',players=params.get('players')==='2'?2:1;
+        const configure=(stage:number)=>{this.model=new Campaign('guanyu','hard',1,length);if(players===2)this.model.enableCoop('lubu');this.model.stage=stage;this.model.start();this.model.wave=this.model.level.waves.length-1;this.model.spawn();this.model.pending=[];this.model.cameraLeft=0;this.model.enemies=this.model.level.waves.at(-1)!.map((kind,i)=>this.model.fighter(kind,340+i*60,412));this.model.hero.x=500;this.model.hero.hp=this.model.hero.max=999999;if(this.model.partner){this.model.partner.x=620;this.model.partner.hp=this.model.partner.max=999999;}this.model.enemies.forEach((e,i)=>{e.x=340+(i%4)*75;e.y=375+i%3*35;e.hp=e.max=999999;});this.model.supplies=[];this.model.barrels=[];this.model.paused=false;};
+        this.performanceQA=new PerformanceQA(configure,()=>({children:this.children.length,textures:this.textures.getTextureKeys().length,actors:this.actors.size,audio:soundtrack.diagnostics(),heapBytes:(performance as Performance&{memory?:{usedJSHeapSize:number}}).memory?.usedJSHeapSize??null}),Number(params.get('cycles'))||2,length==='full'?9:5,players);
         const pre=()=>this.performanceQA?.preRender(),post=()=>this.performanceQA?.postRender();this.game.events.on('prerender',pre);this.game.events.on('postrender',post);this.events.once('shutdown',()=>{this.game.events.off('prerender',pre);this.game.events.off('postrender',post);this.performanceQA?.destroy();this.performanceQA=undefined;});
       }
       if(preview==='mobile'){document.body.classList.add('touch-controls');this.posePreview=true;this.model.start();this.model.paused=true;syncViewport();}
@@ -406,7 +408,7 @@ class Battle extends Phaser.Scene {
       const auto=preferences.autoAttack&&m.partner.hp>0&&down('attack')&&!settingsOpen&&m.time>=this.autoAttack2At;if(auto)this.autoAttack2At=m.time+.2;
       input.partner={comboY:takeComboDirection(partnerPressed),x,y:Number(down('down'))-Number(down('up')),attack:fresh||auto,grappleAttack:fresh,throwX:fresh&&x?x:undefined,jump,dodge:partnerPressed.has('dodge'),special:partnerPressed.has('command-special'),horseSpecial:partnerPressed.has('horse-special'),dropWeapon:(fresh||jump)&&down('attack')&&down('jump')};partnerPressed.clear();
     }
-    if(this.performanceQA&&!this.performanceQA.done){input.attack=Math.floor(m.time*5)%2===0;input.special=(m.hero.specialCooldown??0)<=0;input.jump=Math.floor(m.time*2)%2===0;}
+    if(this.performanceQA&&!this.performanceQA.done){input.attack=Math.floor(m.time*5)%2===0;input.special=(m.hero.specialCooldown??0)<=0;input.jump=Math.floor(m.time*2)%2===0;if(m.partner){m.partner.inv=1;input.partner={x:0,y:0,attack:input.attack,special:input.special,jump:input.jump};}}
     const partnerMounted=m.partner?.mounted;
     const mountedBefore=m.hero.mounted;
     this.clock.advance(delta / 1000, input, m.status === 'playing' && !m.paused, (dt, stepInput) => {
@@ -417,13 +419,9 @@ class Battle extends Phaser.Scene {
     if(mountedBefore!==m.hero.mounted){commands.reset();pressed.delete('horse-special');pressed.delete('command-special');}
     if(!(import.meta.env.DEV&&new URLSearchParams(location.search).get('preview')==='audio'))soundtrack.update(m.stage, m.enemies.some(e => isBoss(e.kind)), m.status === 'playing' && !m.paused && !settingsOpen && !document.hidden);
     if ((m.status === 'won' || m.status === 'lost') && !this.recorded) {
-      if(m.status === 'won' && m.ranked) {
-        records = recordVictory(records, m.hero.heroId ?? 'guanyu', m.score, m.rank);
-        try { profileStorage.setItem(recordsKey(m.difficulty), JSON.stringify(records)); } catch { /* session record still available */ }
-        tone(740, .35);
-      }
-      this.recorded = true; if(m.ranked) this.best = Math.max(this.best, m.score);
-      try { profileStorage.setItem(bestKey(m.difficulty), String(this.best)); } catch { /* Storage is optional. */ }
+      const result=settleRun(profileStorage,{difficulty:m.difficulty,length:m.campaignLength,ranked:m.ranked,won:m.status==='won',hero:m.hero.heroId??'guanyu',score:m.score,rank:m.rank},records,this.best);
+      records=result.records;this.best=result.best;this.recorded=true;
+      if(m.status==='won'&&m.ranked)tone(740,.35);
     }
     this.tweens.timeScale = m.paused ? 0 : 1;
     this.cameras.main.scrollX = m.cameraLeft;
@@ -541,10 +539,11 @@ class Battle extends Phaser.Scene {
     for (const f of [...m.players, ...m.enemies]) {
       live.add(f.id);
       let actor = this.actors.get(f.id); if (!actor) { actor = new Actor(this, f.id); this.actors.set(f.id, actor); }
-      actor.draw(f, m.time);
+      const visible=inView(f.x,0,m.cameraLeft,960,320);actor.setVisible(visible);if(visible)actor.draw(f,m.time);
     }
-    for (const [id, actor] of this.actors) if (!live.has(id)) { actor.fall(this); this.actors.delete(id); }
+    for (const [id, actor] of this.actors) if (!live.has(id)) { if(actor.body.visible)actor.fall(this);else actor.destroy(); this.actors.delete(id); }
     this.playerTags.forEach((tag,i)=>{const p=m.players[i];tag.setVisible(!!m.partner&&!!p);if(p)tag.setPosition(p.x,p.y-p.z-(p.mounted?42:0)-128).setText(`${i+1}P${p.hp<=0?' 倒下':''}`);});
+    cullScenery(this.backdrop,m.cameraLeft);
     const d = this.danger; d.clear();
     const field=m.field;
     if(field) {
@@ -589,7 +588,7 @@ class Battle extends Phaser.Scene {
     g.fillStyle(0x806940).fillRect(350, 62, 250, 3); g.fillStyle(0xe5c681).fillRect(350, 62, 250 * (m.partner?m.cameraLeft+340:m.hero.x) / WORLD_WIDTH, 3);
     this.label.setText(`${m.partner?'1P · ':''}${m.champion.name} / ${m.champion.title}`);
     this.healthLabel.setText(m.partner&&m.hero.hp<=0?(m.continues?'倒下 · 按 J／攻擊續關':'倒下 · 等待隊友完成戰役'):`氣血 ${Math.ceil(m.hero.hp)} / ${m.hero.max}   ${m.hero.mounted?(m.hero.heroId==='huangzhong'?'騎射 · 第二段連珠三箭':'騎乘 · 第二段連打／第三段上下＋攻擊挑摔'):m.hero.equipped?WEAPONS[m.hero.equipped.id].name+' · '+WEAPON_ROLES[m.hero.equipped.id]+(m.hero.equipped.id==='knife'?' · 單次投擲':' · 耐擊 '+(2-(m.hero.equipped.hits??0))):m.hero.attack?.move==='bow-strike'?bowStrike(m.hero.step).name:(m.hero.attack?.move==='slash'||m.hero.attack?.move==='kick')&&isDuelHero(m.hero.heroId)?duelForm(m.hero.heroId!,m.hero.step)!.name:'衝撞 '+bindings.dodge.slice(3)}`);
-    this.stageLabel.setText(`赤壁之戰三 · v2.7.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${m.levels.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`赤壁之戰三 · v2.9.0 · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${m.levels.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,69,80,4);g.fillStyle(0x8acfe5).fillRect(695,69,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,51,235,10);g.fillStyle(0x8acfe5).fillRect(697,53,231*p.hp/p.max,6);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?70:18).setFontSize(m.partner?11:14);
@@ -625,7 +624,7 @@ class Battle extends Phaser.Scene {
     for(const card of Array.from(document.querySelectorAll<HTMLElement>('[data-hero]'))){const c=HEROES[card.dataset.hero as HeroId];card.querySelector('span')!.textContent=c.weapon;card.querySelector('small')!.textContent='0'+(HERO_IDS.indexOf(card.dataset.hero as HeroId)+1)+' / '+c.title;card.setAttribute('aria-label',c.name+'，'+c.weapon);}
     document.querySelector('#hero-detail')!.textContent = `${m.champion.name} · ${TECHNIQUES[m.hero.heroId!]} 兵器：${m.champion.weapon}。 必殺：${SPECIALS[m.hero.heroId!].name}。摔技：${THROWS[m.hero.heroId!].name}。`;
     const personal = records[m.hero.heroId ?? 'guanyu'];
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.7.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成本戰役留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v2.9.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成本戰役留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
@@ -653,7 +652,7 @@ class Battle extends Phaser.Scene {
     const m = this.model;
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? m.ending.title : '勝 敗 乃 常';
     const branch=state==='stage-clear'&&m.stage===7&&m.campaignLength==='full';
-    const sub = branch?'江岸航道已開放。選擇追擊敵帥，或護送百姓。':state === 'ready' ? `${m.levels.length}關戰役 · 赤壁之戰三 v2.7.0` : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.stageStory : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = branch?'江岸航道已開放。選擇追擊敵帥，或護送百姓。':state === 'ready' ? `${m.levels.length}關戰役 · 赤壁之戰三 v2.9.0` : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? m.stageStory : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${m.levels[m.stage+1]?.title} · 氣血與武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.ending.text : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);

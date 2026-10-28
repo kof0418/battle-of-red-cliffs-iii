@@ -18,9 +18,9 @@ test('scenery tiles cover all five stage widths without gaps or oversized textur
  assert.equal(tiles.reduce((sum,t)=>sum+t.width*540*4,0),12096000);
  tiles.forEach((t,i)=>{assert(t.width>0&&t.width<=SCENERY_TILE);if(i)assert.equal(t.x,tiles[i-1].x+tiles[i-1].width);});
 });
-test('dense sound bursts cap effects while preserving a separate music budget',()=>audioProbe((a,ctx,nodes)=>{
- for(let i=0;i<250;i++){ctx.currentTime=i*.04;a.update(4,true,true);a.specialImpact('lubu',true);a.specialStrike('lubu',i%3===0);a.weapon('lubu',true,true);a.hitImpact(true);const d=a.diagnostics();assert(d.active<=AUDIO_LIMITS.total);assert(d.music<=AUDIO_LIMITS.music);assert(d.effects<=AUDIO_LIMITS.effects);}
- const d=a.diagnostics();assert(d.rejected>0);assert(d.music>0);assert.equal(d.active,nodes.length);assert(d.peak<=64);
+test('all nine stage scores cap dense effects while preserving a separate music budget',()=>audioProbe((a,ctx,nodes)=>{
+ for(let i=0;i<250;i++){ctx.currentTime=i*.04;a.update(Math.floor(i/28),true,true);a.specialImpact('lubu',true);a.specialStrike('lubu',i%3===0);a.weapon('lubu',true,true);a.hitImpact(true);const d=a.diagnostics();assert(d.active<=AUDIO_LIMITS.total);assert(d.music<=AUDIO_LIMITS.music);assert(d.effects<=AUDIO_LIMITS.effects);}
+ const d=a.diagnostics();assert(d.rejected>0);assert(d.music>0);assert.equal(d.active,nodes.filter(n=>!n.disconnected).length);assert(d.peak<=64);
  a.pause();assert.equal(a.diagnostics().active,0);assert(nodes.every(n=>n.stopped&&n.disconnected&&n.onended===null));
 }));
 test('finished voices disconnect immediately and repeated pause does not retain them',()=>audioProbe((a,ctx,nodes)=>{

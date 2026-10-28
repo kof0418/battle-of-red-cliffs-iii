@@ -525,7 +525,7 @@ export class Campaign {
   }
   finishStage(){
     if(this.stageResults.some(r=>r.stage===this.stage))return;
-    const result=gradeStage({stage:this.stage,seconds:Math.max(0,this.time-this.stageStarted),damage:this.stageDamage,retries:this.stageRetries,bestHit:this.stageBestHit,interactions:this.stageInteractions.size});
+    const result=gradeStage({stage:this.stage,seconds:Math.max(0,this.time-this.stageStarted),damage:this.stageDamage,retries:this.stageRetries,bestHit:this.stageBestHit,interactions:this.stageInteractions.size},this.partner?2:1);
     this.stageResults.push(result);this.score+=result.bonus;
   }
   unseatEnemy(e:Fighter){

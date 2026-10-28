@@ -1,0 +1,214 @@
+{
+  "done": true,
+  "stages": 9,
+  "players": 2,
+  "samples": [
+    {
+      "cycle": 1,
+      "stage": 1,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.32,
+      "resources": {
+        "children": 33,
+        "textures": 37,
+        "actors": 8,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 46163719
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 2,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.7,
+      "over33ms": 0,
+      "renderCPUms": 0.295,
+      "resources": {
+        "children": 32,
+        "textures": 36,
+        "actors": 8,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 52852049
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 3,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.329,
+      "resources": {
+        "children": 32,
+        "textures": 36,
+        "actors": 8,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 38722335
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 4,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.309,
+      "resources": {
+        "children": 34,
+        "textures": 36,
+        "actors": 8,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 33536952
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 5,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.292,
+      "resources": {
+        "children": 34,
+        "textures": 36,
+        "actors": 8,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 42683948
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 6,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.368,
+      "resources": {
+        "children": 29,
+        "textures": 37,
+        "actors": 6,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 36086825
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 7,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.305,
+      "resources": {
+        "children": 28,
+        "textures": 36,
+        "actors": 6,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 34193975
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 8,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.34,
+      "resources": {
+        "children": 45,
+        "textures": 38,
+        "actors": 6,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 31488197
+      }
+    },
+    {
+      "cycle": 1,
+      "stage": 9,
+      "frames": 196,
+      "fps": 60,
+      "p95ms": 17.6,
+      "over33ms": 0,
+      "renderCPUms": 0.295,
+      "resources": {
+        "children": 28,
+        "textures": 36,
+        "actors": 6,
+        "audio": {
+          "active": 0,
+          "music": 0,
+          "effects": 0,
+          "peak": 0,
+          "rejected": 0,
+          "created": 0
+        },
+        "heapBytes": 43014877
+      }
+    }
+  ]
+}

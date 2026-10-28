@@ -1,0 +1,299 @@
+{
+  "note": "Fixed-rule simulation, not human playtime or a guarantee of difficulty. Production HP, pickups and two team continues; no invulnerability.",
+  "samples": [
+    {
+      "difficulty": "easy",
+      "length": "short",
+      "players": 1,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 470,
+      "continues": 0,
+      "hp": [
+        160
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "easy",
+      "length": "short",
+      "players": 2,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 503,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "easy",
+      "length": "full",
+      "players": 1,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 712,
+      "continues": 0,
+      "hp": [
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "A",
+        "A",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "easy",
+      "length": "full",
+      "players": 2,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 761,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "normal",
+      "length": "short",
+      "players": 1,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 465,
+      "continues": 0,
+      "hp": [
+        140
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "S",
+        "S",
+        "A",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "normal",
+      "length": "short",
+      "players": 2,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 493,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "normal",
+      "length": "full",
+      "players": 1,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 712,
+      "continues": 0,
+      "hp": [
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "S",
+        "S",
+        "A",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "normal",
+      "length": "full",
+      "players": 2,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 759,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "hard",
+      "length": "short",
+      "players": 1,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 476,
+      "continues": 0,
+      "hp": [
+        160
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "A",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "hard",
+      "length": "short",
+      "players": 2,
+      "status": "won",
+      "stage": 5,
+      "wave": 6,
+      "seconds": 500,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 185,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "hard",
+      "length": "full",
+      "players": 1,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 717,
+      "continues": 0,
+      "hp": [
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "A",
+        "A",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    },
+    {
+      "difficulty": "hard",
+      "length": "full",
+      "players": 2,
+      "status": "won",
+      "stage": 9,
+      "wave": 5,
+      "seconds": 759,
+      "continues": 0,
+      "hp": [
+        160,
+        160
+      ],
+      "kills": 264,
+      "escapes": 0,
+      "grades": [
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S",
+        "S"
+      ]
+    }
+  ]
+}

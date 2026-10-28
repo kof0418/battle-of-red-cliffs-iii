@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 /** Small textures stay below mobile GPU limits; only the current stage is retained. */
-import {sceneryTiles} from './scenery-plan';
+import {sceneryTiles,inView} from './scenery-plan';
 export function cacheScenery(scene:Phaser.Scene,source:Phaser.GameObjects.Container,width:number){
  const result=scene.add.container(0,0).setDepth(-100);
  try{
@@ -10,4 +10,8 @@ export function cacheScenery(scene:Phaser.Scene,source:Phaser.GameObjects.Contai
   }
   source.destroy(true);return result;
  }catch{/* Keep vector scenery if the renderer cannot allocate a cache. */result.destroy(true);return source;}
+}
+
+export function cullScenery(backdrop:Phaser.GameObjects.Container|undefined,left:number){
+ for(const child of backdrop?.list??[])if(child instanceof Phaser.GameObjects.RenderTexture)child.setVisible(inView(child.x,child.width,left));
 }

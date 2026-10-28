@@ -21,3 +21,14 @@ export function recordVictory(records: Records, id: HeroId, score: number, rank:
 
 export function recordsKey(difficulty:Difficulty,length:CampaignLength='short'){if(length==='full')return `red-banner-records-v270-full-${difficulty}`;return difficulty==='normal'?RECORDS_KEY:`red-banner-records-v150-${difficulty}`;}
 export function bestKey(difficulty:Difficulty,length:CampaignLength='short'){if(length==='full')return `red-banner-best-v270-full-${difficulty}`;return difficulty==='normal'?'red-banner-best-v14loot':`red-banner-best-v150-${difficulty}`;}
+
+export interface RunResult {difficulty:Difficulty;length:CampaignLength;ranked:boolean;won:boolean;hero:HeroId;score:number;rank:Rank;}
+/** Profile scores only: never stores a campaign, and co-op must not touch solo keys. */
+export function settleRun(storage:Pick<Storage,'setItem'>,run:RunResult,records:Records,best:number){
+ if(!run.ranked||!Number.isInteger(run.score)||run.score<0||run.score>1e8)return {records,best};
+ const next=run.won?recordVictory(records,run.hero,run.score,run.rank):records;
+ const high=Math.max(best,run.score);
+ if(run.won)try{storage.setItem(recordsKey(run.difficulty,run.length),JSON.stringify(next));}catch{/* Storage is optional. */}
+ try{storage.setItem(bestKey(run.difficulty,run.length),String(high));}catch{/* Keep session scores. */}
+ return {records:next,best:high};
+}
