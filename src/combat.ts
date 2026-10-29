@@ -901,6 +901,7 @@ export class Campaign {
       if(heroAttack&&a.move==='mounted'&&f.step===2&&cavalryRecovery(t.attack))this.unseatEnemy(t);
       if(heroAttack&&(special||a.move==='aerial'||a.move==='mounted'&&f.step===3||!a.weapon&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick')&&f.step===3||a.weapon==='hammer'||a.weapon==='axe'))this.unseatEnemy(t);
       if(heroAttack){this.noteThreat(t,f,a);if(!a.weapon&&!f.mounted&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick'))f.comboHit=true;a.connected=true;(a.hitTargets??=[]).push(t.id);}
+      const contactX=t.x,contactY=t.y-t.z-38;
       const actual = Math.min(t.hp, damage); t.hp = Math.max(0, t.hp - damage);
       t.inv = heroAttack ? (a.rapid?.10:special?.12:.16) : .75;
       // Boss keeps its telegraphed move; ordinary enemies are interrupted.
@@ -914,7 +915,7 @@ export class Campaign {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = a.move==='aerial'?.06:f.step === 3 ? .065 : .035;
       } else { t.comboHit=false;t.comboAttack=undefined;t.airFollowQueued=false;this.specialQueued=false;if(this.hero.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage += actual;this.stageDamage+=actual; this.hits = 0; this.queuedUntil = 0; }
-      this.events.push({ type: 'hit',step:f.step, x: t.x, y: t.y - t.z - 38, value: damage, heavy: a.move==='aerial' || f.step === 3 || isBoss(f.kind), ...(heroAttack ? {heroId:f.heroId} : {}) });
+      this.events.push({ type: 'hit',step:f.step, x: contactX, y: contactY, value: damage, heavy: a.move==='aerial' || f.step === 3 || isBoss(f.kind), ...(heroAttack ? {heroId:f.heroId} : {}) });
       if (!t.hp) {
         this.unseatEnemy(t);
         this.score += heroAttack ? 100 : 0;

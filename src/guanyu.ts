@@ -1,23 +1,25 @@
+import {drawSupport} from './stance-art';
+import {contactMotion,planted,waistLean,poleRearHand} from './choreography';
 import {mountedPosePhase} from './horse';
 import {duelSpecialPose,drawDuelTrail} from './duel-art';
 import {drawStyleWeapon} from './style-art';
-import {heroMotion,aerialMotion,grappleMotion,mountedMotion} from './motion';
+import {aerialMotion,grappleMotion,mountedMotion} from './motion';
 import {drawGrip} from './grip-art';
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
 /** Original pixel illustration: layered silk, lamellar armour and a sculpted crescent blade. */
-export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number) {
+export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number,gripPoint?:{x:number;y:number}) {
  if(f.mounted&&f.attack?.move==='mounted')phase=mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,phase);
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?heroMotion('guanyu',f.step,phase):null;
+ const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?contactMotion(f,phase):null;
  const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
  const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
  poly(0x142c28,[-11,-64,-22,-58,-29-frame%3,-18,-14,-24,-6,-48]);
  poly(0x295441,[-15,-60,-23,-51,-26-frame%3,-24,-19,-29,-12,-48]);
- for(const [x,d] of [[-11-spread,stride],[7+spread,-stride]]){
+ for(const [x,d] of drawSupport(g,f,waistLean(f,action?.lean??0),action?.crouch??0,action?.stride??0)?[]:[[-11-spread,stride],[7+spread,-stride]]){
   poly(0x182522,[x-5,-29,x+6,-27,x+5,-7+d,x-5,-6+d]);
   g.fillStyle(0x3b4840).fillRect(x-3,-22,4,12);
   poly(0x101c1b,[x-6,-10+d,x+5,-11+d,x+7,-4+d,x+12,-2+d,x+12,2+d,x-7,2+d]);
@@ -27,6 +29,9 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  poly(0x427a51,[-9,-43,0,-40,-1,-18,-8,-14,-13,-20]);
  poly(0x285b3d,[5,-41,12,-39,17,-18,12,-14,7,-19]);
  line(0xb79a59,2,[-19,-20,-9,-15,1,-19,12,-13,19,-18]);
+ g.save();
+ if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(action?.crouch??0));}
+ try {
  // Chest cuirass with individually lit overlapping plates.
  poly(0x172b29,[-17,-62,-9,-67,10,-66,19,-59,15,-36,-13,-36]);
  poly(0x48645a,[-12,-61,10,-62,14,-54,11,-39,-11,-39,-15,-53]);
@@ -65,12 +70,15 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  line(0x6b6b52,1,[1,-63,3,-50,3+sway,-35]);
  line(0x343f36,2,[8,-61,7,-49,5+sway,-36]);
  // Two-handed grip and rotating polearm: wind-up, contact and follow-through.
- if(drawGrip(g,f))return;
+ if(drawGrip(g,f,gripPoint))return;
  const angle=action?.angle??-.25,hx=action?.x??17,hy=action?.y??-48;
  poly(0x244d35,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
  line(0x779062,2,[14,-57,18,-52,hx,hy+2]);
  if(heldWeapon(g,f,hx,hy,phase))return;
  if(drawStyleWeapon(g,f,hx,hy,phase))return;
+ const rear=poleRearHand(hx,hy,angle);
+ line(0x244d35,8,[-14,-55,rear.x-9,rear.y+4,rear.x,rear.y]);
+ line(0x779062,2,[-14,-55,rear.x-9,rear.y+2,rear.x,rear.y]);
  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
  g.fillStyle(0x362b20).fillRect(-2,-36,5,87);
  g.fillStyle(0x8e7650).fillRect(-1,-36,2,87);
@@ -82,10 +90,11 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  poly(0xdce4ce,[11,-48,18,-55,20,-62,17,-68,21,-76,23,-78,20,-67,24,-61,21,-54,12,-47,4,-43]);
  line(0x4c7775,1,[8,-51,10,-60,8,-65,13,-68]);
  g.restore();
- for(const [x,y] of [[hx,hy],[hx-8,hy+19]]){
+ for(const [x,y] of [[hx,hy],[rear.x,rear.y]]){
   g.fillStyle(0x653b29).fillRect(x-3,y-2,8,7);
   g.fillStyle(0xc28a59).fillRect(x-2,y-2,6,4);
   g.fillStyle(0xe0b47b).fillRect(x-2,y-2,5,1);
  }
  drawDuelTrail(g,f,phase);
+ } finally {g.restore();}
 }

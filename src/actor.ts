@@ -1,3 +1,5 @@
+import {drawSwordSoldier} from './soldier-art';
+import {contactMotion,planted,sampleHero,localContact} from './choreography';
 import {drawFinalBoss} from './final-boss-art';
 import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose} from './vanguard-art';
@@ -10,9 +12,9 @@ import {drawWarrior} from './warriors';
 import {drawGuanyu} from './guanyu';
 import { HEROES } from './heroes';
 import Phaser from 'phaser';
-import {attackPhase,heroMotion,aerialMotion,grappleMotion,closeMotion,mountedMotion} from './motion';
+import {attackPhase,aerialMotion,grappleMotion,closeMotion,mountedMotion} from './motion';
 import { isBoss, type Fighter } from './combat';
-/** Reused graphics object with quantized 12 fps poses; no per-frame object allocation. */
+/** Reused graphics; sample actions refresh at 30 Hz, other poses keep their coarse cache. */
 export class Actor {
   body: Phaser.GameObjects.Container;
   ink: Phaser.GameObjects.Graphics;
@@ -23,17 +25,17 @@ export class Actor {
     this.shadow = scene.add.ellipse(0, 0, 43, 12, 0x101c1a, .4);
   }
   setVisible(visible:boolean){this.body.setVisible(visible);this.shadow.setVisible(visible);}
-  draw(f: Fighter, time: number) {
+  draw(f: Fighter, time: number, captive?:Fighter) {
     const champion = f.kind === 'hero' ? HEROES[f.heroId ?? 'guanyu'] : undefined;
     const frame = Math.floor(time * 12), boss = isBoss(f.kind), s = boss ? 1.5 : f.kind==='brute'?1.28:f.kind==='mauler'?1.24:f.heroId === 'zhangfei' ? 1.24 : 1.12;
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const rawPhase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4,phase=f.mounted&&f.attack?.move==='mounted'?mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,rawPhase):rawPhase;
-    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):heroMotion(f.heroId!,f.step,phase)):null;
+    const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack.move==='kick'||f.attack.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):contactMotion(f,phase)):null;
     const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
-    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0)+(grip?.crouch??motion?.crouch??0))).setDepth(f.y+(grip?.5:0)).setScale(s * f.face, s);
-    this.body.setAngle(f.mounted?0:(f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?(f.mounted?0:f.grappleSpin||f.heroId==='guanyu'&&f.z>0?f.throwSpin??0:grip?grip.lean*f.face:f.throwSpin??0):f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-5:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : (f.throwRecovery??0)>0?f.face*6:f.stun > 0 ? -f.face * 13 : (grip?.lean??motion?.lean??0)*f.face);
+    this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0)+(planted(f)?0:(grip?.crouch??motion?.crouch??0)))).setDepth(f.y+(grip?.5:0)).setScale(s * f.face, s);
+    this.body.setAngle(planted(f)?0:f.mounted?0:(f.knockdown??0)>0?-f.face*90:(f.grapplePose==='thrown'||f.grapplePose==='throw')?(f.mounted?0:f.grappleSpin||f.heroId==='guanyu'&&f.z>0?f.throwSpin??0:grip?grip.lean*f.face:f.throwSpin??0):f.grapplePose==='held'?f.face*22:f.grapplePose==='air-held'?f.face*80:f.grapplePose==='air'?f.face*-5:special ? special.angle*f.face : f.dodge > 0 ? f.face * 30 : f.hp<=0 ? -f.face*78 : (f.throwRecovery??0)>0?f.face*6:f.stun > 0 ? -f.face * 13 : (grip?.lean??motion?.lean??0)*f.face);
     // Rotate thrown bodies around the torso rather than their feet.
     if(f.heroId==='weiyan'&&f.attack?.move==='special'||!f.mounted&&f.grapplePose==='throw'&&(f.grappleSpin||f.heroId==='guanyu'&&f.z>0)||f.grapplePose==='held'||f.grapplePose==='thrown'||f.grapplePose==='air-held'||(f.knockdown??0)>0){
       const angle=this.body.angle*Math.PI/180,center=42*s;
@@ -43,16 +45,19 @@ export class Actor {
     }
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
-    const key = `${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
+    const captiveScale=captive?(isBoss(captive.kind)?1.5:captive.kind==='brute'?1.28:captive.kind==='mauler'?1.24:1.12):1;
+    const gripPoint=captive&&sampleHero(f)&&!f.mounted?localContact(captive.x,captive.y-captive.z-42*captiveScale,this.body.x,this.body.y,this.body.angle*Math.PI/180,s*f.face,s):undefined;
+    const key = `${Math.round(gripPoint?.x??0)}/${Math.round(gripPoint?.y??0)}/${sampleHero(f)||f.kind==='soldier'?Math.floor((f.attack?.elapsed??0)*30):0}/${sampleHero(f)||f.kind==='soldier'?Math.floor(f.stun*30):0}/${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if(f.mounted)drawHorse(g,0,38,1,time,f.moving);
-    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase); return; }
-    if (champion) { drawWarrior(g,f,frame,phase);
+    if (f.kind === 'hero' && f.heroId === 'guanyu') { drawGuanyu(g,f,frame,phase,gripPoint); return; }
+    if (champion) { drawWarrior(g,f,frame,phase,gripPoint);
       return; }
+    if(f.kind==='soldier'){drawSwordSoldier(g,f,frame);return;}
     if(drawFinalBoss(g,f,time))return;
     if(f.kind==='brute'||f.kind==='mauler'){drawHeavyInfantry(g,f,frame);return;}
-    const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='thrower'?0x826747:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'soldier' ? 0xa45f4c : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
+    const color = f.kind==='hunter'?0x5c8969:f.kind==='frostlord'?0x9bb7c9:f.kind==='regent'?0xb44735:f.kind==='thrower'?0x826747:f.kind==='archer'?0x698357:f.kind==='spearman'?0x627f99:f.kind==='hammer'?0x986447:f.kind === 'hero' ? champion!.color : f.kind === 'raider' ? 0xc4a15e : f.kind === 'heavy' ? 0x8499a1 : f.kind === 'marshal' ? 0x618eaa : 0xad4e43;
     const walk = f.moving && !f.attack ? [-5, 0, 5, 0][frame % 4] : 0;
     const stride = f.z > 0 ? 6 : walk;
     // Cape, boots, segmented armour, face and original helmet silhouette.
@@ -101,7 +106,7 @@ export class Actor {
     } else if (f.heroId === 'weiyan') {
       g.fillStyle(0xcbd9d5).fillTriangle(handX + 3, y, handX + 40, y - 23, handX + 16, y + 4);
       g.lineStyle(4, 0xc4a46a).lineBetween(handX - 2, y - 5, handX + 13, y + 9);
-    } else if(f.kind==='regent'||f.kind==='soldier'||f.kind==='raider'||f.kind==='heavy'){
+    } else if(f.kind==='regent'||f.kind==='raider'||f.kind==='heavy'){
       const length=f.kind==='raider'?32:44;g.lineStyle(4,0xa18354).lineBetween(handX,y+8,handX+7,y-6);g.fillStyle(0xc6d5cf).fillTriangle(handX+5,y-4,handX+length,y-25,handX+15,y+1);g.lineStyle(2,0xf0e5bc).lineBetween(handX+7,y-5,handX+length,y-25);
     } else if(f.kind==='hammer'||f.kind==='frostlord'){
       const hx=attacking?handX+15:handX,hy=attacking?y-28:y-10;

@@ -2,8 +2,8 @@ import type {HeroId} from './heroes.ts';
 // Hand position, torso lean and weapon angle for five impact-aligned poses.
 type Pose=[number,number,number,number];
 const MOTION:Record<HeroId,Pose[][]>={
- guanyu:[[[5,-46,-7,-1.5],[0,-48,-10,-1.8],[32,-42,6,1.5],[38,-37,8,1.7],[17,-48,0,-.25]],[[10,-24,-5,1.1],[3,-22,-8,1.3],[25,-68,3,-.2],[20,-77,-2,-.5],[17,-48,0,-.25]],[[2,-76,-7,-.1],[-3,-91,-11,-.2],[30,-20,14,2.7],[35,-10,18,2.95],[17,-48,0,-.25]]],
- zhangfei:[[[6,-42,-9,.1],[-3,-43,-14,.05],[45,-42,17,0],[49,-41,19,0],[17,-43,0,-.65]],[[-16,-50,-16,2.6],[-26,-58,-21,2.9],[27,-36,20,2.8],[36,-31,23,3.1],[17,-43,0,-.65]],[[3,-77,-8,-1.4],[0,-98,-14,-1.65],[20,-9,23,.9],[28,-4,28,1.1],[17,-43,0,-.65]]],
+ guanyu:[[[5,-46,-7,-1.5],[0,-48,-10,-1.8],[32,-42,6,1.5],[38,-37,8,1.7],[17,-48,0,-.25]],[[10,-24,-5,1.1],[3,-22,-8,1.3],[25,-68,3,-.2],[20,-77,-2,-.5],[17,-48,0,-.25]],[[2,-76,-7,-.1],[-3,-91,-11,-.2],[30,-68,14,2.7],[35,-62,18,2.7],[17,-48,0,-.25]]],
+ zhangfei:[[[6,-42,-9,.1],[-3,-43,-14,.05],[45,-42,17,0],[49,-41,19,0],[17,-43,0,-.65]],[[-16,-50,-16,2.6],[-26,-58,-21,2.9],[27,-36,20,2.8],[36,-31,23,3.1],[17,-43,0,-.65]],[[3,-77,-8,-1.4],[0,-98,-14,-1.65],[20,-68,16,.60],[28,-65,18,.60],[17,-43,0,-.65]]],
  zhaoyun:[[[5,-40,-6,-.1],[-10,-42,-12,-.05],[48,-40,13,0],[55,-39,16,.04],[17,-43,0,-.65]],[[10,-22,-7,.8],[0,-16,-11,1.1],[25,-70,1,-1.1],[18,-82,-6,-1.5],[17,-43,0,-.65]],[[0,-66,-12,-2.1],[-17,-72,-18,-2.8],[33,-30,14,.65],[41,-24,20,1.6],[17,-43,0,-.65]]],
  huangzhong:[[[20,-42,-1,0],[25,-43,-4,0],[26,-42,3,0],[25,-41,2,0],[17,-43,0,0]],[[13,-37,-4,0],[17,-38,-9,0],[21,-37,7,0],[19,-35,5,0],[17,-43,0,0]],[[24,-48,-7,0],[30,-49,-12,0],[32,-48,5,0],[29,-45,8,0],[17,-43,0,0]]],
  weiyan:[[[0,-30,-9,1.0],[-8,-24,-13,1.3],[31,-48,11,-.65],[36,-54,15,-1.1],[17,-43,0,-.55]],[[10,-51,-5,-1.4],[7,-58,-11,-1.65],[8,-57,-15,-1.7],[10,-50,-9,-1.5],[17,-43,0,-.55]],[[12,-56,-7,-1.3],[-10,-61,-16,-1.8],[-8,-53,-22,-1.7],[0,-45,-12,-1.4],[17,-43,0,-.55]]],
@@ -22,7 +22,7 @@ export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  const thrust=id==='zhaoyun',bow=id==='huangzhong';
  if(id==='weiyan')return {x:descending?35:0,y:descending?-34:-70,lean:descending?24:-15,angle:descending?1.05:-1.5,stride:descending?16:10,crouch:0,phase:descending?2:1};
  if(id==='lubu')return {x:descending?28:0,y:descending?-8:-93,lean:descending?20:-12,angle:descending?1.35:-1.6,stride:12,crouch:descending?9:0,phase:descending?2:1};
- if(id==='guanyu')return {x:descending?34:10,y:descending?-12:-78,lean:descending?18:-8,angle:descending?2.7:-.1,stride:8,crouch:descending?5:0,phase:descending?2:1};
+ if(id==='guanyu')return {x:descending?34:10,y:descending?-68:-78,lean:descending?18:-8,angle:descending?2.7:-.1,stride:8,crouch:descending?5:0,phase:descending?2:1};
  if(id==='zhangfei')return {x:descending?12:4,y:descending?-65:-72,lean:descending?-13:-4,angle:descending?1.3:-1.5,stride:14,crouch:descending?8:0,phase:descending?2:1};
  if(follow&&thrust)return {x:50,y:-19,lean:23,angle:.6,stride:14,crouch:2,phase:2};
  if(thrust)return {x:descending?22:8,y:descending?-38:-74,lean:descending?8:-7,angle:descending?1.05:-1.35,stride:7,crouch:0,phase:descending?2:1};

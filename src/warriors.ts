@@ -1,3 +1,5 @@
+import {drawSupport} from './stance-art';
+import {contactMotion,planted,waistLean} from './choreography';
 import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose,drawVanguardLegs,drawVanguardTrail} from './vanguard-art';
 import {rangedSpecialPose,drawRangedWeapon} from './ranged-art';
@@ -6,11 +8,11 @@ import {drawStyleWeapon} from './style-art';
 import {heldWeapon} from './loot-art';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
-import {heroMotion,aerialMotion,grappleMotion,closeMotion,mountedMotion} from './motion';
+import {aerialMotion,grappleMotion,closeMotion,mountedMotion} from './motion';
 import {drawGrip} from './grip-art';
 
 /** Original layered pixel silhouettes. Gameplay geometry remains in combat.ts. */
-export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number){
+export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,phase:number,gripPoint?:{x:number;y:number}){
  if(f.mounted&&f.attack?.move==='mounted')phase=mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,phase);
  const id=f.heroId!,lu=id==='lubu',zhang=id==='zhangfei',zhao=id==='zhaoyun',huang=id==='huangzhong';
  const cloth=lu?0x8f302f:zhang?0x854a32:zhao?0x496f81:huang?0x867046:0x713e50;
@@ -20,7 +22,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const w=lu?18:zhang?19:zhao?13:15;
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
- const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?heroMotion(id,f.step,phase):null;
+ const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?closeMotion(f.attack.move,phase,f.step):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?contactMotion(f,phase):null;
  const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
@@ -34,7 +36,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   for(let i=0;i<3;i++){const x=-23+i*4;line(0xa88c61,1,[x,-49,x+6,-77-i*2]);poly(0xd9d3b8,[x+5,-71-i*2,x+3,-78-i*2,x+8,-75-i*2,x+6,-69-i*2]);}
  }
  const kneeling=huang&&!f.mounted&&!f.equipped&&f.attack?.move==='slash'&&f.step===2;
- const specialLegs=drawVanguardLegs(g,f);
+ const specialLegs=drawVanguardLegs(g,f)||drawSupport(g,f,waistLean(f,action?.lean??0),action?.crouch??0,action?.stride??0);
  const kicking=f.attack?.move==='kick'&&(phase===2||phase===3);
  if(kneeling){
   line(0x222d2b,12,[-9,-29,-20,-16,-29,-16]);line(metal,7,[-18,-17,-28,-17]);poly(0x142020,[-34,-19,-23,-18,-22,-12,-36,-11]);
@@ -52,6 +54,9 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  poly(cloth,[-w+2,-43,w-2,-43,w+5,-18,10,-12,1,-19,-10,-13,-w-5,-20]);
  for(let i=-w+4;i<w;i+=7){poly(i<0?light:metal,[i,-39,i+4,-39,i+6,-20,i+1,-18]);line(0x283a34,1,[i+4,-37,i+6,-22]);}
  line(edge,1,[-w-3,-20,-10,-15,1,-21,10,-14,w+3,-19]);
+ g.save();
+ if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(action?.crouch??0));}
+ try {
  poly(0x1b2d2b,[-w,-61,-w+7,-67,9,-66,w,-59,w-2,-37,-w+2,-37]);
  poly(metal,[-w+3,-59,-8,-63,9,-62,w-3,-56,w-5,-40,-w+4,-40]);
  // Staggered lamellae, with lit top edges and dark seams.
@@ -126,7 +131,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   poly(0x252a29,[-4,-65,2,-66,7,-64,9,-65,7,-58,1,-55,-3,-59]);
   line(0x625542,1,[1,-63,3,-59]);
  }
- if(drawGrip(g,f))return;
+ if(drawGrip(g,f,gripPoint))return;
  const m=action??{x:17,y:-43};
  const hx=m.x,hy=m.y-5;
  // Sleeve and bracer follow the hand rather than stretching a rectangular arm.
@@ -196,4 +201,5 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   if(zhao){g.lineStyle(2,0xc7eaf0,.7).lineBetween(hx+15,hy,hx+85,hy);}
   else {const r=lu?78:zhang?66:39;g.lineStyle(f.step===3?5:3,zhang?0xf0cf95:0xefbca7,.7).beginPath().arc(18,-38,r,-1.6,.5).strokePath();}
  }
+ } finally {g.restore();}
 }
