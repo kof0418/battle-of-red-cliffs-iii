@@ -1,3 +1,4 @@
+import {HAND_PALETTES} from './hand-palette';
 import {drawSupport} from './stance-art';
 import {contactMotion,planted,waistLean,poleRearHand} from './choreography';
 import {mountedPosePhase} from './horse';
@@ -72,12 +73,12 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  // Two-handed grip and rotating polearm: wind-up, contact and follow-through.
  if(drawGrip(g,f,gripPoint))return;
  const angle=action?.angle??-.25,hx=action?.x??17,hy=action?.y??-48;
- poly(0x244d35,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
+ poly(HAND_PALETTES.guanyu.sleeve,[10,-60,18,-58,hx+3,hy-2,hx,hy+7,13,-49,8,-53]);
  line(0x779062,2,[14,-57,18,-52,hx,hy+2]);
  if(heldWeapon(g,f,hx,hy,phase))return;
  if(drawStyleWeapon(g,f,hx,hy,phase))return;
  const rear=poleRearHand(hx,hy,angle);
- line(0x244d35,8,[-14,-55,rear.x-9,rear.y+4,rear.x,rear.y]);
+ line(HAND_PALETTES.guanyu.sleeve,8,[-14,-55,rear.x-9,rear.y+4,rear.x,rear.y]);
  line(0x779062,2,[-14,-55,rear.x-9,rear.y+2,rear.x,rear.y]);
  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(angle);
  g.fillStyle(0x362b20).fillRect(-2,-36,5,87);
@@ -91,9 +92,9 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  line(0x4c7775,1,[8,-51,10,-60,8,-65,13,-68]);
  g.restore();
  for(const [x,y] of [[hx,hy],[rear.x,rear.y]]){
-  g.fillStyle(0x653b29).fillRect(x-3,y-2,8,7);
-  g.fillStyle(0xc28a59).fillRect(x-2,y-2,6,4);
-  g.fillStyle(0xe0b47b).fillRect(x-2,y-2,5,1);
+  g.fillStyle(HAND_PALETTES.guanyu.shadow).fillRect(x-3,y-2,8,7);
+  g.fillStyle(HAND_PALETTES.guanyu.skin).fillRect(x-2,y-2,6,4);
+  g.fillStyle(HAND_PALETTES.guanyu.light).fillRect(x-2,y-2,5,1);
  }
  drawDuelTrail(g,f,phase);
  } finally {g.restore();}
