@@ -3,8 +3,9 @@ function pilot(m:Campaign,h:Fighter,frame:number):Input{
  if(h.hp<=0)return {x:0,y:0,grappleAttack:frame%12===0};
  const e=[...m.enemies].sort((a,b)=>Math.hypot(a.x-h.x,(a.y-h.y)*3)-Math.hypot(b.x-h.x,(b.y-h.y)*3))[0];let input:Input={x:1,y:0};
  const food=m.pickups.find(p=>p.amount>0&&h.hp<125),box=m.supplies.find(b=>['bun','meat'].includes(b.loot??crateLoot(m.stage,m.wave))&&h.hp<115);
+ // Approach containers inside the shortest blade reach and arrow lane before committing to attacks.
  const target=food??(!e||Math.abs(e.x-h.x)>150?box:undefined);
- if(target){const dx=target.x-h.x,dy=target.y-h.y;input={x:Math.abs(dx)>(food?6:45)?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>6?Math.sign(dy):0,attack:!food&&Math.abs(dx)<95&&Math.abs(dy)<25&&frame%12===0};}
+ if(target){const dx=target.x-h.x,dy=target.y-h.y;input={x:Math.abs(dx)>(food?6:45)?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>6?Math.sign(dy):0,attack:!food&&Math.abs(dx)<55&&Math.abs(dy)<12&&frame%12===0};}
  else if(e){const dx=e.x-h.x,dy=e.y-h.y;input={x:Math.abs(dx)>70?Math.sign(dx):h.face!==Math.sign(dx)?Math.sign(dx):0,y:Math.abs(dy)>8?Math.sign(dy):0,attack:Math.abs(dx)<94&&Math.abs(dy)<25&&frame%12===0};}
  if(e?.attack&&!e.attack.hit&&e.attack.elapsed>e.attack.impact-.22)input.dodge=true;
  if(e&&Math.abs(e.x-h.x)<100&&Math.abs(e.y-h.y)<45&&(h.specialCooldown??0)<=0&&!h.attack)input.special=true;

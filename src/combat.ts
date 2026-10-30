@@ -1,3 +1,4 @@
+import {HitStopInput,approachingGrab} from './hit-stop-input.ts';
 import {infantryArrowVisual} from './infantry-motion.ts';
 import {CACHE_LOOT,COURIER_LOOT} from './secrets.ts';
 import {LOB,adaptiveMove,attackFamily,distributeTarget} from './counterplay.ts';
@@ -90,6 +91,7 @@ interface PlayerControl {grapple:Grapple|null;queuedY:number;specialUntil:number
 export class Campaign {
   partner?:Fighter;
   private rootHero?:Fighter;
+  private stoppedInputs=new Map<number,HitStopInput>();
   private playerControls=new Map<number,PlayerControl>();
   get players(){return [this.rootHero??this.hero,...(this.partner?[this.partner]:[])];}
   get livingPlayers(){return this.players.filter(p=>p.hp>0);}
@@ -200,7 +202,7 @@ export class Campaign {
   }
   start() { if (this.status !== 'ready') return; this.status = 'playing'; this.spawn(); }
   togglePause() { if (this.status === 'playing') {this.paused = !this.paused;if(this.paused)this.clearPendingInputs();} }
-  clearPendingInputs(){for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
+  clearPendingInputs(){this.stoppedInputs.clear();for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= this.levels.length - 1) return false;
@@ -228,7 +230,7 @@ export class Campaign {
   private foodDropUsed=false;private courierAssigned=false;
   private resetTransient() {
     for(const p of this.players)delete p.bladeAway;
-    this.playerControls.clear();this.bonusRound=undefined;this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.bombs=[];this.reads.clear();this.horses=[];this.pending=[];this.props=[];this.secrets=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
+    this.stoppedInputs.clear();this.playerControls.clear();this.bonusRound=undefined;this.rideAttackFace=undefined;this.releaseGrapple(false);this.projectiles=[];this.bombs=[];this.reads.clear();this.horses=[];this.pending=[];this.props=[];this.secrets=[];this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
     this.paused = false; this.freeze = 0; this.queuedUntil = 0; this.hits = 0;
     this.specialQueued = false;this.horseQueued=false;this.dropQueued=false; this.hitDeadline = 0; this.events = []; this.clearedAt = -1;
   }
@@ -258,8 +260,14 @@ export class Campaign {
     if (this.status !== 'playing' || this.paused) return;
     const dt = clamp(rawDt, 0, .033);
     const inputs=new Map(this.players.map((p,i)=>[p,i===0?input:input.partner??{x:0,y:0}]));
+    const frozen=this.freeze>0;
+    for(const p of this.players){
+      const buffer=this.stoppedInputs.get(p.id)??new HitStopInput();this.stoppedInputs.set(p.id,buffer);
+      if(p.hp<=0){buffer.clear();continue;}
+      inputs.set(p,buffer.read(inputs.get(p)!,frozen));
+    }
+    if(frozen){this.freeze=Math.max(0,this.freeze-dt);return;}
     for(const p of this.players)this.withPlayer(p,()=>{const command=inputs.get(p)!;if(p.hp<=0){if(command.grappleAttack)this.rejoin(p);return;}this.queueInput(command);});
-    if (this.freeze > 0) { this.freeze -= dt; return; }
     this.time += dt;
     if(this.bonusRound&&this.time>=this.bonusRound.until){this.barrels=this.barrels.filter(b=>!b.bonus);this.bonusRound=undefined;}
 
@@ -294,7 +302,7 @@ export class Campaign {
       this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
       for(const player of this.livingPlayers)this.withPlayer(player,()=>{const h=this.hero;if(fieldHits(field,h)) {
         const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;this.stageDamage+=damage;if(h.mounted)this.dismount(true);else this.damageEquipment();
-        h.inv=.75;h.stun=.22;h.attack=null;h.comboHit=false;h.comboAttack=undefined;this.specialQueued=false;this.hits=0;this.queuedUntil=0;
+        h.inv=.75;h.stun=.22;h.attack=null;h.comboHit=false;h.comboAttack=undefined;this.clearPlayerCommands();this.hits=0;
         this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
       }});
     }
@@ -451,7 +459,7 @@ export class Campaign {
         if(p.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage+=actual;this.stageDamage+=actual;this.hits=0;this.events.push({type:'hit',x:p.x,y:p.y-p.z-38,value:actual,heavy:true});
       });return false;});
   }
-  private clearPlayerCommands(){this.queuedUntil=0;this.specialQueued=false;this.horseQueued=false;this.dropQueued=false;}
+  private clearPlayerCommands(){this.stoppedInputs.get(this.hero.id)?.clear();this.queuedUntil=0;this.specialQueued=false;this.horseQueued=false;this.dropQueued=false;}
   private noteThreat(e:Fighter,owner:Fighter,a:Attack,family=attackFamily(a.move,a.weapon)+(['special','wave','aerial'].includes(a.move)?'':':'+(this.attackSteps.get(a)??owner.step))){
     if(!isBoss(e.kind))return;const old=this.reads.get(e.id);if(old?.attack===a)return;
     const count=old&&old.owner===owner.id&&old.family===family&&this.time-old.at<=6?old.count+1:1;
@@ -642,16 +650,17 @@ export class Campaign {
     const h=this.hero;if(h.mounted||this.grapple||this.status!=='playing'||this.paused||h.hp<=0||h.stun>0||(h.attack&&!this.canLinkGrab())||h.z>0||h.vz>0||h.dodge>0||(h.grappleCooldown??0)>0)return false;
     // Boss grabs are safe during early windup and settled recovery, never on the impact frame.
     // Filter approach direction before selecting: a closer enemy behind must not block a valid grab.
-    const target=this.enemies.filter(e=>!this.grappleOwner(e.id)&&e.hp>0&&!e.mounted&&(isBoss(e.kind)?bossGrabWindow(e.attack)!=='unsafe':!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&(!h.attack||h.attack.hitTargets?.includes(e.id))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&!(e.inv>0&&e.stun<=0)&&Math.abs(e.x-h.x)<=this.style.grabReach&&Math.abs(e.y-h.y)<=26&&((e.x-h.x)*input.x+(e.y-h.y)*input.y>0))
+    const target=this.enemies.filter(e=>!this.grappleOwner(e.id)&&e.hp>0&&!e.mounted&&(isBoss(e.kind)?bossGrabWindow(e.attack)!=='unsafe':!e.attack||(!e.attack.hit&&e.attack.elapsed<e.attack.impact))&&(!h.attack||h.attack.hitTargets?.includes(e.id))&&e.z===0&&(e.knockdown??0)<=0&&(e.grappleCooldown??0)<=0&&!(e.inv>0&&e.stun<=0)&&Math.abs(e.x-h.x)<=this.style.grabReach&&Math.abs(e.y-h.y)<=26&&approachingGrab(e.x-h.x,e.y-h.y,input.x,input.y))
      .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
     if(!target)return false;
-    h.face=target.x>=h.x?1:-1;h.attack=null;h.comboHit=false;h.comboAttack=undefined;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;if(target.guard!==undefined)target.guard=0;target.grapplePose='held';target.face=-h.face;
+    h.face=Math.abs(target.x-h.x)<=8?(input.x?Math.sign(input.x):h.face):target.x>h.x?1:-1;h.attack=null;h.comboHit=false;h.comboAttack=undefined;h.inv=Math.max(h.inv,.12);h.grapplePose='hold';h.moving=false;target.attack=null;if(target.guard!==undefined)target.guard=0;target.grapplePose='held';target.face=-h.face;
     this.grapple={target:target.id,hits:0,deadline:this.time+2.8,started:this.time,phase:'hold',elapsed:0,direction:h.face,air:false,startX:h.x,startZ:0};
     this.queuedUntil=0;this.specialQueued=false;this.message='抓住！跳＋攻擊空中摔，或左右＋攻擊';this.messageUntil=this.time+1.5;
     this.events.push({type:'grab',x:h.x,y:h.y,heroId:h.heroId});return true;
   }
   releaseGrapple(escape:boolean){
     const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
+    this.stoppedInputs.get(h.id)?.clear();
     h.grapplePose=undefined;delete h.grappleBack;delete h.grappleSpin;h.grappleProgress=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
     if(e){if(state.mounted&&e.z>0){e.z=0;e.stun=Math.max(e.stun,.5);e.knockdown=.5;}e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
       if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,this.enemyLeft,this.enemyRight);}}
@@ -679,15 +688,16 @@ export class Campaign {
     if(state.phase==='hold'){
       if(this.time>state.deadline||this.time-state.started>8){this.releaseGrapple(true);return;}
       e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.z=h.heroId==='zhangfei'&&state.hits>0?48:0;if(e.z){h.grapplePose='lift';e.grapplePose='air-held';}
+      if(input.jump){state.phase='jump';state.elapsed=0;state.jumpDirection=Math.sign(input.x);state.slamQueued=!!fresh;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});return;}
       if(fresh){
         if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
         else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,this.style.grabDamage);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});if(h.heroId==='zhangfei'){h.grapplePose='lift';e.grapplePose='air-held';e.z=48;}this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
         else{this.releaseGrapple(false);this.message='連打三下，鬆開抓取';this.messageUntil=this.time+1;return;}
       }
-      if(input.jump&&state.phase==='hold'){state.phase='jump';state.elapsed=0;state.jumpDirection=Math.sign(input.x);h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});}
     }else if(state.phase==='jump'){
       state.elapsed+=dt;h.x=clamp(h.x+(state.jumpDirection??0)*155*dt,this.cameraLeft+25,this.cameraLeft+935);h.z=Math.sin(Math.min(1,state.elapsed/1.05)*Math.PI)*throwWeight(e.kind).jump;e.z=h.z+(h.heroId==='zhangfei'?42:24);e.x=clamp(h.x+h.face*24,this.enemyLeft,this.enemyRight);e.y=h.y;
-      if(fresh){this.beginThrow(h.face,true);}else if(state.elapsed>=1.05){h.z=0;this.releaseGrapple(true);}
+      if(fresh)state.slamQueued=true;
+      if(state.slamQueued&&state.elapsed>=.12){this.beginThrow(h.face,true);}else if(state.elapsed>=1.05){h.z=0;this.releaseGrapple(true);}
     }else{
       state.elapsed+=dt;const spec=state.mounted?MOUNT_THROW:THROWS[h.heroId!],limit=this.enemyRight;
       if(state.air){
@@ -915,7 +925,7 @@ export class Campaign {
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = a.move==='aerial'?.06:f.step === 3 ? .065 : .035;
-      } else { t.comboHit=false;t.comboAttack=undefined;t.airFollowQueued=false;this.specialQueued=false;if(this.hero.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage += actual;this.stageDamage+=actual; this.hits = 0; this.queuedUntil = 0; }
+      } else { t.comboHit=false;t.comboAttack=undefined;t.airFollowQueued=false;this.clearPlayerCommands();if(this.hero.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage += actual;this.stageDamage+=actual; this.hits = 0; this.queuedUntil = 0; }
       this.events.push({ type: 'hit',step:f.step, x: contactX, y: contactY, value: damage, heavy: a.move==='aerial' || f.step === 3 || isBoss(f.kind), ...(heroAttack ? {heroId:f.heroId} : {}) });
       if (!t.hp) {
         this.unseatEnemy(t);

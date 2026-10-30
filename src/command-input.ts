@@ -18,8 +18,8 @@ export class CommandInput {
 export type InputSource='keyboard'|'touch'|'pad';
 /** Gestures from different devices cannot accidentally form a single command. */
 export class CommandBank {
- private normal={keyboard:new CommandInput(),touch:new CommandInput('down','up',650,380,true),pad:new CommandInput('down','up',450,300)};
- private mounted={keyboard:new CommandInput('left','right'),touch:new CommandInput('left','right',650,380,true),pad:new CommandInput('left','right',450,300)};
+ private normal={keyboard:new CommandInput(),touch:new CommandInput('down','up',650,380,true),pad:new CommandInput('down','up',450,300,true)};
+ private mounted={keyboard:new CommandInput('left','right'),touch:new CommandInput('left','right',650,380,true),pad:new CommandInput('left','right',450,300,true)};
  press(source:InputSource,action:string,now:number,mounted=false){return (mounted?this.mounted:this.normal)[source].press(action,now);}
  phase(source:InputSource,now:number,mounted=false){return (mounted?this.mounted:this.normal)[source].phase(now);}
  reset(){for(const group of [this.normal,this.mounted])for(const c of Object.values(group))c.reset();}
