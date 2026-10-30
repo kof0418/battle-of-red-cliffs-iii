@@ -22,20 +22,9 @@ test('arrows threaten airborne heroes; fire can be jumped; dodge and lane escape
  assert.equal(fieldHits(fieldEvent(0,1,5.4,0)!,{...hero,inv:.2}),false);
  assert.equal(fieldHits(fieldEvent(0,1,5.4,0)!,{...hero,y:440}),false);
 });
-test('event damage applies once, counts against no-damage bonus and pauses with battle',()=>{
- const m=hazard();m.paused=true;m.tick(1/60,idle);assert.equal(m.hero.hp,160);assert.equal(m.time,5.39);
- m.paused=false;m.tick(1/60,idle);assert.equal(m.hero.hp,148);assert.equal(m.waveDamage,12);assert.ok(m.events.some(e=>e.type==='volley'));
- for(let i=0;i<20;i++)m.tick(1/60,idle);assert.equal(m.hero.hp,148);
-});
-test('saving before or after impact preserves timing without duplicate damage',()=>{
- const m=hazard(),n=restoreSave(captureSave(m));n.paused=false;m.tick(1/60,idle);n.tick(1/60,idle);assert.equal(n.hero.hp,m.hero.hp);
- const after=restoreSave(captureSave(m));after.paused=false;after.hero.inv=0;after.tick(1/60,idle);assert.equal(after.hero.hp,148);
-});
-test('event can defeat hero, does not damage cleared arenas and continue resets warning',()=>{
- const m=hazard();m.hero.hp=5;m.tick(1/60,idle);assert.equal(m.status,'lost');assert.ok(m.continueRun());assert.equal(m.field,null);
- const safe=hazard();safe.enemies=[];safe.tick(1/60,idle);assert.equal(safe.hero.hp,160);
- const fire=hazard(1);fire.hero.z=60;fire.tick(1/60,idle);assert.equal(fire.hero.hp,160);
-});
+
+
+
 test('six motion profiles and weapon envelopes differ with contact aligned to impact',()=>{
  assert.equal(attackPhase(.09,.10,.3),1);assert.equal(attackPhase(.10,.10,.3),2);assert.equal(attackPhase(.29,.10,.3),4);
  const poses=HERO_IDS.map(id=>JSON.stringify(heroMotion(id,1,2)));assert.equal(new Set(poses).size,6);

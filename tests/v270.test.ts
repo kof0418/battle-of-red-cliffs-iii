@@ -22,9 +22,7 @@ for(const kind of ['bridgeguard','bridgearcher','admiral','firelord','pursuer','
 test('new telegraphs have real safe gaps and reject jumping targets',()=>{
  const m=scene(8);m.hero.x=520;m.hero.y=440;for(const move of ['lanes','fork','surge'] as const){const a={move,elapsed:1,impact:1,duration:2,hit:false,face:1,x:400,y:412};if(move==='lanes'){assert(!attackHits(a,m.hero,300));m.hero.y=412;assert(attackHits(a,m.hero,300));}m.hero.z=70;assert(!attackHits(a,m.hero,300));m.hero.z=0;}
 });
-test('each new stage has a warned hazard and functional local suppression, with focused Boss arenas',()=>{
- for(let s=5;s<9;s++){const f=fieldEvent(s,1,5,0)!;assert(f&&!f.active);assert(f.progress<1);assert.equal(fieldEvent(s,EXTENDED_LEVELS[s].waves.length,5,0),null);const h={x:f.x+20,y:f.y+20,z:80,inv:0,hp:160};assert.equal(fieldHits(f,h),s===5||s===8);const m=scene(s,2);const p=m.props[0];assert.equal(p.stageKind,PROPS[s].stageKind);m.activateProp(p);if(s===5||s===7){m.time=5;assert.equal(m.field,null);}else assert(m.enemies.every(e=>e.stun>=.9));}
-});
+
 test('salvage targets move, freeze on pause, pay score only and can be skipped by advancing',()=>{
  const m=scene(5,2);m.enemies=[];m.pending=[];m.hero.hp=75;ticks(m,1);assert.equal(m.bonusRound?.kind,'salvage');const b=m.barrels.find(b=>b.bonusTarget)!;const x=b.x;ticks(m,20);assert.notEqual(b.x,x);m.paused=true;const frozen=b.x;ticks(m,60);assert.equal(b.x,frozen);m.paused=false;m.time+=3;m.cameraLeft=2300;m.hero.x=m.arenaEnd-20;m.clearedAt=m.time-2;ticks(m,1);assert.equal(m.wave,3);assert(!m.bonusRound);assert.equal(m.hero.hp,75);
 });

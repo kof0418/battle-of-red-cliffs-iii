@@ -16,7 +16,7 @@ import {THROWS,throwWeight,groundThrowWeight,bossGrabWindow,sweptThrowContact,ty
 import {SPECIALS,SPECIAL_COST,SPECIAL_COOLDOWN,specialHits} from './specials.ts';
 import { HEROES, type HeroId } from './heroes.ts';
 import { LEVELS, WORLD_WIDTH, ARENA_ENDS, arenaStart,campaignLevels,endingStory,type CampaignLength } from './levels.ts';
-import { fieldEvent, fieldHits } from './battlefield.ts';
+import type { FieldEvent } from './battlefield.ts';
 /** Pure combat rules, in seconds and world pixels. */
 export type Kind = 'bridgeguard'|'bridgearcher'|'admiral'|'firelord'|'pursuer'|'warlord'|'thrower' | 'brute' | 'mauler' | 'hero' | 'soldier' | 'raider' | 'heavy' | 'archer' | 'spearman' | 'hammer' | 'boss' | 'marshal' | 'hunter' | 'frostlord' | 'regent';
 export const stats = {
@@ -157,7 +157,7 @@ export class Campaign {
   get stageStory(){return this.campaignLength==='full'&&this.stage===4?'宮城守軍雖已潰退，江上長橋仍有殘軍封鎖。眾將沿江出發，直取風雷長橋。':this.level.story;}
   get ending(){return this.campaignLength==='full'?endingStory(this.endingRoute??'pursuit',this.stageInteractions.size):{title:'五路告捷',text:this.level.story};}
   chooseEnding(route:'pursuit'|'rescue'){if(this.campaignLength!=='full'||this.stage!==7||this.status!=='stage-clear')return false;this.endingRoute=route;return true;}
-  get field() { const f=this.status==='playing'&&this.encounterActive&&!this.fieldSuppressed?fieldEvent(this.stage,this.wave,this.time,this.waveStarted):null;if(f)f.x+=this.cameraLeft-arenaStart(this.wave,this.level);return f; }
+  get field():FieldEvent|null { return null; }
   get rank() { return this.continuesUsed === 0 && this.players.reduce((sum,p)=>sum+p.hp,0)/this.players.length >= 80 ? 'S' : this.continuesUsed <= 1 ? 'A' : 'B'; }
   time = 0;
   wave = 0;
@@ -242,7 +242,7 @@ export class Campaign {
     this.checkpointEscapes=this.escapes;this.checkpointRoute=this.routeAdvantage;this.checkpointScore = this.score; this.checkpointKills = this.kills;
     const base = this.cameraLeft+500;
     const plan=encounterPlan(this.stage,this.wave,this.encounterSeed),kinds=plan.initial.map(k=>this.stage===8&&this.endingRoute==='rescue'?(k==='thrower'?'soldier':k==='archer'?'raider':k):k);this.pending=plan.groups.map(g=>this.stage===8&&this.endingRoute==='rescue'?{...g,side:'front' as const,kinds:g.kinds.map(k=>k==='thrower'?'soldier' as const:k)}:g);if(this.routeAdvantage){this.pending=this.pending.map(g=>({...g,side:'front' as const,due:g.due+2}));this.routeAdvantage=false;}this.propShots=[];this.fieldSuppressed=false;this.rallyUntil=0;
-    this.props=(this.wave===2||this.wave===4)?[{id:++this.serial,x:this.cameraLeft+630,y:this.wave===2?354:499,hp:32,stageKind:PROPS[this.stage].stageKind}]:[];
+    this.props=[];
     this.enemies = kinds.map((k, i) => this.fighter(k, base + i * 58, 370 + i % 3 * 49));
     if(this.stage===1&&this.wave===6){const rider=this.enemies.find(e=>e.kind==='marshal');if(rider)rider.mounted=true;}
     this.supplies = [{ id: ++this.serial, x: this.cameraLeft+570, y: (this.wave+this.stage)%2?499:354, hp: 24 }];
@@ -297,15 +297,6 @@ export class Campaign {
     }
     this.enemies = this.enemies.filter(e => e.hp > 0&&!e.escaped);
     this.updateReinforcements();
-    const field = this.field;
-    if(field && this.time-dt < field.impactAt && this.time >= field.impactAt) {
-      this.events.push({type:field.kind,x:field.x,y:field.y,value:field.width});
-      for(const player of this.livingPlayers)this.withPlayer(player,()=>{const h=this.hero;if(fieldHits(field,h)) {
-        const damage=Math.min(h.hp,12);h.hp-=damage;this.waveDamage+=damage;this.stageDamage+=damage;if(h.mounted)this.dismount(true);else this.damageEquipment();
-        h.inv=.75;h.stun=.22;h.attack=null;h.comboHit=false;h.comboAttack=undefined;this.clearPlayerCommands();this.hits=0;
-        this.events.push({type:'hit',x:h.x,y:h.y-h.z-38,value:damage});
-      }});
-    }
     for(const p of this.players)this.withPlayer(p,()=>{if(this.grapple&&(p.hp<=0||p.stun>0))this.releaseGrapple(false);});
     // Death takes precedence over simultaneous final clearance.
     if (!this.livingPlayers.length) { this.status = 'lost'; this.events.push({ type: 'end', x: h.x, y: h.y }); return; }
@@ -515,23 +506,7 @@ export class Campaign {
     });
     this.events.push({type:'reinforcement',x:this.cameraLeft+480,y:360});this.message=group.side==='pincer'?'兩側援軍抵達！':group.side==='ambush'?'竹林伏兵現身！':'下一隊守軍抵達！';this.messageUntil=this.time+1.8;
   }
-  activateProp(p:StageProp){
-    if(p.activated)return;p.activated=true;p.hp=0;
-    if(this.wave===2||this.wave===4)this.routeAdvantage=true;
-    this.stageInteractions.add(this.wave);this.score+=100;this.message=PROPS[this.stage].hint.replace('擊破','已啟動').replace('擊斷','已斬斷').replace('擊碎','已擊碎').replace('擊倒','已擊倒');this.message+=' · 下一陣援軍正面延後抵達';this.messageUntil=this.time+2.8;
-    this.events.push({type:'scene-action',x:p.x,y:p.y,value:this.stage});
-    if(['sluice','winch','pump'].includes(p.stageKind)){this.fieldSuppressed=true;return;}
-    if(p.stageKind==='ballista'){this.propShots.push({id:++this.serial,x:p.x,y:this.hero.y,face:this.hero.face,remaining:900,damage:40,arrow:true,piercing:true,push:22,hits:[]});return;}
-    if(['banner','beacon','capstan'].includes(p.stageKind))this.rallyUntil=this.time+5;
-    for(const e of this.enemies){
-      if(this.grappleOwner(e.id)||e.hp<=0||e.inv>0)continue;
-      if(p.stageKind==='bamboo'&&Math.abs(e.x-p.x)>80)continue;
-      if(p.stageKind==='ice'&&Math.hypot((e.x-p.x)/1.3,e.y-p.y)>150)continue;
-      this.breakGuard(e);e.attack=null;e.stun=Math.max(e.stun,p.stageKind==='banner'?1.25:.9);e.guardCooldown=3;
-      if(['banner','beacon','capstan'].includes(p.stageKind))continue;
-      e.knockdown=.8;e.inv=.35;this.grappleDamage(e,p.stageKind==='bamboo'?42:35);
-    }
-  }
+  activateProp(_p:StageProp){ /* Stage mechanisms were removed. */ }
   finishStage(){
     if(this.stageResults.some(r=>r.stage===this.stage))return;
     const result=gradeStage({stage:this.stage,seconds:Math.max(0,this.time-this.stageStarted),damage:this.stageDamage,retries:this.stageRetries,bestHit:this.stageBestHit,interactions:this.stageInteractions.size},this.partner?2:1);

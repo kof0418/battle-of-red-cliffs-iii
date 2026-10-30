@@ -25,9 +25,7 @@ test('courier escape is distinct from a kill; interception drops exactly one rar
  else{ticks(m,700);assert.equal(m.escapes,1);assert.equal(m.kills,0);assert.equal(m.enemies.length,0);assert.equal(m.pickups.length,0);}
  }
 });
-test('breaking scenery changes the following reinforcement formation and retry restores the same advantage',()=>{
- const m=new Campaign();m.stage=2;m.wave=1;m.status='playing';m.spawn();m.activateProp(m.props[0]);assert(m.routeAdvantage);m.spawn();assert(m.pending.every(g=>g.side==='front'));assert(m.pending[0].due>=7);const plan=JSON.stringify(m.pending);m.status='lost';m.hero.hp=0;assert(m.continueRun());assert.equal(JSON.stringify(m.pending),plan);assert.equal(m.secrets.length,0);
-});
+
 test('co-op weapon owner and secret pickup remain independent with no duplicated reward',()=>{
  const m=new Campaign();m.enableCoop('huangzhong');m.start();m.pending=[];m.supplies=[];m.barrels=[];m.props=[];m.enemies=[];m.fieldSuppressed=true;m.hero.x=400;m.hero.y=370;m.partner!.x=400;m.partner!.y=470;m.partner!.equipped={id:'crescent',uses:12};const e=foe(m,550,470);ticks(m,1,{...idle,partner:{...idle,attack:true}});ticks(m,70);assert.equal(e.hp,956);assert(!m.hero.bladeAway);assert(!m.partner!.bladeAway);assert(!m.hero.equipped);
 });
