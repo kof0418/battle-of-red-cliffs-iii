@@ -200,7 +200,7 @@ export class Campaign {
   reseedIds() {
     this.serial = Math.max(...[this.hero, ...this.enemies, ...this.supplies, ...this.pickups].map(entity => entity.id));
   }
-  start() { if (this.status !== 'ready') return; this.status = 'playing'; this.spawn(); }
+  start(stage=this.stage) { if (this.status !== 'ready'||!Number.isInteger(stage)||stage<0||stage>=this.levels.length) return false; this.stage=stage;this.wave=0;if(stage>0)this.ranked=false;this.status = 'playing'; this.spawn();return true; }
   togglePause() { if (this.status === 'playing') {this.paused = !this.paused;if(this.paused)this.clearPendingInputs();} }
   clearPendingInputs(){this.stoppedInputs.clear();for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
   /** Called only from the clear screen; the campaign score and credits survive. */
