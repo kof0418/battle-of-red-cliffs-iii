@@ -1,15 +1,26 @@
+import {bowDraw,specialBeat,keyedPose} from './choreography.ts';
+import {HAND_PALETTES} from './hand-palette.ts';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
 export function rangedSpecialPose(f:Fighter){
  const t=f.attack!.elapsed;
- if(f.heroId==='zhaoyun')return {x:t<.25?9:43,y:t<.25?-65:-27,lean:t<.25?-12:18,angle:t<.25?-1.2:.4,stride:14,crouch:0,phase:2};
- const a=t*Math.PI*5;return {x:Math.cos(a)*24,y:-46+Math.sin(a)*18,lean:0,angle:a,stride:12,crouch:6,phase:2};
+ if(f.heroId==='zhaoyun')return keyedPose(t,[
+  {at:0,pose:{x:9,y:-65,lean:-12,angle:-1.2,stride:14,crouch:0,phase:1}},
+  {at:.14,pose:{x:43,y:-27,lean:18,angle:.4,stride:14,crouch:0,phase:2}},
+  {at:.23,pose:{x:20,y:-44,lean:4,angle:-.5,stride:14,crouch:0,phase:1}},
+  {at:.32,pose:{x:49,y:-25,lean:20,angle:.35,stride:14,crouch:0,phase:2}},
+  {at:.43,pose:{x:16,y:-57,lean:-7,angle:-.9,stride:14,crouch:0,phase:1}},
+  {at:.54,pose:{x:45,y:-32,lean:18,angle:.3,stride:14,crouch:0,phase:2}},
+  {at:f.attack!.duration,pose:{x:17,y:-43,lean:0,angle:-.65,stride:0,crouch:0,phase:4}},
+ ]);
+ const spin=keyedPose(t,[0,.12,.35,.60,f.attack!.duration].map((at,i)=>({at,pose:{x:0,y:0,lean:0,angle:Math.min(i,3)*Math.PI*2/3,stride:12,crouch:6,phase:2}}))).angle;
+ return {x:Math.cos(spin)*24,y:-46+Math.sin(spin)*18,lean:0,angle:spin,stride:12,crouch:6,phase:specialBeat(f).active?2:1};
 }
 /** Spear thrust/rise/sweep and an articulated bow replace the shared weapon poses. */
 export function drawRangedWeapon(g:Phaser.GameObjects.Graphics,f:Fighter,hx:number,hy:number,phase:number,angle:number){
  if(f.mounted||f.equipped||!['zhaoyun','huangzhong'].includes(f.heroId!))return false;
  const zhao=f.heroId==='zhaoyun',special=f.attack?.move==='special',close=f.attack?.move==='bow-strike';
- const cloth=zhao?0xa4c2ce:0xc1a365,skin=zhao?0xd2a47c:0xbd956b;
+ const cloth=zhao?0xa4c2ce:0xc1a365,skin=HAND_PALETTES[f.heroId!].skin;
  const line=(color:number,n:number,x:number,y:number,tx:number,ty:number)=>g.lineStyle(n,color).lineBetween(x,y,tx,ty);
  if(zhao){
   const vx=Math.cos(angle),vy=Math.sin(angle);line(0x273d43,10,-10,-54,hx-24*vx,hy-24*vy);line(cloth,6,-10,-54,hx-24*vx,hy-24*vy);
@@ -29,7 +40,7 @@ export function drawRangedWeapon(g:Phaser.GameObjects.Graphics,f:Fighter,hx:numb
  }
  const rotation=special?angle:close?angle:0;
  g.save();g.translateCanvas(hx,hy);g.rotateCanvas(rotation);
- const bx=7,pull=f.step===3?36:f.step===2?15:20,draw=!f.attack?6:close||special?0:phase===0?pull*.4:phase===1?pull:phase===2?0:phase===3?3:6;
+ const bx=7,draw=close||special?0:bowDraw(f);
  g.lineStyle(5,0x493323).beginPath().moveTo(bx-2,-33).lineTo(bx+10,-22).lineTo(bx+15,0).lineTo(bx+10,22).lineTo(bx-2,33).strokePath();
  g.lineStyle(2,0xd1b071).beginPath().moveTo(bx-2,-33).lineTo(bx+8,-21).lineTo(bx+12,0).lineTo(bx+8,21).lineTo(bx-2,33).strokePath();
  line(0xeee4c7,1,bx-2,-33,bx-draw,0);line(0xeee4c7,1,bx-draw,0,bx-2,33);

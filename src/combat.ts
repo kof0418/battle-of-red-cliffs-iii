@@ -1,3 +1,4 @@
+import {infantryArrowVisual} from './infantry-motion.ts';
 import {CACHE_LOOT,COURIER_LOOT} from './secrets.ts';
 import {LOB,adaptiveMove,attackFamily,distributeTarget} from './counterplay.ts';
 import {duelForm,duelHits,isDuelHero,DUEL_SPECIAL_TIMES} from './duel-forms.ts';
@@ -887,7 +888,7 @@ export class Campaign {
     if(heroAttack&&a.move==='wave'){this.projectiles.push({owner:f.id,id:++this.serial,x:a.x+a.face*24,y:a.y,face:a.face,remaining:720,damage:48,wave:true,...(f.heroId==='huangzhong'?{arrow:true,...mountedArrowVisual(f.face,a.face,24)}:{}),hits:[]});this.events.push({type:'blade-wave',x:a.x,y:a.y,heroId:f.heroId});return;}
     if(special)this.events.push({type:'special',pulse:a.pulses??0,x:a.x,y:a.y,value:a.face,heroId:f.heroId,heavy:(a.pulses??0)>=2});
     const reach = heroAttack ? s.reach : a.move==='cavalry'?70: f.kind==='archer'?340:f.kind==='spearman'?145:f.kind==='brute'?85: f.kind === 'heavy' ? 88 : 73;
-    if(!heroAttack&&a.move==='shot')this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*340});
+    if(!heroAttack&&a.move==='shot'){const origin=f.kind==='archer'?infantryArrowVisual(f):{x:a.x,y:a.y-40};this.events.push({type:'arrow',...origin,value:a.face*340});}
     if(!heroAttack&&a.move==='fan')for(const slope of [-.3,0,.3])this.events.push({type:'arrow',x:a.x,y:a.y-40,value:a.face*330,heavy:false,dy:slope*330});
     const bow = !f.mounted && !a.weapon && !special && heroAttack && a.move==='slash' && f.heroId === 'huangzhong';
     if(heroAttack&&a.move==='mounted'&&f.heroId==='huangzhong'){this.projectiles.push({comboAttack:a,owner:f.id,id:++this.serial,x:a.x+a.face*20,y:a.y,face:a.face,remaining:s.reach,damage:s.damage,rapid:a.rapid,arrow:true,...mountedArrowVisual(f.face,a.face),piercing:f.step===3,push:s.push,hits:[]});return;}

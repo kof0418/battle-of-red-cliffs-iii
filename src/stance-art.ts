@@ -4,8 +4,9 @@ import {planted} from './choreography';
 /** Bent knees transfer torso weight without translating the planted soles. */
 export function drawSupport(g:Phaser.GameObjects.Graphics,f:Fighter,lean:number,crouch:number,stride:number){
  if(!planted(f)||!f.attack&&!f.stun&&!(f.throwRecovery??0))return false;
- const metal=f.heroId==='zhangfei'?0x675e4b:0x3b4840;
+ const metal=f.heroId==='zhangfei'?0x675e4b:f.heroId==='zhaoyun'?0x8ea7aa:f.heroId==='huangzhong'?0x777359:f.heroId==='lubu'?0x65575c:f.heroId==='weiyan'?0x666d69:0x3b4840;
  for(const side of [-1,1]){
+  if(f.attack?.move==='kick'&&side===1)continue;
   const foot=side*(12+stride*.6),knee=foot+lean*.25,hip=side*8;
   g.lineStyle(12,0x182522).lineBetween(hip,-28+crouch*.3,knee,-16).lineBetween(knee,-16,foot,-4);
   g.lineStyle(7,metal).lineBetween(knee,-16,foot,-7);

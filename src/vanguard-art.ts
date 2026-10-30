@@ -1,13 +1,18 @@
+import {keyedPose} from './choreography.ts';
 import type Phaser from 'phaser';
 import type {Fighter} from './combat';
 /** Dedicated weapon/hand poses; shared by the actor transform and detailed warrior art. */
 export function vanguardSpecialPose(f:Fighter){
  const t=f.attack!.elapsed;
  if(f.heroId==='weiyan')return {x:-12,y:-44,lean:-12,angle:-2.1,stride:0,crouch:0,phase:2};
- if(t<.30)return {x:34,y:-43,lean:10,angle:.4,stride:16,crouch:0,phase:2};
- if(t<.57)return {x:-4,y:-55,lean:-14,angle:2.8,stride:18,crouch:2,phase:2};
- if(t<.70)return {x:0,y:-101,lean:-12,angle:-1.65,stride:18,crouch:0,phase:1};
- return {x:29,y:-9,lean:24,angle:1.4,stride:20,crouch:12,phase:2};
+ return keyedPose(t,[
+  {at:0,pose:{x:0,y:-62,lean:-9,angle:-1.4,stride:16,crouch:0,phase:1}},
+  {at:.20,pose:{x:34,y:-43,lean:10,angle:.4,stride:16,crouch:0,phase:2}},
+  {at:.43,pose:{x:-4,y:-55,lean:-14,angle:2.8,stride:18,crouch:2,phase:2}},
+  {at:.61,pose:{x:0,y:-101,lean:-12,angle:4.63,stride:18,crouch:0,phase:1}},
+  {at:.70,pose:{x:29,y:-108,lean:16,angle:7.68,stride:20,crouch:12,phase:2}},
+  {at:f.attack!.duration,pose:{x:17,y:-43,lean:0,angle:5.68,stride:0,crouch:0,phase:4}},
+ ]);
 }
 /** Wei Yan tucks one leg and extends the other through his somersault, never a sword slash. */
 export function drawVanguardLegs(g:Phaser.GameObjects.Graphics,f:Fighter){
