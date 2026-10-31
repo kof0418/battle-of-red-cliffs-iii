@@ -70,13 +70,13 @@ function takeComboDirection(edges:Set<string>){let y:number|undefined;for(const 
 function queuePartner(action:string,source:InputSource='keyboard',padY=0){
  const m=current()?.model;if(!m?.partner||settingsOpen||m.status!=='playing'||m.paused)return;
  if(action==='attack'){const keys=[...keyboardHeld].map(k=>coopKey(k,2));rememberComboDirection(partnerPressed,source==='pad'?padY:Number(keys.includes('down'))-Number(keys.includes('up')));}
- if(m.grappleOf(m.partner)){partnerCommands.reset();partnerPressed.add(action);return;}
+
  if(partnerCommands.press(source,action,performance.now(),!!m.partner.mounted))partnerPressed.add(m.partner.mounted?'horse-special':'command-special');else partnerPressed.add(action);
 }
 function queueAction(action:string,source:InputSource='keyboard'){
  const scene=current(),m=scene?.model;
  if(action==='attack'){const directions=source==='keyboard'?new Set([...keyboardHeld].map(k=>coopMode?coopKey(k,1):keyAction(k,bindings))):source==='touch'?touchInput.held:scene.padHeld;rememberComboDirection(pressed,Number(directions.has('down'))-Number(directions.has('up')));}
- if(m?.grapple){commands.reset();if(action==='attack'){
+ if(m?.grapple){if(commands.press(source,action,performance.now(),!!m.hero.mounted)){pressed.add('command-special');pressed.add('attack');return;}if(action==='attack'){
   const keys=[...keyboardHeld].map(k=>coopMode?coopKey(k,1):keyAction(k,bindings));
   if(keys.includes('left')||held.has('left')||scene.padHeld.has('left'))pressed.add('throw-left');
   else if(keys.includes('right')||held.has('right')||scene.padHeld.has('right'))pressed.add('throw-right');
