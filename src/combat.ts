@@ -497,7 +497,7 @@ export class Campaign {
     if(group.clearFirst){if(this.enemies.length)return;group.readyAt??=elapsed+.9;if(elapsed<group.readyAt)return;}
     if(!this.enemies.length)group.due=Math.min(group.due,elapsed+.9);
     if(elapsed<group.due)return;
-    if(this.enemies.length>REINFORCEMENT_CAP[this.stage]&&elapsed<group.due+6){group.held=true;return;}
+    if(this.enemies.filter(e=>e.hp>0).length>REINFORCEMENT_CAP[this.stage]){group.held=true;return;}
     if(group.held){group.readyAt??=elapsed+.9;if(elapsed<group.readyAt)return;}
     this.pending.shift();
     group.kinds.forEach((kind,i)=>{
@@ -810,7 +810,7 @@ export class Campaign {
     const preferred=e.id%2?1:-1,side=h.x+preferred*110<this.cameraLeft+15||h.x+preferred*110>this.cameraLeft+945?-preferred:preferred,signed=(e.x-h.x)*side;
     const flanking=e.kind==='raider'&&signed<80&&(signed < -25||Math.abs(dy)>35);
     const activeAttackers=this.enemies.filter(f=>f.hp>0&&f.attack).length;
-    const bossReady=!boss&&this.enemies.some(f=>isBoss(f.kind)&&f.hp>0&&f.stun<=0&&!f.attack&&f.cooldown<=0&&Math.abs(f.x-h.x)<250);
+    const bossReady=!boss&&this.enemies.some(f=>isBoss(f.kind)&&f.hp>0&&f.stun<=0&&!f.attack&&f.cooldown<=0&&Math.abs(f.x-h.x)<BOSS_STYLE[f.kind].reach&&Math.abs(f.y-h.y)<BOSS_STYLE[f.kind].lane);
     const slots=this.attackLimit-(bossReady?1:0);
     if(!retreat&&!flanking&&e.cooldown<=0&&activeAttackers<slots&&Math.abs(dy)<(boss?BOSS_STYLE[e.kind].lane:27)&&Math.abs(dx)<reach){
       let move:Move=e.kind==='thrower'?'lob':spear?'thrust':e.kind==='brute'&&e.attacks%3===2?'press':ranged?'shot':(e.kind==='hammer'||e.kind==='mauler')?'slam':'slash';

@@ -22,7 +22,13 @@ export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing
  let move=moves[attacks%moves.length];
  if(spacing){
   const x=Math.abs(spacing.dx),y=Math.abs(spacing.dy);
-  if(kind==='hunter')move=x<110?'sweep':move==='charge'&&x<250?'charge':'fan';
+  if(kind==='bridgeguard')move=x>170?'charge':x<85&&y<35?'slam':'sweep';
+  else if(kind==='bridgearcher')move=x<100?'surge':'fan';
+  else if(kind==='admiral')move=x<90?'sweep':y>40?'ring':'surge';
+  else if(kind==='firelord')move=x<90&&y<35?'slam':'lanes';
+  else if(kind==='pursuer')move=x>220?'charge':y>35?'fork':'sweep';
+  else if(kind==='warlord')move=x<90&&y<30?'sweep':y>45?'cross':move;
+  else if(kind==='hunter')move=x<110?'sweep':move==='charge'&&x<250?'charge':'fan';
   else if(kind==='frostlord')move=x<70&&y<45?'slam':x<155?(phase>0&&attacks%3===2&&x<125?'slam':'ring'):'charge';
   else if(kind==='marshal')move=x>160?'charge':attacks%2?'slam':'sweep';
   else if(kind==='boss')move=x>125?'charge':phase>0&&attacks%2?'sweep':'slam';
@@ -30,8 +36,8 @@ export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing
  }
  const base=['lanes','fork','surge'].includes(move)?1.10:move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:.85;
  // Even the final phase keeps at least 650 ms of warning. Every sequence ends in a large opening.
- const windup=Math.max(.65,base-phase*.09),finisher=attacks%moves.length===moves.length-1;
- return {move,windup,recovery:finisher?1.05:phase===2?.6:.7,gap:finisher?.45:.18,phase};
+ const windup=Math.max(.72,base-phase*.07),finisher=attacks%moves.length===moves.length-1;
+ return {move,windup,recovery:finisher?1.15:phase===2?.72:.8,gap:finisher?.45:.18,phase};
 }
 export function frontalGuard(face:number,x:number,y:number,sourceX:number,sourceY:number){return (sourceX-x)*face>=-6&&Math.abs(sourceY-y)<40;}
 

@@ -23,9 +23,9 @@ test('ordinary crates still drop exactly once and a thrown knife can break a bon
  const m=setup();tick(m);const box=m.barrels[0];box.hp=1;m.projectiles=[{id:990,x:box.x-50,y:box.y,face:1,damage:38,remaining:300}];m.updateProjectiles(.1);assert.equal(m.bonusRound?.broken,1);assert.equal(m.pickups.length,0);
  const normal={id:991,x:500,y:499,hp:0,loot:'meat' as const};m.breakSupply(normal);m.breakSupply(normal);assert.equal(m.pickups.length,1);assert.equal(m.pickups[0].amount,40);
 });
-test('busy heavy formations delay reinforcements with a finite deadline and fresh warning',()=>{
+test('busy heavy formations wait for room then give a fresh warning',()=>{
  for(const stage of [0,3]){const m=new Campaign();m.stage=stage;m.wave=1;m.status='playing';m.spawn();const due=m.pending[0].due;m.time=m.waveStarted+due;m.updateReinforcements();assert(m.pending[0].held);assert(!m.pending[0].readyAt);
- m.time=m.waveStarted+due+6;m.updateReinforcements();assert(m.pending[0].readyAt);const count=m.enemies.length;m.time+=.5;m.updateReinforcements();assert.equal(m.enemies.length,count);m.time+=.41;m.updateReinforcements();assert(m.enemies.length>count);assert.equal(m.pending.length,0);}
+ m.time=m.waveStarted+due+60;m.updateReinforcements();assert(!m.pending[0].readyAt);m.enemies=[];m.updateReinforcements();assert(m.pending[0].readyAt);const count=m.enemies.length;m.time+=.5;m.updateReinforcements();assert.equal(m.enemies.length,count);m.time+=.41;m.updateReinforcements();assert(m.enemies.length>count);assert.equal(m.pending.length,0);}
 });
 test('early clearance calls next squad once after warning and still gates rewards',()=>{
  const m=new Campaign();m.wave=1;m.status='playing';m.spawn();m.enemies=[];m.updateReinforcements();assert(m.reinforcementHint);const remaining=m.remainingEnemies;tick(m,60);assert.equal(m.remainingEnemies,remaining);assert(m.enemies.length);assert.equal(m.waveReward,-1);

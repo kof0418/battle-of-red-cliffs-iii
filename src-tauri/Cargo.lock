@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "ipnet"
-version = "2.12.2"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
 
@@ -3150,7 +3150,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-runtime"
-version = "2.12.2"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c55766d99cea69055904d1735b93c2049302b2e09effd462120deb5581d78e9"
 dependencies = [
@@ -3175,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-runtime-wry"
-version = "2.12.2"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d61892587aea2a85245bcaec98c6fe46268874c0a0deae5535fb71ca7b93eae"
 dependencies = [
@@ -3299,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "three-kingdoms-battle"
-version = "2.12.2"
+version = "2.13.0"
 dependencies = [
  "tauri",
  "tauri-build",
