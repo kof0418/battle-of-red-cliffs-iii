@@ -793,7 +793,7 @@ function openSettings() {
   document.querySelector<HTMLInputElement>('#show-touch')!.checked=document.body.classList.contains('touch-controls');
   renderPadControls();
   const difficulty=document.querySelector<HTMLSelectElement>('#difficulty')!;difficulty.value=preferences.difficulty;difficulty.disabled=current().model.status!=='ready';
-  renderControls(); renderHistory();
+  renderControls();
   refreshVolumeLabels(); current().draw();
   document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();
 }
@@ -811,7 +811,7 @@ document.querySelector<HTMLSelectElement>('#difficulty')!.addEventListener('chan
   if(current().model.status!=='ready'||!(value in DIFFICULTIES))return;
   preferences.difficulty=value as typeof preferences.difficulty;current().model.difficulty=preferences.difficulty;
   try{records=parseRecords(JSON.parse(profileStorage.getItem(recordsKey(preferences.difficulty,campaignLength))??'{}'));}catch{records={};}
-  current().best=readBest();current().selectionKey='';savePreferences();renderHistory();
+  current().best=readBest();current().selectionKey='';savePreferences();
 });
 function refreshVolumeLabels() {
   setText('#music-value', `${Math.round(preferences.music*100)}%`);
@@ -896,14 +896,6 @@ function renderPadControls(){
  }
 }
 document.querySelector('#reset-pad')!.addEventListener('click',()=>{preferences.pad={...DEFAULT_PAD_BINDINGS};current().pad.reset();commands.reset();savePreferences();renderPadControls();});
-function renderHistory(){
- const area=document.querySelector('#history')!;area.innerHTML='<h3>歷史戰績</h3>';
- for(const [version,key] of [['目前休閒','v150-easy'],['目前標準','v14loot'],['目前挑戰','v150-hard'],['1.0','v1'],['1.1','v11'],['1.2','v12'],['1.3','v13'],['1.3 必殺技','v13special'],['指令必殺','v13command'],['摔技版','v13grapple'],['雙關擴充','v13expanded'],['五關戰役','v13five']]){
-  const title=document.createElement('p');title.textContent=`v${version}`;area.append(title);
-  let rows:Records={};try{rows=parseRecords(JSON.parse(profileStorage.getItem(`red-banner-records-${key}`)??'{}'));}catch{}
-  const list=document.createElement('p');list.className='history-row';list.textContent=HERO_IDS.map(id=>`${HEROES[id].name}：${rows[id]?`${rows[id]!.score} 分／${rows[id]!.rank}`:'尚無紀錄'}`).join('　');area.append(list);
- }
-}
 document.querySelector('#title-start')!.addEventListener('click',()=>{titleScreen=false;current().draw();document.querySelector<HTMLButtonElement>('#deploy-hero')!.focus();});
 document.querySelector('#title-settings')!.addEventListener('click',openSettings);
 document.querySelector('#menu-resume')!.addEventListener('click',()=>closeSettings());
