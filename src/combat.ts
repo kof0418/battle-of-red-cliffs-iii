@@ -663,6 +663,11 @@ export class Campaign {
     if(state.phase==='hold'){
       if(this.time>state.deadline||this.time-state.started>8){this.releaseGrapple(true);return;}
       e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.z=h.heroId==='zhangfei'&&state.hits>0?48:0;if(e.z){h.grapplePose='lift';e.grapplePose='air-held';}
+      if(input.special&&state.hits===2){
+        if((h.specialCooldown??0)>0||(h.knockdown??0)>0||h.dodge>0||h.z>0||h.vz>0){this.message='必殺技尚未就緒';this.messageUntil=this.time+.8;return;}
+        this.releaseGrapple(false);e.z=0;e.vz=0;e.stun=Math.max(e.stun,.45);
+        this.special();return;
+      }
       if(input.jump){state.phase='jump';state.elapsed=0;state.jumpDirection=Math.sign(input.x);state.slamQueued=!!fresh;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});return;}
       if(fresh){
         if(input.throwX??input.x){this.beginThrow(Math.sign(input.throwX??input.x),false);}
