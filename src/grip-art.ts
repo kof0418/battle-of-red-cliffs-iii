@@ -10,6 +10,11 @@ export function drawGrip(g:Phaser.GameObjects.Graphics,f:Fighter,contact?:{x:num
  const id=f.heroId!,pose=grappleMotion(id,f.grapplePose!,f.grappleProgress,f.grappleBack,f.mounted),palette=HAND_PALETTES[id],color=palette.sleeve;
  if(f.mounted){drawMountedWeapon(g,f,pose.x,pose.y,2);return true;}
  const hx=contact?.x??pose.x,hy=contact?.y??pose.y,elbowX=id==='zhangfei'?12:8;
+ // Captive stays in the hands; pulse accents make the held special readable.
+ if(f.attack?.move==='special'){
+  const pulse=Math.sin(Math.min(1,f.attack.elapsed/f.attack.duration)*Math.PI*3);
+  g.lineStyle(3,0xffd576,.65).strokeCircle(hx,hy,13+Math.abs(pulse)*12);
+ }
  g.lineStyle(10,0x1d302d).lineBetween(-10,-54,elbowX,hy+14).lineBetween(elbowX,hy+14,hx-6,hy+8);
  g.lineStyle(7,color).lineBetween(-10,-54,elbowX,hy+14).lineBetween(elbowX,hy+14,hx-6,hy+8);
  g.lineStyle(11,0x1d302d).lineBetween(12,-56,21,hy+5).lineBetween(21,hy+5,hx+2,hy);

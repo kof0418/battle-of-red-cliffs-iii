@@ -377,7 +377,7 @@ export class Campaign {
       else if(a.hit&&h.heroId!=='huangzhong'){this.specialQueued=false;this.queuedUntil=0;}
     }
     const casting=occupied||h.attack?.move==='special'||h.attack?.move==='rescue';
-    if(h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
+    if(!this.grapple&&h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
     if(input.dodge&&h.mounted&&!this.grapple&&h.stun<=0&&!h.attack&&(h.rideDashCooldown??0)<=0){
       h.rideDash=.32;h.rideDashCooldown=1.15;this.dashHits.clear();h.rideTurn=0;h.rideFacing=undefined;
       h.attack={move:'ride-charge',elapsed:0,duration:.42,impact:.04,hit:true,face:h.face,x:h.x,y:h.y};this.queuedUntil=0;
@@ -637,7 +637,7 @@ export class Campaign {
     const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
     this.stoppedInputs.get(h.id)?.clear();
     h.grapplePose=undefined;delete h.grappleBack;delete h.grappleSpin;h.grappleProgress=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
-    if(e){if(state.mounted&&e.z>0){e.z=0;e.stun=Math.max(e.stun,.5);e.knockdown=.5;}e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
+    if(e){if((state.mounted||state.phase==='special')&&e.z>0){e.z=0;e.stun=Math.max(e.stun,.5);e.knockdown=.5;}e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
       if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,this.enemyLeft,this.enemyRight);}}
     this.grapple=null;
     if(escape){h.stun=Math.max(h.stun,.2);this.message=e&&isBoss(e.kind)?'頭目掙脫！拉開距離，等待下次抓取空檔':'接招太慢，敵人掙脫！';this.messageUntil=this.time+1.3;this.events.push({type:'escape',x:h.x,y:h.y});}
@@ -665,8 +665,7 @@ export class Campaign {
       e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.z=h.heroId==='zhangfei'&&state.hits>0?48:0;if(e.z){h.grapplePose='lift';e.grapplePose='air-held';}
       if(input.special&&state.hits===2){
         if((h.specialCooldown??0)>0||(h.knockdown??0)>0||h.dodge>0||h.z>0||h.vz>0){this.message='必殺技尚未就緒';this.messageUntil=this.time+.8;return;}
-        this.releaseGrapple(false);e.z=0;e.vz=0;e.stun=Math.max(e.stun,.45);
-        this.special();return;
+        if(this.special(true)){state.phase='special';state.elapsed=0;}return;
       }
       if(input.jump){state.phase='jump';state.elapsed=0;state.jumpDirection=Math.sign(input.x);state.slamQueued=!!fresh;h.grapplePose='air';e.grapplePose='air-held';this.events.push({type:'grab-air',x:h.x,y:h.y});this.events.push({type:'jump',x:h.x,y:h.y});return;}
       if(fresh){
@@ -674,6 +673,14 @@ export class Campaign {
         else if(state.hits<2){state.hits++;state.deadline=this.time+2.8;this.grappleDamage(e,this.style.grabDamage);if(!this.grapple)return;this.events.push({type:'grapple-hit',x:h.x,y:h.y,value:state.hits});if(h.heroId==='zhangfei'){h.grapplePose='lift';e.grapplePose='air-held';e.z=48;}this.message=`抓住打擊 ${state.hits}/2`;this.messageUntil=this.time+1;}
         else{this.releaseGrapple(false);this.message='連打三下，鬆開抓取';this.messageUntil=this.time+1;return;}
       }
+    }else if(state.phase==='special'){
+      // Keep ownership and contact throughout every pulse, then release on recovery.
+      if(h.attack?.move!=='special'){
+        this.releaseGrapple(false);e.z=0;e.vz=0;e.stun=Math.max(e.stun,.65);e.knockdown=.55;
+        e.x=clamp(e.x+h.face*SPECIALS[h.heroId!].push*3,this.enemyLeft,this.enemyRight);return;
+      }
+      state.elapsed+=dt;e.x=clamp(h.x+h.face*27,this.enemyLeft,this.enemyRight);e.y=h.y;e.vz=0;
+      e.z=h.heroId==='zhangfei'?48:0;
     }else if(state.phase==='jump'){
       state.elapsed+=dt;h.x=clamp(h.x+(state.jumpDirection??0)*155*dt,this.cameraLeft+25,this.cameraLeft+935);h.z=Math.sin(Math.min(1,state.elapsed/1.05)*Math.PI)*throwWeight(e.kind).jump;e.z=h.z+(h.heroId==='zhangfei'?42:24);e.x=clamp(h.x+h.face*24,this.enemyLeft,this.enemyRight);e.y=h.y;
       if(fresh)state.slamQueued=true;
@@ -753,9 +760,9 @@ export class Campaign {
     this.events.push({type:'rescue',x:h.x,y:h.y,heroId:h.heroId,value:connected?8:0});
     return true;
   }
-  special() {
+  special(fromGrapple=false) {
     const h=this.hero;
-    if(this.status!=='playing'||this.paused||h.hp<=0||this.grapple||h.mounted)return false;
+    if(this.status!=='playing'||this.paused||h.hp<=0||(this.grapple&&!(fromGrapple&&this.grapple.phase==='hold'&&this.grapple.hits===2))||h.mounted)return false;
     let reason='';
     if((h.knockdown??0)>0||h.attack?.move==='rescue'||(h.specialCooldown??0)>0||h.attack?.move==='special')reason='招式尚未收完';
     else if(h.z>0||h.vz>0||h.dodge>0)reason='請落地站穩後施放';
@@ -901,7 +908,7 @@ export class Campaign {
       if(heroAttack&&a.weapon==='hammer'&&(!isBoss(t.kind)||!t.attack)){t.stun=Math.max(t.stun,.8);if(!isBoss(t.kind))t.knockdown=.6;}
       if(heroAttack&&!special&&!a.weapon&&(a.move==='slash'||a.move==='bow-strike'||a.move==='kick')&&f.step===3&&!isBoss(t.kind)){t.knockdown=.45;t.stun=Math.max(t.stun,.45);t.attack=null;}
       if(heroAttack&&a.weapon==='chain'&&(a.pulses??0)===0&&!isBoss(t.kind)){const dx=t.x-f.x;t.x-=Math.sign(dx)*Math.min(42,Math.max(0,Math.abs(dx)-40));}
-      t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:a.rapid?s.push*.5:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
+      if(!(special&&this.grapple?.phase==='special'&&this.grapple.target===t.id))t.x = clamp(t.x + a.face * (heroAttack ? (special && (a.pulses??0)>=2?s.push*3:a.rapid?s.push*.5:s.push) : 23), heroAttack?this.enemyLeft:this.cameraLeft+25, heroAttack?this.enemyRight:this.cameraLeft+935);
       if (heroAttack) {
         this.score += actual * 10 + Math.floor(actual * Math.min(this.hits, 20) * .5); this.hits++; this.bestCombo = Math.max(this.bestCombo, this.hits);this.stageBestHit=Math.max(this.stageBestHit,this.hits);
         this.hitDeadline = this.time + 1.7; this.freeze = a.move==='aerial'?.06:f.step === 3 ? .065 : .035;
