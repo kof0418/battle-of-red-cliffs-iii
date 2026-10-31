@@ -40,6 +40,7 @@ export class Soundtrack {
  diagnostics(){let music=0;for(const voice of this.notes.values())if(voice.musical)music++;return {active:this.notes.size,music,effects:this.notes.size-music,peak:this.peak,rejected:this.rejected,created:this.created};}
  private release(oscillator:OscillatorNode){const voice=this.notes.get(oscillator);if(!voice)return;this.notes.delete(oscillator);oscillator.onended=null;oscillator.disconnect();voice.envelope.disconnect();}
  private impactUntil=0;
+ private lastHurt=-Infinity;
  private lastHit=-Infinity;
  private beat = 0;
  private next = 0;
@@ -88,6 +89,13 @@ export class Soundtrack {
   this.note(v.pitch,this.context.currentTime,v.duration,v.gain,v.type,this.effects,false,v.end);
   if(hit)this.note(heavy?54:90,this.context.currentTime,.09,.08,'sine',this.effects,false,35);
  }
+ hurt(heavy=false){
+  const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted||this.preferences.effects<=0)return;
+  const now=ctx.currentTime;if(now-this.lastHurt<.09)return;this.lastHurt=now;
+  this.note(heavy?115:165,now,.18,.14,'triangle',this.effects,false,42);
+  this.note(58,now,.22,.12,'sine',this.effects,false,28);
+  this.impactUntil=Math.max(this.impactUntil,now+.22);
+ }
  hitImpact(heavy=false) {
   const ctx=this.context;if(!ctx||!this.effects||this.preferences.muted||this.preferences.effects<=0)return;
   const now=ctx.currentTime;if(now-this.lastHit<.035)return;this.lastHit=now;
@@ -133,7 +141,7 @@ export class Soundtrack {
  pause() {
   this.active=false;
   for(const note of this.notes.keys()) {try{note.stop();}catch{/* already ended */}this.release(note);}
-  this.impactUntil=0;this.lastHit=this.lastWeapon=this.lastEffect=this.lastSpecial=this.lastStrike=-Infinity;
+  this.impactUntil=0;this.lastHurt=this.lastHit=this.lastWeapon=this.lastEffect=this.lastSpecial=this.lastStrike=-Infinity;
  }
  update(stage: number, boss: boolean, playing: boolean) {
   const context = this.context;

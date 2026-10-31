@@ -23,7 +23,8 @@ test('music starts only after unlock, pauses scheduled voices, resumes and appli
   for(const stage of [2,3,4]){const before=nodes.length;a.update(stage,true,true);assert(nodes.length>before);a.pause();}
   for(const id of ['guanyu','zhangfei','zhaoyun','huangzhong','weiyan'] as const){const n=nodes.length;a.specialImpact(id,true);a.specialStrike(id);context.currentTime+=.04;a.specialStrike(id,true);assert.equal(nodes.length,n+16);a.pause();assert(nodes.every(n=>n.stopped));}
   const impactCount=nodes.length;a.hitImpact(true);assert.equal(nodes.length,impactCount+3);a.hitImpact();assert.equal(nodes.length,impactCount+3);
+  a.pause();a.update(0,false,true);const hurtCount=nodes.length;a.hurt();a.hurt(true);assert.equal(nodes.length,hurtCount+2);context.currentTime+=.1;a.hurt(true);assert.equal(nodes.length,hurtCount+4);a.update(0,false,true);assert(buses[0].gain.value<.2);a.pause();
   a.configure({...DEFAULT_PREFERENCES,muted:true});assert.equal(buses[0].gain.value,0);assert.equal(buses[1].gain.value,0);
-  const mutedCount=nodes.length;a.weapon('guanyu',true);a.specialImpact('zhangfei');a.specialStrike('guanyu',true);a.hitImpact();assert.equal(nodes.length,mutedCount);
+  const mutedCount=nodes.length;a.hurt();a.weapon('guanyu',true);a.specialImpact('zhangfei');a.specialStrike('guanyu',true);a.hitImpact();assert.equal(nodes.length,mutedCount);
  }finally{Object.defineProperty(globalThis,'AudioContext',{value:original,configurable:true,writable:true});}
 });
