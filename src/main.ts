@@ -109,7 +109,7 @@ class Battle extends Phaser.Scene {
   supplies!: Phaser.GameObjects.Graphics; backdrop?: Phaser.GameObjects.Container; drawnStage = -1;
   label!: Phaser.GameObjects.Text; healthLabel!: Phaser.GameObjects.Text; stageLabel!: Phaser.GameObjects.Text; scoreLabel!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
   overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
-  portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';progressKey='';
+  portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';
 
   clock = new FixedStep();
   pad = new PadInput();padHeld=new Set<string>();padConnected=false;
@@ -124,7 +124,6 @@ class Battle extends Phaser.Scene {
     startingStage=Math.min(startingStage,this.model.levels.length-1);
     const stageSelect=document.querySelector<HTMLSelectElement>('#start-stage')!;stageSelect.innerHTML=this.model.levels.map((l,i)=>`<option value="${i}">第 ${i+1} 關 · ${l.title}</option>`).join('');stageSelect.value=String(startingStage);
     updateStartHelp();
-    document.querySelector('.route')!.innerHTML=this.model.levels.map((l,i)=>`<article data-stage="${i}" data-state="locked"><b>${String(i+1).padStart(2,'0')}</b><div><h2>${l.title}</h2><p>${l.boss}</p></div><small>突破前關後開放</small></article>`).join('');
     document.querySelector<HTMLSelectElement>('#play-mode')!.value=coopMode?'coop':'solo';document.querySelector<HTMLSelectElement>('#partner-hero')!.value=partnerHero;document.querySelector<HTMLElement>('#partner-choice')!.hidden=!coopMode;document.querySelector<HTMLElement>('#coop-help')!.hidden=!coopMode;
     if(coopMode)this.model.enableCoop(partnerHero);this.pad2.reset();this.coopPads.reset();partnerCommands.reset();partnerPressed.clear();this.autoAttack2At=0;
     selectedHero = this.model.hero.heroId ?? 'guanyu';
@@ -684,12 +683,7 @@ class Battle extends Phaser.Scene {
       action.hidden = state === 'playing' || state === 'paused';
       setText('#advance', state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? `前往${m.levels[m.stage+1]?.title} ▶` : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻');
     }
-    setText('#credits',`續關 ${m.continues} / 2`);
-    const progressKey=`${m.campaignLength}/${m.stage}/${state}`;if(progressKey!==this.progressKey){this.progressKey=progressKey;
-    for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-stage]'))) {
-      const index = Number(card.dataset.stage); card.dataset.state = index < m.stage || state === 'won' || (state === 'stage-clear' && index === m.stage) ? 'cleared' : index === m.stage ? 'current' : 'locked';
-      card.querySelector('small')!.textContent = card.dataset.state === 'cleared' ? '已突破' : card.dataset.state === 'current' ? '目前關卡' : '突破前關後開放';
-    }}
+
   }
   showOverlay(state: string) {
     const m = this.model;
