@@ -67,3 +67,19 @@ body.touch-controls .cabinet-foot #pause{position:fixed;right:max(12px,env(safe-
 .coop-options{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin:8px 0}.coop-options label{color:#e8d4a2;font-size:14px}.coop-options select{background:#182c29;color:#f4db9e;border:1px solid #a58b50;padding:8px;border-radius:4px}.coop-options p{flex-basis:100%;font-size:12px;line-height:1.5;color:#b7c9c5;margin:0}.coop-options [hidden]{display:none!important}
 
 .ending-choice{position:fixed;z-index:150;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(92vw,650px);padding:14px;background:#15251ff5;border:1px solid #cfb178;text-align:center}.ending-choice strong{display:block;color:#e9d1a0;margin-bottom:8px}.ending-choice div{display:flex;gap:8px}.ending-choice button{min-height:46px;flex:1;padding:8px;border:1px solid #7a896a}.ending-choice button[aria-pressed=true]{background:#d3b06d;color:#17251f}.ending-choice #ending-advance{margin-top:8px;width:100%;background:#394c3b}.coop-options{flex-wrap:wrap}@media(max-height:500px){.ending-choice{padding:7px;bottom:5px}.ending-choice strong{display:none}.ending-choice button{min-height:40px;font-size:13px}}
+
+/* v3.1.0 — preserve the complete battlefield and use portrait letterboxing for guidance. */
+.portrait-guide,.viewport-guide{display:none}
+.cabinet-foot #pause{top:21%;min-height:44px;min-width:44px;font-size:14px}
+@media(orientation:portrait){
+ #cabinet,body.touch-controls #cabinet{width:var(--screen-w,100vw);height:calc(var(--screen-w,100vw)*9/16)}
+ .portrait-guide{display:grid;gap:8px;position:absolute;bottom:calc(100% + 24px);left:16px;right:16px;text-align:center;font:14px/1.6 sans-serif;color:#c5d3c8}
+ .portrait-guide strong{font-size:20px;color:#f0d59c}
+ .viewport-guide{display:block;position:absolute;top:calc(50% + var(--screen-w,100vw)*9/32 + 20px);left:16px;right:16px;margin:0;text-align:center;font:13px/1.9 sans-serif;color:#c5d3c8}
+ body:not([data-screen=playing]) .portrait-guide,body:not([data-screen=playing]) .viewport-guide{display:none}
+ body.touch-controls .viewport-guide{font-size:12px}
+}
+@media(orientation:portrait) and (max-height:650px){.portrait-guide{bottom:calc(100% + 12px)}.portrait-guide strong{font-size:17px}.portrait-guide span{font-size:12px}.viewport-guide{display:none}}
+@media(max-width:650px){#settings-panel{padding:12px}.settings-sheet{padding:20px}.settings-sheet small{font-size:13px}.select-hint,.select-note{font-size:14px}#hero-detail{font-size:15px;line-height:1.7}.coop-options select{max-width:100%;font-size:16px}}
+
+@media(orientation:portrait){body.touch-controls .viewport-guide{display:none}}
