@@ -1,3 +1,4 @@
+import {BOSS_GUIDES} from './boss-guide.ts';
 /** Encounter rules are deterministic and independent of rendering. */
 export type Difficulty='easy'|'normal'|'hard';
 export const DIFFICULTIES={easy:{name:'休閒',attackers:1,ranged:1,windup:1.2,damage:.85,hurtGrace:.9,wakeGrace:.6},normal:{name:'標準',attackers:2,ranged:1,windup:1,damage:1,hurtGrace:.75,wakeGrace:.45},hard:{name:'挑戰',attackers:3,ranged:2,windup:.9,damage:1.1,hurtGrace:.75,wakeGrace:.35}} as const;
@@ -37,7 +38,7 @@ export function bossPlan(kind:string,hp:number,max:number,attacks:number,spacing
  const base=['lanes','fork','surge'].includes(move)?1.10:move==='ring'?1.15:move==='cross'?1.05:move==='fan'?.9:.85;
  // Even the final phase keeps at least 650 ms of warning. Every sequence ends in a large opening.
  const windup=Math.max(.72,base-phase*.07),finisher=attacks%moves.length===moves.length-1;
- return {move,windup,recovery:finisher?1.15:phase===2?.72:.8,gap:finisher?.45:.18,phase};
+ return {move,windup,recovery:finisher?(BOSS_GUIDES[kind as keyof typeof BOSS_GUIDES]?.opening??1.15):phase===2?.8:.9,gap:finisher?.45:.18,phase};
 }
 export function frontalGuard(face:number,x:number,y:number,sourceX:number,sourceY:number){return (sourceX-x)*face>=-6&&Math.abs(sourceY-y)<40;}
 

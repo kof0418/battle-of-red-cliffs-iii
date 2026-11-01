@@ -100,3 +100,5 @@ body.training #touch{height:var(--battle-h)}
 @media(orientation:landscape) and (max-height:500px){#training-panel{padding:6px 12px;font-size:12px}#training-keys{display:none}#training-panel p{margin:3px 0}#training-panel button{min-height:32px}.training-heading strong{font-size:15px}}
 
 #hero-abilities{margin:12px auto;max-width:860px;padding:12px;border:1px solid #677e62;color:#d5dfc9;font:14px/1.8 sans-serif}#select-training{margin:8px;min-height:44px;border-color:#c5a66b}
+
+#boss-guide article{padding:12px 0;border-bottom:1px solid #475a48;font:14px/1.7 sans-serif}#boss-guide strong{color:#eed29b}#boss-guide p{margin:6px 0;color:#c2d1bd}
