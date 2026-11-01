@@ -62,7 +62,7 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  jumpBufferedUntil?:number;dodgeBufferedUntil?:number;bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -202,7 +202,7 @@ export class Campaign {
   }
   start(stage=this.stage) { if (this.status !== 'ready'||!Number.isInteger(stage)||stage<0||stage>=this.levels.length) return false; this.stage=stage;this.wave=0;if(stage>0)this.ranked=false;this.status = 'playing'; this.spawn();return true; }
   togglePause() { if (this.status === 'playing') {this.paused = !this.paused;if(this.paused)this.clearPendingInputs();} }
-  clearPendingInputs(){this.stoppedInputs.clear();for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
+  clearPendingInputs(){this.stoppedInputs.clear();for(const p of this.players)this.withPlayer(p,()=>{this.hero.airFollowQueued=false;delete this.hero.jumpBufferedUntil;delete this.hero.dodgeBufferedUntil;this.queuedUntil=0;this.queuedY=0;this.specialQueued=false;this.specialUntil=0;this.horseQueued=false;this.dropQueued=false;this.rideAttackFace=undefined;});}
   /** Called only from the clear screen; the campaign score and credits survive. */
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= this.levels.length - 1) return false;
@@ -317,6 +317,10 @@ export class Campaign {
   }
   private queueInput(input:Input){
     if(input.attack&&(input.grappleAttack??input.attack)&&this.hero.heroId==='zhaoyun'&&this.hero.attack?.move==='aerial'&&this.hero.attack.connected&&this.hero.airStrikes===1&&this.hero.z>8)this.hero.airFollowQueued=true;
+    const h=this.hero;
+    if(input.jump&&!input.attack&&!input.dropWeapon&&!h.mounted&&!this.grapple)h.jumpBufferedUntil=this.time+.18;
+    if(input.dodge&&!input.dropWeapon&&!this.grapple)h.dodgeBufferedUntil=this.time+.18;
+    if(input.dropWeapon||(input.attack&&input.jump)){delete h.jumpBufferedUntil;delete h.dodgeBufferedUntil;}
     // Preserve presses during hit-stop; don't let a frozen frame eat a combo input.
     if((input.dropWeapon||(input.attack&&input.jump))&&this.hero.z===0&&this.hero.vz===0)this.dropQueued=true;
     if(input.horseSpecial&&this.hero.mounted)this.horseQueued=true;
@@ -345,6 +349,7 @@ export class Campaign {
         if(aerialLink){f.comboHit=true;f.step=1;f.last=this.time;this.message='銀龍接勢 · 可接第二段';this.messageUntil=this.time+.7;}else this.queuedUntil=0; } } }
   }
   private tickPlayer(dt:number,input:Input){const h=this.hero;
+    input={...input,jump:input.jump||((h.jumpBufferedUntil??0)>this.time&&h.z===0&&h.vz===0&&h.stun<=0),dodge:input.dodge||((h.dodgeBufferedUntil??0)>this.time&&h.stun<=0)};
     if(this.grapple && (h.hp<=0||h.stun>0||!this.enemies.some(e=>e.id===this.grapple!.target&&e.hp>0)))this.releaseGrapple(false);
     if(h.rideDashCooldown!==undefined)h.rideDashCooldown=Math.max(0,h.rideDashCooldown-dt);
     if(h.mountCooldown!==undefined)h.mountCooldown=Math.max(0,h.mountCooldown-dt);
@@ -379,12 +384,13 @@ export class Campaign {
     const casting=occupied||h.attack?.move==='special'||h.attack?.move==='rescue';
     if(!this.grapple&&h.attack?.move==='special'&&h.heroId==='zhaoyun'&&h.attack.elapsed>.12&&h.attack!.elapsed<.58){h.x+=h.face*170*dt;h.attack!.x=h.x;}
     if(input.dodge&&h.mounted&&!this.grapple&&h.stun<=0&&!h.attack&&(h.rideDashCooldown??0)<=0){
-      h.rideDash=.32;h.rideDashCooldown=1.15;this.dashHits.clear();h.rideTurn=0;h.rideFacing=undefined;
+      delete h.dodgeBufferedUntil;h.rideDash=.32;h.rideDashCooldown=1.15;this.dashHits.clear();h.rideTurn=0;h.rideFacing=undefined;
       h.attack={move:'ride-charge',elapsed:0,duration:.42,impact:.04,hit:true,face:h.face,x:h.x,y:h.y};this.queuedUntil=0;
       this.message='馬匹突擊！';this.messageUntil=this.time+.8;this.events.push({type:'dodge',x:h.x,y:h.y});
     }
     if (input.dodge && !h.mounted && !casting && h.dodgeCooldown <= 0 && h.stun <= 0 && h.z === 0) {
       const length = Math.hypot(input.x, input.y);
+      delete h.dodgeBufferedUntil;
       h.dashX = length ? input.x / length : h.face; h.dashY = length ? input.y / length : 0;
       this.dashHits.clear();if(h.dashX)h.face=Math.sign(h.dashX);
       h.comboHit=false;h.comboAttack=undefined;h.dodge = .22; h.dodgeCooldown = .95; h.inv = .28; h.attack = null; this.queuedUntil = 0;
@@ -406,7 +412,7 @@ export class Campaign {
       }
     }
     else if (h.stun <= 0 && !casting) {
-      if (input.jump && !h.mounted && h.z === 0) { h.vz = 360; this.events.push({ type: 'jump', x: h.x, y: h.y }); }
+      if (input.jump && !h.mounted && h.z === 0) { delete h.jumpBufferedUntil;h.vz = 360; this.events.push({ type: 'jump', x: h.x, y: h.y }); }
       const airFollow=h.heroId==='zhaoyun'&&!h.equipped&&!h.mounted&&h.attack?.move==='aerial'&&h.attack.connected&&(h.airStrikes??1)<2&&h.z>8&&h.vz<0;
       if(airFollow&&h.airFollowQueued){h.airFollowQueued=false;h.attack=null;h.airAttackUsed=false;this.queuedUntil=this.time+.12;}
       if (this.queuedUntil > this.time && !h.attack && (!(h.z>0||h.vz>0)||!h.airAttackUsed)) { this.swing(this.rideAttackFace,this.queuedY);this.rideAttackFace=undefined; this.queuedUntil = 0; }
@@ -450,7 +456,7 @@ export class Campaign {
         if(p.mounted)this.dismount(true);else this.damageEquipment();this.waveDamage+=actual;this.stageDamage+=actual;this.hits=0;this.events.push({type:'hit',x:p.x,y:p.y-p.z-38,value:actual,heavy:true});
       });return false;});
   }
-  private clearPlayerCommands(){this.stoppedInputs.get(this.hero.id)?.clear();this.queuedUntil=0;this.specialQueued=false;this.horseQueued=false;this.dropQueued=false;}
+  private clearPlayerCommands(){delete this.hero.jumpBufferedUntil;delete this.hero.dodgeBufferedUntil;this.stoppedInputs.get(this.hero.id)?.clear();this.queuedUntil=0;this.specialQueued=false;this.horseQueued=false;this.dropQueued=false;}
   private noteThreat(e:Fighter,owner:Fighter,a:Attack,family=attackFamily(a.move,a.weapon)+(['special','wave','aerial'].includes(a.move)?'':':'+(this.attackSteps.get(a)??owner.step))){
     if(!isBoss(e.kind))return;const old=this.reads.get(e.id);if(old?.attack===a)return;
     const count=old&&old.owner===owner.id&&old.family===family&&this.time-old.at<=6?old.count+1:1;

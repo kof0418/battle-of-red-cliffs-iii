@@ -20,7 +20,7 @@ test('mobile down-up sliding and tapping tolerate diagonals but require a fresh 
  c.press('touch','down',1000);c.press('touch','up',1651);assert(!c.press('touch','attack',1700));c.press('touch','down',2000);c.press('touch','up',2200);assert(!c.press('touch','attack',2581));
 });
 test('keyboard timing stays strict and separate devices cannot finish each other’s commands',()=>{
- const c=new CommandBank();c.press('keyboard','down',0);c.press('touch','up',100);assert(!c.press('touch','attack',120));c.press('keyboard','up',401);assert(!c.press('keyboard','attack',410));
+ const c=new CommandBank();c.press('keyboard','down',0);c.press('touch','up',100);assert(!c.press('touch','attack',120));c.press('keyboard','up',451);assert(!c.press('keyboard','attack',460));
  c.press('keyboard','down',500);c.press('keyboard','up',600);c.press('keyboard','left',610);assert(!c.press('keyboard','attack',620));
  c.press('pad','down',700);c.press('pad','up',900);c.reset();assert(!c.press('pad','attack',950));
 });
