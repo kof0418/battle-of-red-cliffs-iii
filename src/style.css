@@ -86,3 +86,11 @@ body.touch-controls .cabinet-foot #pause{position:fixed;right:max(12px,env(safe-
 
 /* v3.2.0 */
 .control-summary{padding:14px 16px;border:1px solid #718668;background:#13231f;font:14px/1.8 sans-serif}.control-summary h3{margin:0;color:#ead19b;font-size:17px}.control-summary p{margin:8px 0}#control-conflicts{color:#cbbd97}.instructions p{margin:14px 0}.binding-grid select:disabled{opacity:.6;cursor:not-allowed}
+
+/* v3.3.0 — training uses the same battlefield with a compact instruction panel. */
+#training-panel{position:fixed;z-index:60;top:max(12px,calc((var(--screen-h,100dvh) - min(var(--screen-h,100dvh),var(--screen-w,100vw)*.5625))/2 + min(var(--screen-w,100vw),var(--screen-h,100dvh)*1.77778)*.21));left:50%;transform:translateX(-50%);width:min(740px,calc(100% - 24px));padding:12px 16px;background:#11251ff5;border:1px solid #a88f5a;box-shadow:0 8px 25px #0005;font:14px/1.5 sans-serif}
+.training-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}.training-heading strong{color:#f0d59c;font-size:18px}#training-panel p{margin:6px 0}#training-keys{font-size:12px;color:#b8cabb}#training-feedback{color:#f3d48b;min-height:21px}#training-panel nav{display:flex;gap:8px;flex-wrap:wrap}#training-panel button{min-height:40px;padding:6px 10px;font-size:13px}#training-next{background:#d4b16c;color:#18231c}.training .portrait-guide,.training .viewport-guide{display:none!important}
+@media(orientation:portrait){#training-panel{top:max(8px,env(safe-area-inset-top));font-size:13px;padding:10px 12px}#training-keys{display:none}.training-heading strong{font-size:16px}}
+@media(orientation:landscape) and (max-height:500px){#training-panel{padding:6px 10px;font-size:12px}#training-keys{display:none}#training-panel p{margin:3px 0}#training-panel button{min-height:32px}.training-heading strong{font-size:15px}}
+
+@media(orientation:portrait){#training-panel{max-height:calc((var(--screen-h,100dvh) - var(--screen-w,100vw)*.5625)/2 - 16px);overflow:auto;overscroll-behavior:contain}}
