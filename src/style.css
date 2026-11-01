@@ -83,3 +83,6 @@ body.touch-controls .cabinet-foot #pause{position:fixed;right:max(12px,env(safe-
 @media(max-width:650px){#settings-panel{padding:12px}.settings-sheet{padding:20px}.settings-sheet small{font-size:13px}.select-hint,.select-note{font-size:14px}#hero-detail{font-size:15px;line-height:1.7}.coop-options select{max-width:100%;font-size:16px}}
 
 @media(orientation:portrait){body.touch-controls .viewport-guide{display:none}}
+
+/* v3.2.0 */
+.control-summary{padding:14px 16px;border:1px solid #718668;background:#13231f;font:14px/1.8 sans-serif}.control-summary h3{margin:0;color:#ead19b;font-size:17px}.control-summary p{margin:8px 0}#control-conflicts{color:#cbbd97}.instructions p{margin:14px 0}.binding-grid select:disabled{opacity:.6;cursor:not-allowed}
