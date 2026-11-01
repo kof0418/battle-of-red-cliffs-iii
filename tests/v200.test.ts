@@ -26,8 +26,8 @@ test('simultaneous grab contention gives one owner and never duplicates a captiv
 test('partner food/equipment affects only its collector and shared pickups are consumed once',()=>{
  const m=setup(),p=m.partner!;p.hp=60;m.hero.hp=90;m.pickups=[{id:800,x:p.x,y:p.y,loot:'meat',amount:40},{id:801,x:p.x,y:p.y,loot:'axe',amount:0}];ticks(m,1);assert.equal(p.hp,100);assert.equal(m.hero.hp,90);assert.equal(p.equipped?.id,'axe');assert(!m.hero.equipped);assert.equal(m.pickups.length,0);
 });
-test('single horse can be mounted by P2 and duplicate gong remains points for the team',()=>{
- const m=setup(),p=m.partner!;m.horses=[{id:900,x:p.x,y:p.y,target:p.x,life:20,moving:false,waiting:true}];ticks(m,1);assert(p.mounted);assert(!m.hero.mounted);assert.equal(m.horses.length,0);m.pickups=[{id:901,x:m.hero.x,y:m.hero.y,loot:'gong',amount:0}];const score=m.score;ticks(m,1);assert.equal(m.score,score+1000);assert.equal(m.horses.length,0);
+test('P2 can mount and a new gong supplies the remaining unmounted teammate',()=>{
+ const m=setup(),p=m.partner!;m.horses=[{id:900,x:p.x,y:p.y,target:p.x,life:20,moving:false,waiting:true}];ticks(m,1);assert(p.mounted);assert(!m.hero.mounted);assert.equal(m.horses.length,0);m.pickups=[{id:901,x:m.hero.x,y:m.hero.y,loot:'gong',amount:0}];const score=m.score;ticks(m,1);assert.equal(m.score,score);assert.equal(m.horses.length,1);
 });
 test('camera follows the trailing living player and requires both to approach the next arena',()=>{
  const m=setup();m.enemies=[];m.hero.x=900;m.partner!.x=250;ticks(m,70);assert.equal(m.wave,1);assert.equal(m.cameraLeft,0);m.hero.x=910;m.partner!.x=910;ticks(m,80);assert.equal(m.wave,2);

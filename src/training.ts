@@ -10,7 +10,7 @@ export const LESSONS=[
 ] as const;
 /** A separate, unranked campaign uses the same combat rules as the main game. */
 export class TrainingSession{
- model!:Campaign;lesson=0;completed=new Set<number>();free=false;distance=0;feedback='';private grabbed=false;private lastX=250;private lastY=412;
+ mountedPractice=false;model!:Campaign;lesson=0;completed=new Set<number>();free=false;distance=0;feedback='';private grabbed=false;private lastX=250;private lastY=412;
  hero:HeroId;
  constructor(hero:HeroId){this.hero=hero;this.reset();}
  reset(){
@@ -18,9 +18,11 @@ export class TrainingSession{
   m.pending=[];m.supplies=[];m.barrels=[];m.secrets=[];m.pickups=[];m.props=[];m.horses=[];m.bombs=[];m.projectiles=[];
   m.hero.x=250;m.hero.y=412;m.hero.inv=10;
   const dummy=m.fighter('soldier',this.lesson===1?320:365,412);dummy.max=dummy.hp=10000;dummy.stun=10;dummy.cooldown=10;m.enemies=[dummy];
+  if(this.mountedPractice)m.horses=[{id:9000,x:340,y:412,target:340,life:999,moving:false,waiting:true,falls:0}];
   m.message='練習場 · 陪練不會主動攻擊';m.messageUntil=3;this.distance=0;this.grabbed=false;this.lastX=250;this.lastY=412;this.feedback='';
  }
- select(index:number){this.free=index===LESSONS.length;this.lesson=Math.max(0,Math.min(index,LESSONS.length-1));this.reset();}
+ enableHorse(){this.mountedPractice=true;this.reset();}
+ select(index:number){this.mountedPractice=false;this.free=index===LESSONS.length;this.lesson=Math.max(0,Math.min(index,LESSONS.length-1));this.reset();}
  beforeStep(){const m=this.model;m.hero.inv=Math.max(m.hero.inv,1);for(const e of m.enemies){e.stun=Math.max(e.stun,1);e.cooldown=10;e.hp=e.max;if(!this.free&&this.lesson===1&&!m.grapple){e.x=320;e.y=412;}}if(!m.enemies.length){const e=m.fighter('soldier',this.lesson===1?320:365,412);e.max=e.hp=10000;e.stun=10;m.enemies=[e];}}
  observe(events:readonly Effect[]){
   const h=this.model.hero;this.distance+=Math.hypot(h.x-this.lastX,h.y-this.lastY);this.lastX=h.x;this.lastY=h.y;

@@ -477,6 +477,8 @@ export class Campaign {
         this.events.push({type:'equip',x:p.x,y:p.y});return false;
       }
       if(h.hp>=h.max)return true;
+      // When both eligible players overlap the same food, injury ratio decides fairly.
+      if(this.partner&&p.amount>0){const candidates=this.livingPlayers.filter(f=>f.hp<f.max&&nearPickup(f,p)&&!f.attack&&!this.grappleOf(f)&&f.stun<=0).sort((a,b)=>a.hp/a.max-b.hp/b.max||a.id-b.id);if(candidates[0]!==h)return true;}
       const amount = Math.min(p.amount, h.max - h.hp); h.hp += amount;
       this.events.push({ type: 'heal', x: p.x, y: p.y - 45, value: amount }); return false;
     });
@@ -550,15 +552,16 @@ export class Campaign {
     if(h.equipped.hits>=2){this.events.push({type:'weapon-drop',x:h.x,y:h.y,weapon:h.equipped.id});h.equipped=undefined;this.message='武器脫手損壞！';this.messageUntil=this.time+1.4;}
   }
   summonHorses(){
-    if(this.players.some(p=>p.mounted)||this.horses.some(h=>h.life>0&&h.x>-100))return false;
-    const start=this.cameraLeft+1020;
-    this.horses=[{id:++this.serial,x:start,y:this.hero.y,target:clamp(this.hero.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0}];
-    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message='銅鑼響！馬匹自右方奔來，靠近即可上馬';this.messageUntil=this.time+4;return true;
+    if(this.horses.some(h=>h.fleeing&&h.life>0&&h.x>-100))return false;
+    const walkers=this.livingPlayers.filter(p=>!p.mounted),waiting=this.horses.filter(h=>!h.fleeing&&h.life>0&&h.x>-100).length;
+    const needed=Math.max(0,walkers.length-waiting);if(!needed)return false;
+    for(let i=0;i<needed;i++){const p=walkers[Math.min(waiting+i,walkers.length-1)];this.horses.push({id:++this.serial,x:this.cameraLeft+1020+i*90,y:clamp(p.y+(i?24:0),350,503),target:clamp(p.x+100,60,this.arenaEnd-50),life:20,moving:true,falls:0});}
+    this.events.push({type:'gong',x:this.hero.x,y:this.hero.y});this.message=`銅鑼響！${needed===2?'兩匹戰馬':'馬匹'}自右方奔來，靠近即可上馬`;this.messageUntil=this.time+4;return true;
   }
   updateHorses(dt:number){
     const h=this.hero;
     this.horses=this.horses.filter(horse=>{
-      if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&(h.mounted===true||horse.x>horse.target));
+      if(!horse.waiting)horse.life-=dt;horse.moving=!!horse.fleeing||(!horse.waiting&&horse.x>horse.target);
       if(horse.moving)horse.x=Math.max(h.mounted||horse.fleeing?-200:horse.target,horse.x-260*dt);
       if(horse.awaitSeparation&&horse.remountAt!==undefined&&this.time>=horse.remountAt&&h.mountApproach&&h.stun<=0&&(h.knockdown??0)<=0)horse.awaitSeparation=false;
       if(horse.awaitSeparation&&this.players.every(p=>Math.abs(horse.x-p.x)>60||Math.abs(horse.y-p.y)>36))horse.awaitSeparation=false;
