@@ -39,8 +39,8 @@ test('one player down does not lose; fresh attack spends one shared continue and
 test('team wipe replays current arena with both heroes and one shared credit',()=>{
  const m=setup('huangzhong','lubu');m.hero.hp=0;m.partner!.hp=0;ticks(m,1);assert(m.continueRun());assert.equal(m.hero.heroId,'huangzhong');assert.equal(m.partner!.heroId,'lubu');assert.equal(m.hero.hp,160);assert.equal(m.partner!.hp,160);assert.equal(m.continues,1);
 });
-test('next stage keeps each HP and weapon but clears mounts and independent grapples',()=>{
- const m=setup('zhaoyun','weiyan');m.hero.hp=50;m.partner!.hp=60;m.partner!.equipped={id:'hammer',uses:12,hits:1};m.partner!.mounted=true;m.status='stage-clear';assert(m.nextStage());assert.equal(m.hero.hp,50);assert.equal(m.partner!.hp,60);assert.equal(m.partner!.heroId,'weiyan');assert.equal(m.partner!.equipped?.id,'hammer');assert(!m.partner!.mounted);assert.equal(m.grappleOf(m.partner!),null);
+test('next stage resupplies each living player and keeps weapons but clears mounts and independent grapples',()=>{
+ const m=setup('zhaoyun','weiyan');m.hero.hp=50;m.partner!.hp=60;m.partner!.equipped={id:'hammer',uses:12,hits:1};m.partner!.mounted=true;m.status='stage-clear';assert(m.nextStage());assert.equal(m.hero.hp,62);assert.equal(m.partner!.hp,72);assert.equal(m.partner!.heroId,'weiyan');assert.equal(m.partner!.equipped?.id,'hammer');assert(!m.partner!.mounted);assert.equal(m.grappleOf(m.partner!),null);
 });
 test('player two arrow damage retains its owner, and paused or frozen commands remain isolated',()=>{
  const m=setup('zhangfei','huangzhong'),p=m.partner!;m.freeze=.05;m.tick(1/60,{...idle,partner:{...idle,attack:true}});assert(!p.attack);m.tick(.033,idle);m.tick(.033,idle);ticks(m,12);assert(m.projectiles.some(a=>a.owner===p.id));assert.equal(m.hero.attack,null);const before=JSON.stringify(m);m.paused=true;const frozen=JSON.stringify(m);m.tick(.03,{x:1,y:1,partner:{x:1,y:1,attack:true}});assert.equal(JSON.stringify(m),frozen);assert(before);

@@ -2,11 +2,11 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {Campaign,type Kind} from '../src/combat.ts';import {HERO_IDS} from '../src/heroes.ts';import {WEAPONS,crateLoot,type WeaponId} from '../src/loot.ts';
 const idle={x:0,y:0};const tick=(m:Campaign,n=1)=>{for(let i=0;i<n;i++)m.tick(1/60,idle);};
 function setup(){const m=new Campaign();m.start();m.supplies=[];m.hero.x=400;m.hero.y=412;m.hero.inv=100;for(const e of m.enemies)e.cooldown=100;return m;}
-test('clearing every arena and advancing every stage never heals',()=>{
+test('arena clears never heal; each new stage grants its bounded supply',()=>{
  const m=setup();m.hero.hp=61;
  for(let stage=0;stage<5;stage++){
-  for(let wave=1;wave<=6;wave++){m.wave=wave;m.waveReward=-1;m.clearedAt=-1;m.enemies=[];m.pickups=[];tick(m);assert.equal(m.hero.hp,61);assert(!m.events.some(e=>e.type==='heal'));}
-  if(stage<4){assert(m.nextStage());assert.equal(m.hero.hp,61);}
+  for(let wave=1;wave<=6;wave++){m.wave=wave;m.waveReward=-1;m.clearedAt=-1;m.enemies=[];m.pickups=[];tick(m);assert.equal(m.hero.hp,61+stage*12);assert(!m.events.some(e=>e.type==='heal'));}
+  if(stage<4){assert(m.nextStage());assert.equal(m.hero.hp,61+(stage+1)*12);}
  }
  assert.equal(m.status,'won');
 });
@@ -31,7 +31,7 @@ test('all heroes can grab and throw all five full-health bosses, with post-throw
  for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{x:1,y:0,grappleAttack:true});tick(m,48);assert.equal(m.grapple,null);assert(e.hp<e.max);assert((e.grappleCooldown??0)>0);}
 });
 test('equipment carries into next stage, while continuing resets equipment and projectiles',()=>{
- const m=setup();m.hero.equipped={id:'hammer',uses:5};m.hero.hp=81;m.status='stage-clear';m.nextStage();assert.equal(m.hero.hp,81);assert.equal(m.hero.equipped?.uses,5);m.status='lost';m.hero.hp=0;m.projectiles=[{id:999,x:400,y:412,face:1,remaining:300,damage:38}];m.continueRun();assert.equal(m.hero.hp,160);assert.equal(m.hero.equipped,undefined);assert.equal(m.projectiles.length,0);
+ const m=setup();m.hero.equipped={id:'hammer',uses:5};m.hero.hp=81;m.status='stage-clear';m.nextStage();assert.equal(m.hero.hp,93);assert.equal(m.hero.equipped?.uses,5);m.status='lost';m.hero.hp=0;m.projectiles=[{id:999,x:400,y:412,face:1,remaining:300,damage:38}];m.continueRun();assert.equal(m.hero.hp,160);assert.equal(m.hero.equipped,undefined);assert.equal(m.projectiles.length,0);
 });
 test('all bosses support immediate aerial throws; active attacks still cannot be grabbed',()=>{
  for(const id of HERO_IDS)for(const kind of ['boss','marshal','hunter','frostlord','regent'] as Kind[]){const m=setup();m.hero.heroId=id;const e=m.fighter(kind,428,412);e.cooldown=100;m.enemies=[e];e.attack={move:'slam',x:428,y:412,face:-1,elapsed:.7,impact:.7,duration:1.2,hit:false};assert(!m.tryGrab({x:1,y:0}));e.attack.elapsed=.1;assert(m.tryGrab({x:1,y:0}));m.tick(1/60,{...idle,jump:true});tick(m,8);assert(e.z>m.hero.z&&m.hero.z>0);m.tick(1/60,{...idle,grappleAttack:true});tick(m,42);assert.equal(m.grapple,null);assert.equal(e.z,0);assert(e.hp<e.max);}

@@ -1,3 +1,4 @@
+import {chapterAt,resupplyHp} from './campaign-story.ts';
 import {HitStopInput,approachingGrab} from './hit-stop-input.ts';
 import {infantryArrowVisual} from './infantry-motion.ts';
 import {CACHE_LOOT,COURIER_LOOT} from './secrets.ts';
@@ -211,8 +212,8 @@ export class Campaign {
     if(this.campaignLength==='full'&&this.stage===7)this.endingRoute??='pursuit';
     const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++;this.routeAdvantage=false; this.wave = 0;this.stageStarted=this.time;this.stageDamage=0;this.stageRetries=0;this.stageBestHit=0;this.stageInteractions.clear(); this.hero = this.fighter('hero', 180, 412);
-    this.hero.hp=hp;this.hero.equipped=equipped;
-    if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.hp=old.hp;this.partner.equipped=old.equipped;}
+    this.hero.hp=resupplyHp(hp,this.hero.max);this.hero.equipped=equipped;
+    if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.hp=resupplyHp(old.hp,this.partner.max);this.partner.equipped=old.equipped;}
 
     this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
   }
@@ -253,7 +254,7 @@ export class Campaign {
     this.secrets=this.wave===4?[{id:++this.serial,x:this.cameraLeft+370,y:this.stage%2?499:354,hp:18,loot:CACHE_LOOT[this.stage],secret:true}]:[];
     if(this.wave===3){const courier=this.enemies.find(e=>['raider','soldier','archer'].includes(e.kind));if(courier){this.courierAssigned=true;courier.kind='raider';courier.courier={until:this.time+10,loot:COURIER_LOOT[this.stage]};courier.x=this.cameraLeft+845;courier.y=this.stage%2?499:354;courier.cooldown=99;}}
     this.pickups = [];this.projectiles=[];this.horses=this.horses.filter(h=>h.waiting);
-    this.message = this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title} · ${RHYTHMS[this.stage]} · ${this.level.sections[this.wave-1]}`;
+    this.message = this.wave===1?`${chapterAt(this.stage).act} · ${chapterAt(this.stage).goal}`:this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title} · ${RHYTHMS[this.stage]} · ${this.level.sections[this.wave-1]}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
   }

@@ -102,3 +102,5 @@ body.training #touch{height:var(--battle-h)}
 #hero-abilities{margin:12px auto;max-width:860px;padding:12px;border:1px solid #677e62;color:#d5dfc9;font:14px/1.8 sans-serif}#select-training{margin:8px;min-height:44px;border-color:#c5a66b}
 
 #boss-guide article{padding:12px 0;border-bottom:1px solid #475a48;font:14px/1.7 sans-serif}#boss-guide strong{color:#eed29b}#boss-guide p{margin:6px 0;color:#c2d1bd}
+
+.mission-brief{max-width:920px;margin:16px auto;padding:12px 16px;border:1px solid #64775d;background:#11231e;text-align:left;font:14px/1.7 sans-serif}.mission-brief h3{margin:0;color:#e7ca8e}.mission-brief p{margin:6px 0}.mission-brief summary{cursor:pointer;color:#d2c098}.route-step{padding:12px;border-bottom:1px solid #475a48;font:14px/1.7 sans-serif}.route-step span,.route-step small{display:block;color:#c3d0bd}.route-step[aria-current]{border-left:3px solid #e4bf77;background:#314435}
