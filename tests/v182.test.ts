@@ -1,3 +1,4 @@
+import {DIFFICULTIES} from '../src/tactics.ts';
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {Campaign,inRange,type Attack} from '../src/combat.ts';import {HERO_IDS} from '../src/heroes.ts';
 const idle={x:0,y:0};
@@ -9,7 +10,7 @@ for(const id of HERO_IDS)test(`${id}: rescue interrupts special but cannot alter
 test('downed hero cannot jump, dash, cast, attack or move; recovery grants a bounded grace period',()=>{
  const m=setup();m.hero.knockdown=.1;m.hero.stun=0;
  m.tick(.02,{x:1,y:0,jump:true,dodge:true,special:true,attack:true});assert.equal(m.hero.x,400);assert.equal(m.hero.vz,0);assert.equal(m.hero.attack,null);
- for(let i=0;i<5;i++)m.tick(.02,idle);assert.equal(m.hero.knockdown,0);assert(m.hero.inv>0&&m.hero.inv<=.35);
+ for(let i=0;i<5;i++)m.tick(.02,idle);assert.equal(m.hero.knockdown,0);assert(m.hero.inv>0&&m.hero.inv<=DIFFICULTIES[m.difficulty].wakeGrace);
  m.queuedUntil=0;for(let i=0;i<25;i++)m.tick(.02,idle);assert.equal(m.hero.inv,0);
 });
 test('downed offscreen enemy neither walks nor attacks; returns diagonally after recovery',()=>{

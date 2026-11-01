@@ -1,6 +1,6 @@
 /** Encounter rules are deterministic and independent of rendering. */
 export type Difficulty='easy'|'normal'|'hard';
-export const DIFFICULTIES={easy:{name:'休閒',attackers:1},normal:{name:'標準',attackers:2},hard:{name:'挑戰',attackers:3}} as const;
+export const DIFFICULTIES={easy:{name:'休閒',attackers:1,ranged:1,windup:1.2,damage:.85,hurtGrace:.9,wakeGrace:.6},normal:{name:'標準',attackers:2,ranged:1,windup:1,damage:1,hurtGrace:.75,wakeGrace:.45},hard:{name:'挑戰',attackers:3,ranged:2,windup:.9,damage:1.1,hurtGrace:.75,wakeGrace:.35}} as const;
 export function isDifficulty(v:unknown):v is Difficulty{return v==='easy'||v==='normal'||v==='hard';}
 export function bossPhase(hp:number,max:number){return hp>max*.65?0:hp>max*.3?1:2;}
 export type BossMove='slam'|'charge'|'sweep'|'fan'|'ring'|'cross'|'lanes'|'fork'|'surge';
@@ -58,3 +58,5 @@ export function enemyTempo(kind:string,attacks:number){
  if(kind==='archer')return {windup:.95,recovery:.35,gap:1.05};
  return {windup:kind==='heavy'?.7:.48,recovery:.32,gap:.8};
 }
+
+export function incomingDamage(difficulty:Difficulty,base:number){return Math.max(1,Math.round(base*DIFFICULTIES[difficulty].damage));}
