@@ -98,3 +98,5 @@ body.training #touch{height:var(--battle-h)}
 @media(min-width:900px){#training-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 24px}.training-heading{grid-column:1/-1}#training-panel nav{grid-column:2;grid-row:2/5;align-content:center}#training-hint,#training-keys,#training-feedback{grid-column:1}}
 @media(max-width:650px){#training-panel{padding:8px 12px;font-size:13px}#training-keys{display:none}.training-heading strong{font-size:16px}}
 @media(orientation:landscape) and (max-height:500px){#training-panel{padding:6px 12px;font-size:12px}#training-keys{display:none}#training-panel p{margin:3px 0}#training-panel button{min-height:32px}.training-heading strong{font-size:15px}}
+
+#hero-abilities{margin:12px auto;max-width:860px;padding:12px;border:1px solid #677e62;color:#d5dfc9;font:14px/1.8 sans-serif}#select-training{margin:8px;min-height:44px;border-color:#c5a66b}

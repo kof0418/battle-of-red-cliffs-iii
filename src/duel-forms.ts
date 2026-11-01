@@ -12,19 +12,19 @@ const FORMS={
   {name:'崩岳重戟',duration:.60,impact:.23,damage:42,reach:160,push:82,depth:42},
  ],
  guanyu:[
-  {name:'橫江掃',duration:.30,impact:.10,damage:17,reach:100,push:10,depth:34},
-  {name:'挑月斬',duration:.36,impact:.13,damage:21,reach:110,push:12,depth:24},
-  {name:'斷岳劈',duration:.56,impact:.25,damage:34,reach:136,push:75,depth:38},
+  {name:'橫江拳',duration:.30,impact:.10,damage:17,reach:100,push:10,depth:34},
+  {name:'挑月肘',duration:.36,impact:.13,damage:21,reach:110,push:12,depth:24},
+  {name:'斷岳重拳',duration:.56,impact:.25,damage:34,reach:136,push:75,depth:38},
  ],
  zhangfei:[
-  {name:'猛虎直刺',duration:.28,impact:.075,damage:22,reach:100,push:6,depth:24},
+  {name:'猛虎直拳',duration:.28,impact:.075,damage:22,reach:100,push:6,depth:24},
   {name:'回身撞軍',duration:.34,impact:.12,damage:27,reach:100,push:12,depth:34},
   {name:'震地砸',duration:.60,impact:.23,damage:44,reach:116,push:85,depth:52},
  ],
  zhaoyun:[
-  {name:'白龍疾刺',duration:.25,impact:.08,damage:14,reach:120,push:10,depth:18},
-  {name:'挑雲槍',duration:.32,impact:.12,damage:18,reach:128,push:15,depth:26},
-  {name:'迴龍掃',duration:.48,impact:.18,damage:29,reach:148,push:60,depth:38},
+  {name:'白龍疾劍',duration:.25,impact:.08,damage:14,reach:120,push:10,depth:18},
+  {name:'挑雲劍',duration:.32,impact:.12,damage:18,reach:128,push:15,depth:26},
+  {name:'迴龍斬',duration:.48,impact:.18,damage:29,reach:148,push:60,depth:38},
  ],
  huangzhong:[
   {name:'定弦矢',duration:.30,impact:.14,damage:14,reach:320,push:10,depth:22},
