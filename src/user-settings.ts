@@ -1,4 +1,4 @@
-const allowed=(k:string)=>k==='red-banner-controls-v1'||k==='red-banner-preferences-v1'||k.startsWith('red-banner-records-')||k.startsWith('red-banner-best-');
+const allowed=(k:string)=>k==='red-banner-journal-v4'||k==='red-banner-controls-v1'||k==='red-banner-preferences-v1'||k.startsWith('red-banner-records-')||k.startsWith('red-banner-best-');
 /** Persistent preferences and scores only; campaign snapshots are never read or written. */
 export class UserSettings {
  private memory:Record<string,string>={};

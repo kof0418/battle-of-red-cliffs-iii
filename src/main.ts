@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {JOURNAL_KEY,makeRunSummary,parseJournal,appendJournal,routeTitle,journalScope,formatDuration,type JournalEntry} from './finale';
 import {chapterAt,STAGE_RECOVERY} from './campaign-story';
 import {BOSS_GUIDES,bossActionHint} from './boss-guide';
 import {TrainingSession,LESSONS} from './training';
@@ -40,7 +41,10 @@ import { parseRecords, settleRun, recordsKey, bestKey, type Records } from './re
 let preferences = readPreferences({ getItem: key => profileStorage.getItem(key) });
 const soundtrack = new Soundtrack(); soundtrack.configure(preferences);
 let campaignLength:CampaignLength='full';
-let settingsOpen = false;
+let endingPreviewUsed=false;
+let settingsOpen = false;let archiveOpen=false;let archiveReturnFocus:HTMLElement|null=null;
+let journal:JournalEntry[]=[];try{journal=parseJournal(JSON.parse(profileStorage.getItem(JOURNAL_KEY)??'[]'));}catch{}
+let journalSaved=true;
 let training:TrainingSession|undefined;let trainingCoop=false;
 let pendingExit:'title'|'select'|null=null;
 let titleScreen = true;
@@ -61,7 +65,7 @@ import './style.css';
 import { desktop } from './desktop';
 if (desktop) {
  document.documentElement.classList.add('desktop');
- document.querySelector('.tag')!.textContent = 'MAC EDITION / v3.9.0';
+ document.querySelector('.tag')!.textContent = 'MAC EDITION / v4.0.0';
 }
 import { Campaign, isBoss, nearPickup, type Input, type Effect } from './combat';
 import { Actor } from './actor';
@@ -115,6 +119,7 @@ class Battle extends Phaser.Scene {
   hud!: Phaser.GameObjects.Graphics; danger!: Phaser.GameObjects.Graphics;
   supplies!: Phaser.GameObjects.Graphics; backdrop?: Phaser.GameObjects.Container; drawnStage = -1;
   label!: Phaser.GameObjects.Text; healthLabel!: Phaser.GameObjects.Text; stageLabel!: Phaser.GameObjects.Text; scoreLabel!: Phaser.GameObjects.Text; notice!: Phaser.GameObjects.Text; combo!: Phaser.GameObjects.Text; bossLabel!: Phaser.GameObjects.Text;
+  runSummary?:JournalEntry;
   overlay?: Phaser.GameObjects.Container; overlayState = ''; best = readBest(); recorded = false;
   portraits:string[][]=[]; portraitFrame=-1; selectionKey=''; shellKey='';
 
@@ -125,6 +130,7 @@ class Battle extends Phaser.Scene {
   create() {
     const restore=()=>{this.drawnStage=-1;this.shellKey='';};this.game.renderer.on(Phaser.Renderer.Events.RESTORE_WEBGL,restore);
     this.events.once('shutdown',()=>{soundtrack.pause();this.game.renderer.off(Phaser.Renderer.Events.RESTORE_WEBGL,restore);this.actors.clear();});
+    this.runSummary=undefined;
     this.portraits=createPortraits(this);this.portraitFrame=-1;this.selectionKey='';this.shellKey='';
     this.model = new Campaign(selectedHero,preferences.difficulty,1+Math.floor(Math.random()*3),campaignLength); this.actors.clear(); this.overlayState = ''; this.overlay = undefined; this.recorded = false; this.drawnStage = -1; this.backdrop = undefined;
     if(training)this.model=training.model;
@@ -145,6 +151,8 @@ class Battle extends Phaser.Scene {
     // Keyboard actions use physical codes and the saved binding map.
     // Event buffering avoids missing a short tap between rendered frames.
     const onKey = (event: KeyboardEvent) => {
+      if(archiveOpen)return;
+      if(this.model.status==='won')return;
       if(titleScreen && !settingsOpen){if(event.code==='Enter'){event.preventDefault();document.querySelector<HTMLButtonElement>('#title-start')!.click();}return;}
       if (event.target instanceof HTMLSelectElement || settingsOpen || event.ctrlKey || event.metaKey || event.altKey) return;
       if(this.model.status==='stage-clear'&&this.model.stage===7&&['ArrowLeft','ArrowRight','KeyA','KeyD'].includes(event.code)){event.preventDefault();this.model.chooseEnding(['ArrowLeft','KeyA'].includes(event.code)?'pursuit':'rescue');this.draw();return;}
@@ -183,14 +191,21 @@ class Battle extends Phaser.Scene {
     this.bossLabel = this.add.text(480, 483, '', { fontFamily: 'sans-serif', fontSize: '18px', color: '#f9d38a',stroke:'#172022',strokeThickness:3 }).setOrigin(.5).setScrollFactor(0).setDepth(9001);
     // Local visual QA fixture. Vite removes this branch from production builds.
     if (import.meta.env.DEV) {
-      const preview = new URLSearchParams(location.search).get('preview');
+      let preview = new URLSearchParams(location.search).get('preview');
+      if(preview==='ending'){if(endingPreviewUsed)preview=null;else endingPreviewUsed=true;}
       if(preview)titleScreen=false;
       if(['chapter','ending-route','ending','salvage','long-transition'].includes(preview??'')){
         const params=new URLSearchParams(location.search),m=this.model=new Campaign(selectedHero,preferences.difficulty,0,'full');
         m.stage=preview==='ending-route'?7:preview==='ending'?8:preview==='long-transition'?4:Math.max(5,Math.min(8,Number(params.get('stage'))||5));m.wave=Math.max(0,Math.min(m.level.waves.length-1,Number(params.get('wave'))-1||0));m.status='playing';if(preview==='chapter')m.cameraLeft=Math.min(WORLD_WIDTH-960,arenaStart(m.wave+1,m.level));m.spawn();m.hero.x=m.cameraLeft+230;m.hero.y=445;m.hero.inv=99;
         if(preview==='chapter'){if(params.has('boss')){m.pending=[];m.enemies=m.level.waves.at(-1)!.filter(k=>isBoss(k)).map((k,i)=>{const f=m.fighter(k,m.cameraLeft+590+i*150,390+i*85);f.cooldown=99;return f;});}m.paused=true;this.posePreview=true;}
         if(preview==='ending-route'||preview==='long-transition'){m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.finishStage();m.status='stage-clear';}
-        if(preview==='ending'){m.ranked=false;m.endingRoute=params.get('route')==='rescue'?'rescue':'pursuit';m.stageInteractions.add(2);m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.finishStage();m.status='won';}
+        if(preview==='ending'){
+          m.ranked=params.has('showcase');if(params.get('length')==='short'){m.campaignLength='short';m.stage=4;}
+          m.endingRoute=params.get('route')==='rescue'?'rescue':'pursuit';m.stageInteractions.add(2);
+          // Complete local-only visual fixture; never included in the published build.
+          if(params.has('showcase')){m.stageResults=[];m.time=0;m.score=0;for(let i=0;i<m.levels.length;i++){m.stage=i;m.stageStarted=m.time;m.time+=125+i*8;m.stageDamage=i*6;m.stageBestHit=18+i;m.finishStage();}m.stage=m.levels.length-1;m.bestCombo=32;}
+          m.wave=m.level.waves.length;m.enemies=[];m.pending=[];m.finishStage();m.status='won';
+        }
         if(preview==='salvage'){m.wave=2;m.enemies=[];m.pending=[];m.supplies=[];m.barrels=[];m.startBonusRound();}
       }
       if(preview==='pot-combat'||preview==='cache-combat'){
@@ -281,7 +296,7 @@ class Battle extends Phaser.Scene {
           const f=i===0?this.model.hero:this.model.fighter('hero',0,0);f.heroId=(['guanyu','lubu','zhangfei','huangzhong'] as const)[i];f.x=150+i*215;f.y=420;f.face=1;f.equipped={id:weapon,uses:WEAPONS[weapon].uses};f.step=1;
           const spec=WEAPONS[weapon];f.attack={move:'slash',weapon,elapsed:spec.impact,duration:spec.duration,impact:spec.impact,hit:true,face:1,x:f.x,y:f.y};if(i)this.model.enemies.push(f);
           this.add.text(f.x,265,WEAPONS[weapon].name+'\n'+WEAPON_ROLES[weapon],{fontFamily:'sans-serif',fontSize:'18px',color:'#f4d28d',align:'center'}).setOrigin(.5).setDepth(9002);
-        });this.model.message='v1.12.0 武器策略 · v3.9.0 敵軍戰術';this.model.messageUntil=99;
+        });this.model.message='v1.12.0 武器策略 · v4.0.0 敵軍戰術';this.model.messageUntil=99;
       }
       if(preview==='hunter-live'){
         this.model.stage=2;this.model.wave=5;this.model.start();this.model.hero.x=350;this.model.hero.inv=999;this.model.supplies=[];this.model.barrels=[];this.model.pending=[];
@@ -358,7 +373,7 @@ class Battle extends Phaser.Scene {
           f.attack={move,elapsed:q.has('time')?Number(q.get('time')):time,impact:spec.impact,duration:move==='special'?.95:spec.duration,hit:time>=spec.impact,face:f.face,x:f.x,y:f.y};
           if(q.get('pose')==='hurt'){f.attack=null;f.stun=.25;}if(id==='heavy'&&q.get('pose')==='guard'){f.attack=null;f.guard=1;}
           m.enemies.push(f);
-        });m.message='v3.9.0 · 武將與兵種動作檢查';m.messageUntil=99;
+        });m.message='v4.0.0 · 武將與兵種動作檢查';m.messageUntil=99;
       }
       if(preview==='sample-grab'){
         const params=new URLSearchParams(location.search),m=this.model=new Campaign(HERO_IDS.includes(params.get('hero') as HeroId)?params.get('hero') as HeroId:'guanyu');
@@ -377,7 +392,7 @@ class Battle extends Phaser.Scene {
           const spec=id==='soldier'?{duration:1,impact:.55}:duelForm(id,combo)!;
           f.attack={move:'slash',elapsed:fraction*spec.duration,duration:spec.duration,impact:spec.impact,hit:fraction*spec.duration>=spec.impact,face:f.face,x:f.x,y:f.y};
           if(i)this.model.enemies.push(f);
-        });this.model.message='v3.9.0 動作樣板 · 蓄力／命中／收招';this.model.messageUntil=99;
+        });this.model.message='v4.0.0 動作樣板 · 蓄力／命中／收招';this.model.messageUntil=99;
       }
       if(preview==='infantry'){this.model.start();this.model.hero.x=280;this.model.enemies=[this.model.fighter('brute',500,410),this.model.fighter('mauler',680,435)];this.model.enemies.forEach(e=>e.cooldown=100);this.model.paused=true;}
       if(preview==='horses'){this.model.start();this.model.hero.x=450;this.model.hero.mounted=true;this.model.enemies=[];this.model.pickups=[{id:800,x:300,y:475,amount:0,loot:'book'},{id:801,x:380,y:475,amount:0,loot:'gong'}];this.model.summonHorses();this.model.paused=true;}
@@ -406,6 +421,7 @@ class Battle extends Phaser.Scene {
   resume() { if(this.model.paused)this.model.togglePause(); }
   actionDown(action: string) { return [...keyboardHeld].some(code => (coopMode?coopKey(code,1):keyAction(code, bindings)) === action); }
   update(_time: number, delta: number) {
+    if(archiveOpen)return;
     this.performanceQA?.before();
     const m = this.model;
     if(this.performanceQA&&!this.performanceQA.done){m.paused=false; m.hero.inv=1;}
@@ -472,6 +488,7 @@ class Battle extends Phaser.Scene {
     if ((m.status === 'won' || m.status === 'lost') && !this.recorded) {
       const result=settleRun(profileStorage,{difficulty:m.difficulty,length:m.campaignLength,ranked:m.ranked,won:m.status==='won',hero:m.hero.heroId??'guanyu',score:m.score,rank:m.rank},records,this.best);
       records=result.records;this.best=result.best;this.recorded=true;
+      if(m.status==='won'&&!training){this.runSummary=makeRunSummary(m,crypto.randomUUID());journal=appendJournal(journal,this.runSummary);try{profileStorage.setItem(JOURNAL_KEY,JSON.stringify(journal));journalSaved=true;}catch{journalSaved=false;}}
       if(m.status==='won'&&m.ranked)tone(740,.35);
     }
     this.tweens.timeScale = m.paused ? 0 : 1;
@@ -647,7 +664,7 @@ class Battle extends Phaser.Scene {
     this.label.setFontSize(20).setWordWrapWidth(300);
     this.stageLabel.setWordWrapWidth(310);
     const commandPhase=Math.max(commands.phase('keyboard',performance.now(),!!m.hero.mounted),commands.phase('touch',performance.now(),!!m.hero.mounted),commands.phase('pad',performance.now(),!!m.hero.mounted));
-    this.stageLabel.setText(`${commandPhase===2?'方向完成 · 按攻擊':commandPhase===1?(m.hero.mounted?'← 已輸入 · 接 →':'↓ 已輸入 · 接 ↑'):'v3.9.0'} · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${m.levels.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
+    this.stageLabel.setText(`${commandPhase===2?'方向完成 · 按攻擊':commandPhase===1?(m.hero.mounted?'← 已輸入 · 接 →':'↓ 已輸入 · 接 ↑'):'v4.0.0'} · ${DIFFICULTIES[m.difficulty].name}\n關 ${m.stage + 1}/${m.levels.length} · 陣 ${m.wave || 1}/${m.level.waves.length} · ${m.level.sections[Math.max(0,m.wave-1)]}`);
     this.partnerLabel.setVisible(!!m.partner);
     if(m.partner){const p=m.partner;g.fillStyle(0x263e3b).fillRect(695,95,80,4);g.fillStyle(0x8acfe5).fillRect(695,95,80*(1-(p.mounted?(p.rideDashCooldown??0)/1.15:p.dodgeCooldown/.95)),4);this.partnerLabel.setText(`2P · ${HEROES[p.heroId!].name}  ${Math.ceil(p.hp)}/${p.max}\n${p.hp<=0?(m.continues?'按攻擊續關':'等待隊友完成戰役'):m.grappleOf(p)?`擒拿 ${m.grappleOf(p)!.hits}/2 · ${Math.max(0,m.grappleOf(p)!.deadline-m.time).toFixed(1)}秒`:p.equipped?WEAPONS[p.equipped.id].name:p.mounted?'騎乘中':'U 攻擊 · I 跳躍 · O 衝撞'}`);g.fillStyle(0x244455).fillRect(695,80,235,12);g.fillStyle(0x8acfe5).fillRect(697,82,231*p.hp/p.max,8);}
     this.scoreLabel.setPosition(m.partner?600:930,m.partner?76:18).setFontSize(m.partner?16:18);
@@ -665,6 +682,7 @@ class Battle extends Phaser.Scene {
     if(bosses.length===1){g.fillStyle(0x142322,.95).fillRect(280,516,400,14);g.fillStyle(0xb65440).fillRect(284,520,392*boss.hp/boss.max,6);}
     else if(bosses.length>1)bosses.slice(0,2).forEach((b,i)=>{const x=26+i*480;g.fillStyle(0x142322,.95).fillRect(x,516,428,14);g.fillStyle(i?0x6eacc0:0xb65440).fillRect(x+4,520,420*b.hp/b.max,6);});
     const state = m.paused && !(import.meta.env.DEV&&this.posePreview) ? 'paused' : m.status;
+    document.querySelector<HTMLElement>('#finale-panel')!.hidden=state!=='won'||settingsOpen;
     const overlayKey=state+'/'+m.endingRoute;
     const shellKey=`${state}/${titleScreen}/${settingsOpen}`;
     if(this.shellKey!==shellKey){this.shellKey=shellKey;
@@ -689,10 +707,11 @@ class Battle extends Phaser.Scene {
     const personal = records[m.hero.heroId ?? 'guanyu'];
     const hero=HEROES[selectedHero];
     setText('#hero-abilities',`${selectedHero==='lubu'?'額外武將 · ':''}移動：${hero.speed>=195?'快':hero.speed>=175?'中':'慢'} · 力量：${hero.damage>=1.15?'強':hero.damage<.95?'輕巧':'均衡'} · 抓取：${m.style.grabReach>=50?'遠':m.style.grabReach<=36?'近':'中'}｜${hero.description}｜步戰：${selectedHero==='guanyu'||selectedHero==='zhangfei'?'徒手':selectedHero==='zhaoyun'?'劍':selectedHero==='huangzhong'?'弓箭':'戰刀／畫戟'}；馬戰：${selectedHero==='guanyu'?'偃月刀':selectedHero==='zhangfei'?'蛇矛':selectedHero==='zhaoyun'?'長槍':hero.weapon}`);
-    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · v3.9.0 最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成本戰役留下戰績');
+    setText('#hero-record', m.partner?'雙人合作共用隊伍分數，不寫入單人戰績。':personal ? `此武將已通關 · 歷來最高 ${personal.score} 分 · 最佳評級 ${personal.rank}` : '此武將尚未通關 · 完成本戰役留下戰績');
     setText('#deploy-hero', m.partner?`1P ${m.champion.name} ＋ 2P ${HEROES[m.partner.heroId!].name} 出陣 ▶`:`以${m.champion.name}出陣 ▶`);
     }
     if(state==='ready'&&!titleScreen&&!settingsOpen){const frame=Math.floor((performance.now()/1000)*4)%4;if(frame!==this.portraitFrame){this.portraitFrame=frame;HERO_IDS.forEach((id,i)=>{document.querySelector<HTMLImageElement>(`[data-portrait="${id}"]`)!.src=this.portraits[i][frame];});}}
+    if(state==='won')document.querySelector<HTMLButtonElement>('#advance')!.hidden=true;
     if (overlayKey !== this.overlayState) {
       this.overlayState = overlayKey; this.overlay?.destroy(true); this.overlay = undefined;
       if (state !== 'playing') this.showOverlay(state);
@@ -703,16 +722,17 @@ class Battle extends Phaser.Scene {
     if (status) setText('#game-status', state === 'ready' ? '等待出陣' : state === 'paused' ? '已暫停' : state === 'won' ? `${m.levels.length}關完成 · ${m.score} 分` : state === 'lost' ? `敗陣 · 續關剩 ${m.continues} 次` : state === 'stage-clear' ? `第 ${m.stage+1} 關完成` : `第 ${m.stage + 1} 關 · ${m.remainingEnemies} 名敵人（含援軍）`);
     const action = document.querySelector<HTMLButtonElement>('#advance');
     if (action) {
-      action.hidden = state === 'playing' || state === 'paused';
+      action.hidden = state === 'playing' || state === 'paused'||state==='won';
       setText('#advance', state === 'ready' ? '出陣 ▶' : state === 'stage-clear' ? `前往${m.levels[m.stage+1]?.title} ▶` : state === 'lost' && m.continues > 0 ? `續關 (${m.continues}) ▶` : '重新出征 ↻');
     }
 
   }
   showOverlay(state: string) {
     const m = this.model;
+    if(state==='won'){renderFinale(m,this.runSummary??makeRunSummary(m,'preview'));return;}
     const title = state === 'ready' ? '赤壁之戰三' : state === 'paused' ? '暫 停' : state === 'stage-clear' ? '關 隘 已 破' : state === 'won' ? m.ending.title : '勝 敗 乃 常';
     const branch=state==='stage-clear'&&m.stage===7&&m.campaignLength==='full';
-    const sub = branch?'江岸航道已開放。選擇追擊敵帥，或護送百姓。':state === 'ready' ? `${m.levels.length}關戰役 · 赤壁之戰三 v3.9.0` : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? `${m.stageStory} 下一站：${m.levels[m.stage+1]?.title??''}。存活武將出發前補給 ${STAGE_RECOVERY} 點氣血。` : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
+    const sub = branch?'江岸航道已開放。選擇追擊敵帥，或護送百姓。':state === 'ready' ? `${m.levels.length}關戰役 · 赤壁之戰三 v4.0.0` : state === 'paused' ? `${m.level.title}　／　戰場等你歸來` : state === 'stage-clear' ? `${m.stageStory} 下一站：${m.levels[m.stage+1]?.title??''}。存活武將出發前補給 ${STAGE_RECOVERY} 點氣血。` : state === 'won' ? `評級 ${m.rank}　得分 ${m.score}　最高連擊 ${m.bestCombo}　末陣獎勵 +${Math.max(0,m.waveReward)}` : `當前：${m.level.title} 第 ${m.wave} 陣　／　續關剩 ${m.continues} 次`;
     const action = state === 'ready' ? '按 ENTER 或點擊出陣' : state === 'paused' ? (document.body.classList.contains('touch-controls')?'點擊戰場中央，或由 Ⅱ 選單繼續':`按 ${bindings.pause.slice(3)}／手把 Start 或「繼續」`) : state === 'stage-clear' ? `按 ENTER 前往${m.levels[m.stage+1]?.title} · 存活武將補給12，武器延續` : state === 'lost' && m.continues > 0 ? '按 ENTER 或點擊續關 · 重打當前一陣' : '按 ENTER、R 或點擊重新出征';
     const hint = state === 'won' ? m.ending.text : state === 'lost' ? '續關退回本陣起始分數；R 重開全程。' : document.body.classList.contains('touch-controls')?'方向盤移動 · 斬攻擊 · 躍跳躍 · 衝衝撞':this.padConnected?`${PAD_LABELS[preferences.pad.attack]} 攻擊 · ${PAD_LABELS[preferences.pad.jump]} 跳躍 · ${PAD_LABELS[preferences.pad.dodge]} 衝撞` : `${bindings.attack.slice(3)} 連斬　${bindings.jump.slice(3)} 跳躍　${bindings.dodge.slice(3)} 衝撞　／　打破木箱、走近食物補血`;
     const bg = this.add.rectangle(480, 282, 960, 410, 0x0b1416, .84);
@@ -855,6 +875,8 @@ for(const [id,key] of [['mute-all','muted'],['reduce-motion','reducedMotion'],['
  document.getElementById(id)!.addEventListener('change',e=>{preferences[key]=(e.target as HTMLInputElement).checked;savePreferences();syncViewport();current().scale.refresh();});
 }
 window.addEventListener('keydown', e => {
+ if(archiveOpen){if(e.code==='Escape'){e.preventDefault();e.stopImmediatePropagation();closeArchive();}else if(e.code==='Tab')trapClosingFocus(e,'#archive-panel');return;}
+ if(current()?.model.status==='won'&&!settingsOpen){if(e.code==='Escape'){e.preventDefault();e.stopImmediatePropagation();leaveBattle('title');}else if(e.code==='Tab')trapClosingFocus(e,'#finale-panel');return;}
  if(e.code==='Escape' || ((coopMode?coopKey(e.code,1):keyAction(e.code,bindings))==='pause' && (current()?.model.status==='playing'||settingsOpen) && !(e.target instanceof HTMLSelectElement))){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)toggleSettings();return;}
  if(settingsOpen && e.code==='Tab') {
   const controls=menuControls();
@@ -903,7 +925,7 @@ function requestExit(target:'title'|'select'){
  document.querySelector<HTMLButtonElement>('#restart-no')!.focus();
 }
 function cancelExit(){pendingExit=null;document.querySelector<HTMLElement>('#restart-confirm')!.hidden=true;document.querySelector<HTMLButtonElement>('#menu-resume')!.focus();}
-function leaveBattle(target:'title'|'select'){if(training){training=undefined;coopMode=trainingCoop;document.body.classList.remove('training');document.querySelector<HTMLElement>('#training-panel')!.hidden=true;}pendingExit=null;suspend();closeSettings(false);titleScreen=target==='title';current().scene.restart({});}
+function leaveBattle(target:'title'|'select'){document.querySelector<HTMLElement>('#finale-panel')!.hidden=true;if(training){training=undefined;coopMode=trainingCoop;document.body.classList.remove('training');document.querySelector<HTMLElement>('#training-panel')!.hidden=true;}pendingExit=null;suspend();closeSettings(false);titleScreen=target==='title';current().scene.restart({});}
 function requestRestart(){requestExit('select');}
 document.querySelector('#restart-yes')!.addEventListener('click',()=>{if(pendingExit)leaveBattle(pendingExit);});
 document.querySelector('#restart-no')!.addEventListener('click',cancelExit);
@@ -980,3 +1002,26 @@ function renderCampaignGuide(){
 }
 
 document.querySelector('#training-horse')!.addEventListener('click',()=>resetTraining(LESSONS.length,true));
+
+function stageCards(entry:JournalEntry){return entry.stages.map(s=>`<article><span>第 ${s.stage+1} 關 · ${EXTENDED_LEVELS[s.stage].title}</span><strong>${s.grade}</strong><small>${formatDuration(s.seconds)} · 受傷 ${s.damage} · ${s.bestHit} HIT</small></article>`).join('');}
+function renderFinale(m:Campaign,entry:JournalEntry){
+ setText('#finale-scope',`${journalScope(entry)} · ${DIFFICULTIES[entry.difficulty].name}`);
+ setText('#finale-title',m.ending.title);setText('#finale-story',m.ending.text);
+ const team=HEROES[entry.hero].name+(entry.partner?' ＋ '+HEROES[entry.partner].name:'');
+ document.querySelector('#finale-stats')!.innerHTML=[['出征武將',team],['戰役評級',entry.rank],['隊伍得分',entry.score.toLocaleString()],['最高連擊',entry.bestCombo+' HIT'],['征戰時間',formatDuration(entry.seconds)],['使用續關',entry.continues+' 次']].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+ document.querySelector('#finale-stages')!.innerHTML=stageCards(entry);
+ setText('#finale-save',journalSaved?'本次回顧已保存於此裝置。'+(entry.mode==='coop'?'雙人紀錄不影響單人最高分。':entry.mode==='practice'?'選關挑戰不列入完整戰役最高分。':'既有最高分與武將最佳評級皆保留。'):'此裝置無法永久保存，本次回顧僅在目前視窗保留。');
+ document.querySelector<HTMLElement>('#finale-panel')!.hidden=false;
+ document.querySelector<HTMLElement>('#finale-panel')!.scrollTop=0;document.querySelector<HTMLElement>('#finale-title')!.focus({preventScroll:true});
+}
+function renderArchive(){
+ document.querySelector('#archive-list')!.innerHTML=journal.length?journal.map(e=>`<article class="archive-entry"><strong>${routeTitle(e.route)} · ${e.rank}</strong><span>${journalScope(e)} · ${DIFFICULTIES[e.difficulty].name} · ${HEROES[e.hero].name}${e.partner?'＋'+HEROES[e.partner].name:''}</span><p>${e.score.toLocaleString()} 分 · ${e.bestCombo} HIT · ${formatDuration(e.seconds)} · 續關 ${e.continues} 次</p><small>${new Date(e.at).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'})} · ${e.version}</small></article>`).join(''):'<p class="empty-journal">尚無 v4.0.0 通關回顧。完成戰役後，你的征途會留在這裡；先前版本的最高分仍在選將頁保留。</p>';
+}
+function openArchive(){archiveReturnFocus=document.activeElement as HTMLElement;suspend();archiveOpen=true;renderArchive();document.querySelector<HTMLElement>('#archive-panel')!.hidden=false;for(const id of ['app','title-screen','hero-select','finale-panel'])document.getElementById(id)!.inert=true;document.querySelector<HTMLElement>('#archive-panel')!.scrollTop=0;document.querySelector<HTMLButtonElement>('#archive-close')!.focus({preventScroll:true});}
+function closeArchive(){archiveOpen=false;document.querySelector<HTMLElement>('#archive-panel')!.hidden=true;document.querySelector<HTMLElement>('#finale-panel')!.inert=false;current().shellKey='';current().draw();archiveReturnFocus?.focus();}
+function trapClosingFocus(e:KeyboardEvent,selector:string){const controls=Array.from(document.querySelectorAll<HTMLElement>(selector+' button,'+selector+' summary')).filter(el=>el.getClientRects().length>0);const first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}
+document.querySelector('#title-archive')!.addEventListener('click',openArchive);
+document.querySelector('#finale-archive')!.addEventListener('click',openArchive);
+document.querySelector('#archive-close')!.addEventListener('click',closeArchive);
+document.querySelector('#finale-replay')!.addEventListener('click',()=>leaveBattle('select'));
+document.querySelector('#finale-home')!.addEventListener('click',()=>leaveBattle('title'));
