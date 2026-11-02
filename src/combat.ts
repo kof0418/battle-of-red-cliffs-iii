@@ -63,7 +63,7 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  hurtUntil?:number;jumpBufferedUntil?:number;dodgeBufferedUntil?:number;bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  escapeY?:number;escapeUntil?:number;escapeReady?:number;hurtUntil?:number;jumpBufferedUntil?:number;dodgeBufferedUntil?:number;bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -142,6 +142,7 @@ export class Campaign {
   stage = 0;
   continues = 2;
   continuesUsed = 0;
+  setContinueLimit(total:number){if(![2,5,10,20,99].includes(total))return false;this.continues=Math.max(0,total-this.continuesUsed);return true;}
   kills = 0;
   checkpointScore = 0;
   checkpointKills = 0;
@@ -210,12 +211,13 @@ export class Campaign {
   nextStage() {
     if (this.status !== 'stage-clear' || this.stage >= this.levels.length - 1) return false;
     if(this.campaignLength==='full'&&this.stage===7)this.endingRoute??='pursuit';
+    const arriving=this.horses.filter(h=>!h.fleeing&&h.life>0).map(h=>({...h,x:h.waiting?280:clamp(h.x-this.cameraLeft,350,1020),target:280}));
     const hp=this.hero.hp,equipped=this.hero.equipped;
     this.stage++;this.routeAdvantage=false; this.wave = 0;this.stageStarted=this.time;this.stageDamage=0;this.stageRetries=0;this.stageBestHit=0;this.stageInteractions.clear(); this.hero = this.fighter('hero', 180, 412);
     this.hero.hp=resupplyHp(hp,this.hero.max);this.hero.equipped=equipped;
     if(this.partner){const old=this.partner;this.partner=this.fighter('hero',260,455);this.partner.heroId=old.heroId;this.partner.hp=resupplyHp(old.hp,this.partner.max);this.partner.equipped=old.equipped;}
 
-    this.resetTransient(); this.status = 'playing'; this.spawn(); return true;
+    this.resetTransient(); this.horses=arriving;this.status = 'playing'; this.spawn(); return true;
   }
   /** Replay the current wave, rolling back its score and kills to prevent farming. */
   continueRun() {
@@ -253,7 +255,7 @@ export class Campaign {
     if(this.wave===3)this.barrels.push({id:++this.serial,x:this.cameraLeft+860,y:(this.stage%2)?499:354,hp:24,loot:this.stage%2?'knife':'book'});
     this.secrets=this.wave===4?[{id:++this.serial,x:this.cameraLeft+370,y:this.stage%2?499:354,hp:18,loot:CACHE_LOOT[this.stage],secret:true}]:[];
     if(this.wave===3){const courier=this.enemies.find(e=>['raider','soldier','archer'].includes(e.kind));if(courier){this.courierAssigned=true;courier.kind='raider';courier.courier={until:this.time+10,loot:COURIER_LOOT[this.stage]};courier.x=this.cameraLeft+845;courier.y=this.stage%2?499:354;courier.cooldown=99;}}
-    this.pickups = [];this.projectiles=[];this.horses=this.horses.filter(h=>h.waiting);
+    this.pickups = [];this.projectiles=[];this.horses=this.horses.filter(h=>h.life>0);for(const horse of this.horses){if(!horse.fleeing){horse.target=clamp(Math.max(horse.target,this.hero.x+70),this.cameraLeft+40,this.arenaEnd-50);horse.x=Math.max(horse.x,horse.target);}}
     this.message = this.wave===1?`${chapterAt(this.stage).act} · ${chapterAt(this.stage).goal}`:this.wave === this.level.waves.length ? `${this.level.boss}　　留意地面蓄力範圍` : `${this.level.title} · ${RHYTHMS[this.stage]} · ${this.level.sections[this.wave-1]}`;
     this.messageUntil = this.time + 3;
     this.events.push({ type: 'wave', x: base, y: 400 });
@@ -665,6 +667,7 @@ export class Campaign {
     let loot:LootId|undefined;
     if(weapon&&!this.weaponDropUsed){this.weaponDropUsed=true;loot=weapon;}
     else if(e.kind==='heavy'&&!this.foodDropUsed){this.foodDropUsed=true;loot='bun';}
+    if(!loot&&this.kills%3===0)loot='bun';
     if(!loot)return;
     this.pickups.push({id:++this.serial,x:clamp(e.x,this.cameraLeft+30,this.cameraLeft+930),y:clamp(e.y,354,499),loot,amount:loot==='bun'?25:0,availableAt:this.time+.45});
   }
@@ -813,6 +816,19 @@ export class Campaign {
   private aiOne(e: Fighter, index: number, dt: number) {
     if (this.grapple?.target===e.id || (e.knockdown??0)>0 || e.hp <= 0 || e.stun > 0 || e.attack || this.hero.hp <= 0) return;
     const h = this.hero, dx = h.x - e.x, dy = h.y - e.y;
+    // Commit to an open lane before coming back inward; never walk into the same frontal combo.
+    if(isBoss(e.kind)&&!e.mounted){
+      const corner=e.x<this.cameraLeft+145||e.x>this.cameraLeft+815;
+      if(corner&&Math.abs(dx)<175&&Math.abs(dy)<48&&this.time>=(e.escapeReady??0)&&this.time>=(e.escapeUntil??0)){
+        e.escapeY=e.y<426?495:358;e.escapeUntil=this.time+1.35;e.escapeReady=this.time+3;
+      }
+      if(this.time<(e.escapeUntil??0)){
+        const targetY=e.escapeY!,gap=targetY-e.y,speed=145;
+        e.y=clamp(e.y+Math.sign(gap)*Math.min(Math.abs(gap),speed*dt),350,503);
+        if(Math.abs(e.y-h.y)>46)e.x=clamp(e.x+(e.x<this.cameraLeft+480?1:-1)*100*dt,this.cameraLeft+15,this.cameraLeft+945);
+        e.face=dx>=0?1:-1;e.moving=true;return;
+      }
+    }
     if(h.stun>0&&(h.inv>0||(h.knockdown??0)>0))return;
     if(e.courier){if(this.time<e.courier.until-9)return;e.x-=105*dt;e.moving=true;e.face=-1;if(e.x<this.cameraLeft-70&&!e.escaped){e.escaped=true;this.escapes++;}return;}
     if(e.x<this.cameraLeft+15||e.x>this.cameraLeft+945){e.face=e.x<this.cameraLeft?1:-1;e.x+=e.face*stats[e.kind].speed*dt;e.y+=Math.sign(dy)*Math.min(Math.abs(dy),stats[e.kind].speed*.5*dt);e.moving=true;return;}

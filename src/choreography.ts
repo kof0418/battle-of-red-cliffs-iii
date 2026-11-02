@@ -51,3 +51,10 @@ export function keyedPose(t:number,keys:readonly {at:number;pose:ActionPose}[]):
  const a=keys[k],b=keys[k+1],u=ease((t-a.at)/(b.at-a.at));
  return {x:a.pose.x+(b.pose.x-a.pose.x)*u,y:a.pose.y+(b.pose.y-a.pose.y)*u,lean:a.pose.lean+(b.pose.lean-a.pose.lean)*u,angle:a.pose.angle+(b.pose.angle-a.pose.angle)*u,stride:a.pose.stride+(b.pose.stride-a.pose.stride)*u,crouch:a.pose.crouch+(b.pose.crouch-a.pose.crouch)*u,phase:t<b.at?a.pose.phase:b.pose.phase};
 }
+
+/** Two fixed-length arm segments, with a bent elbow and a bounded hand target. */
+export function gripArm(sx:number,sy:number,tx:number,ty:number,bend=1){
+ const dx=tx-sx,dy=ty-sy,d=Math.max(.001,Math.hypot(dx,dy)),reach=Math.min(d,43),ux=dx/d,uy=dy/d;
+ const x=sx+ux*reach,y=sy+uy*reach,offset=Math.sqrt(22*22-reach*reach/4);
+ return {x,y,elbowX:sx+ux*reach/2-uy*offset*bend,elbowY:sy+uy*reach/2+ux*offset*bend};
+}
