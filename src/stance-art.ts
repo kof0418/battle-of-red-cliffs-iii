@@ -3,7 +3,7 @@ import type {Fighter} from './combat';
 import {planted} from './choreography';
 /** Bent knees transfer torso weight without translating the planted soles. */
 export function drawSupport(g:Phaser.GameObjects.Graphics,f:Fighter,lean:number,crouch:number,stride:number){
- if(!planted(f)||!f.attack&&!f.stun&&!(f.throwRecovery??0))return false;
+ if(!planted(f)||!f.attack&&!f.stun&&!f.grapplePose&&!(f.throwRecovery??0))return false;
  const metal=f.heroId==='zhangfei'?0x675e4b:f.heroId==='zhaoyun'?0x8ea7aa:f.heroId==='huangzhong'?0x777359:f.heroId==='lubu'?0x65575c:f.heroId==='weiyan'?0x666d69:0x3b4840;
  for(const side of [-1,1]){
   if(f.attack?.move==='kick'&&side===1)continue;

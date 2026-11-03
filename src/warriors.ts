@@ -24,7 +24,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,n:number,p:number[])=>{g.lineStyle(n,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
  const action=f.attack?.move==='special'&&(zhao||huang)?rangedSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='kick'||f.attack?.move==='bow-strike'?contactMotion(f,phase):f.attack?.move==='aerial'?aerialMotion(id,f.vz<0,(f.airStrikes??0)===2):f.attack?contactMotion(f,phase):null;
- const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
+ const grip=f.grapplePose?grappleMotion(id,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted,f.grappleRelease):null;
  const stride=f.z>0?6:action||grip?0:f.moving&&!f.attack?[-5,0,5,0][frame%4]:0,spread=(grip?.stride??action?.stride??0)/2;
  const tail=frame%3*2;
  poly(0x1c2a2b,[-w,-61,-w-8,-52,-w-13-tail,-15,-w+2,-24,-3,-56]);
@@ -37,7 +37,7 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
   for(let i=0;i<3;i++){const x=-23+i*4;line(0xa88c61,1,[x,-49,x+6,-77-i*2]);poly(0xd9d3b8,[x+5,-71-i*2,x+3,-78-i*2,x+8,-75-i*2,x+6,-69-i*2]);}
  }
  const kneeling=huang&&!f.mounted&&!f.equipped&&f.attack?.move==='slash'&&f.step===2;
- const specialLegs=drawVanguardLegs(g,f)||!kneeling&&drawSupport(g,f,waistLean(f,action?.lean??0),action?.crouch??0,action?.stride??0);
+ const specialLegs=drawVanguardLegs(g,f)||!kneeling&&drawSupport(g,f,waistLean(f,grip?.lean??action?.lean??0),grip?.crouch??action?.crouch??0,grip?.stride??action?.stride??0);
  const kicking=f.attack?.move==='kick',extension=attackExtension(f);
  if(kneeling){
   g.save();g.translateCanvas(0,12);
@@ -58,8 +58,9 @@ export function drawWarrior(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number
  for(let i=-w+4;i<w;i+=7){poly(i<0?light:metal,[i,-39,i+4,-39,i+6,-20,i+1,-18]);line(0x283a34,1,[i+4,-37,i+6,-22]);}
  line(edge,1,[-w-3,-20,-10,-15,1,-21,10,-14,w+3,-19]);
  g.save();
- if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(action?.crouch??0));}
+ if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,grip?.lean??action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(grip?.crouch??action?.crouch??0));}
  try {
+ if(grip&&!f.mounted)drawGrip(g,f,gripPoint,'back');
  poly(0x1b2d2b,[-w,-61,-w+7,-67,9,-66,w,-59,w-2,-37,-w+2,-37]);
  poly(metal,[-w+3,-59,-8,-63,9,-62,w-3,-56,w-5,-40,-w+4,-40]);
  // Staggered lamellae, with lit top edges and dark seams.

@@ -1,6 +1,6 @@
 import {isInfantry} from './infantry-motion';
 import {drawSwordSoldier} from './soldier-art';
-import {contactMotion,planted,articulatedHero,localContact} from './choreography';
+import {contactMotion,planted,articulatedHero,localContact,unwaistPoint,releaseHand} from './choreography';
 import {drawFinalBoss} from './final-boss-art';
 import {mountedPosePhase} from './horse';
 import {vanguardSpecialPose} from './vanguard-art';
@@ -21,6 +21,7 @@ export class Actor {
   ink: Phaser.GameObjects.Graphics;
   shadow: Phaser.GameObjects.Ellipse;
   private pose = '';
+  private lastGrip?:{x:number;y:number};
   constructor(scene: Phaser.Scene, readonly id: number) {
     this.ink = scene.add.graphics(); this.body = scene.add.container(0, 0, [this.ink]);
     this.shadow = scene.add.ellipse(0, 0, 43, 12, 0x101c1a, .4);
@@ -32,7 +33,7 @@ export class Actor {
     const step = f.attack ? Math.min(3, Math.floor(f.attack.elapsed / f.attack.duration * 4)) : 0;
     const rawPhase=f.attack?attackPhase(f.attack.elapsed,f.attack.impact,f.attack.duration):4,phase=f.mounted&&f.attack?.move==='mounted'?mountedPosePhase(f.step,f.heroId==='huangzhong',f.attack.elapsed,rawPhase):rawPhase;
     const motion=champion&&f.attack?(f.attack.move==='special'&&(f.heroId==='zhaoyun'||f.heroId==='huangzhong')?rangedSpecialPose(f):f.attack.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.attack?.move==='special'&&(f.heroId==='weiyan'||f.heroId==='lubu')?vanguardSpecialPose(f):f.mounted?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack.move==='kick'||f.attack.move==='bow-strike'?contactMotion(f,phase):f.attack.move==='aerial'?aerialMotion(f.heroId!,f.vz<0,(f.airStrikes??0)===2):contactMotion(f,phase)):null;
-    const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
+    const grip=champion&&f.grapplePose?grappleMotion(f.heroId!,f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted,f.grappleRelease):null;
     const special=f.attack?.move==='special'?specialMotion(f.heroId!,f.attack.elapsed/f.attack.duration):null;
     const bob = f.moving && !f.attack && f.z === 0 ? frame % 2 * 2 : 0;
     this.body.setPosition(Math.round(f.x), Math.round(f.y - f.z - (f.mounted?42:0) - bob - (special?.lift??0)+(planted(f)?0:(grip?.crouch??motion?.crouch??0)))).setDepth(f.y+(grip?.5:0)).setScale(s * f.face, s);
@@ -47,8 +48,15 @@ export class Actor {
     this.body.setAlpha(f.inv > 0 && frame % 2 === 0 ? .6 : 1);
     this.shadow.setPosition(f.x, f.y + 3).setDepth(f.y - 1).setScale(s * (1 - f.z / 250));
     const captiveScale=captive?(isBoss(captive.kind)?1.5:captive.kind==='brute'?1.28:captive.kind==='mauler'?1.24:1.12):1;
-    const gripPoint=captive&&articulatedHero(f)&&!f.mounted?localContact(captive.x,captive.y-captive.z-42*captiveScale,this.body.x,this.body.y,this.body.angle*Math.PI/180,s*f.face,s):undefined;
-    const key = `${Math.round(gripPoint?.x??0)}/${Math.round(gripPoint?.y??0)}/${articulatedHero(f)||isInfantry(f.kind)?Math.floor((f.attack?.elapsed??0)*30):0}/${articulatedHero(f)||isInfantry(f.kind)?Math.floor(f.stun*30):0}/${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*5)}/${(f.throwRecovery??0)>0}`;
+    const captiveAngle=captive?(captive.grapplePose==='held'?captive.face*22:captive.grapplePose==='air-held'?captive.face*80:captive.throwSpin??0)*Math.PI/180:0;
+    let gripPoint=captive&&articulatedHero(f)&&!f.mounted?localContact(captive.x-Math.sin(captiveAngle)*7*captiveScale,captive.y-captive.z-42*captiveScale+Math.cos(captiveAngle)*7*captiveScale,this.body.x,this.body.y,this.body.angle*Math.PI/180,s*f.face,s):undefined;
+    if(gripPoint&&planted(f)&&grip)gripPoint=unwaistPoint(gripPoint.x,gripPoint.y,grip.lean,grip.crouch);
+    if(gripPoint)this.lastGrip=gripPoint;
+    else if(f.grapplePose==='throw'&&!f.mounted&&this.lastGrip){
+      const release=f.grappleRelease??.32,flight=Math.max(0,((f.grappleProgress??0)-release)/(1-release));
+      gripPoint=releaseHand(this.lastGrip,flight,f.grappleBack);
+    }else if(!f.grapplePose)this.lastGrip=undefined;
+    const key = `${Math.round(gripPoint?.x??0)}/${Math.round(gripPoint?.y??0)}/${articulatedHero(f)||isInfantry(f.kind)?Math.floor((f.attack?.elapsed??0)*30):0}/${articulatedHero(f)||isInfantry(f.kind)?Math.floor(f.stun*30):0}/${f.grappleSpin}/${phase}/${f.heroId}/${frame % 4}/${f.moving}/${step}/${f.step}/${f.stun > 0}/${f.z > 0}/${Math.ceil(f.hp)}/${f.attack?.move}/${f.dodge > 0}/${f.grapplePose}/${f.grappleBack}/${f.equipped?.id}/${f.attack?.weapon}/${f.mounted}/${(f.guard??0)>0}/${f.vz<0}/${Math.floor((f.grappleProgress??0)*60)}/${(f.throwRecovery??0)>0}`;
     if (key === this.pose) return; this.pose = key;
     const g = this.ink; g.clear();
     if(f.mounted)drawHorse(g,0,38,1,time,f.moving);

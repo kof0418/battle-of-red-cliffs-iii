@@ -29,15 +29,16 @@ export function aerialMotion(id:HeroId,descending:boolean,follow=false){
  if(bow)return {x:descending?30:8,y:descending?-33:-58,lean:descending?7:-12,angle:descending?.4:-1,stride:11,crouch:0,phase:descending?2:1};
  return {x:descending?(thrust?38:bow?26:30):10,y:descending?-26:-65,lean:descending?12:-6,angle:descending?(thrust?.3:bow?.65:.9):-1.1,stride:descending?10:6,crouch:0,phase:descending?2:1};
 }
-export function grappleMotion(id:HeroId,pose:string,progress=0,back=false,mounted=false){
+export function grappleMotion(id:HeroId,pose:string,progress=0,back=false,mounted=false,release=.32){
  const heavy=id==='zhangfei'||id==='lubu',p=Math.max(0,Math.min(1,progress));
  if(mounted)return {x:(back?-1:1)*(20+12*Math.sin(p*Math.PI)),y:p<.36?-30-150*p:-84+(p-.36)*95,lean:0,stride:0,crouch:0};
- if(pose==='throw'&&id==='weiyan')return {x:24-38*Math.sin(p*Math.PI),y:-40-18*Math.sin(p*Math.PI),lean:-24*Math.sin(p*Math.PI),stride:18,crouch:10*Math.sin(p*Math.PI)};
- if(pose==='throw'&&id==='lubu')return {x:18+16*Math.sin(p*Math.PI),y:-104+74*Math.sin(p*Math.PI),lean:20*Math.sin(p*Math.PI),stride:20,crouch:7*Math.sin(p*Math.PI)};
- if(pose==='throw'&&id==='zhaoyun')return {x:28+18*Math.sin(p*Math.PI),y:-48+22*Math.sin(p*Math.PI),lean:14*Math.sin(p*Math.PI),stride:14,crouch:7*Math.sin(p*Math.PI)};
- if(pose==='throw'&&id==='huangzhong')return {x:15-30*Math.sin(p*Math.PI),y:-72+15*Math.sin(p*Math.PI),lean:-10*Math.sin(p*Math.PI),stride:8,crouch:2};
- if(pose==='throw'&&id==='zhangfei')return {x:27,y:-96+Math.sin(p*Math.PI)*70,lean:18*Math.sin(p*Math.PI),stride:16,crouch:8*Math.sin(p*Math.PI)};
- if(pose==='throw')return {x:back?26-42*Math.sin(p*Math.PI):26,y:-66+Math.sin(p*Math.PI)*26,lean:(back?-1:1)*(heavy?10:7)*Math.sin(p*Math.PI),stride:10,crouch:Math.sin(p*Math.PI)*4};
+ if(pose==='throw'){
+  const lift=Math.min(1,p/release),flight=Math.max(0,(p-release)/(1-release)),ease=(v:number)=>v*v*(3-2*v),u=ease(lift),v=ease(flight),direction=back?-1:1;
+  const load=id==='zhangfei'?9:id==='weiyan'?11:6,turn=id==='lubu'?19:id==='zhaoyun'?14:16;
+  // Load the hips, roll the shoulder through release, then settle over planted feet.
+  return {x:27+(direction*12-27)*u+(20-direction*12)*v,y:-47-31*u+30*v,
+   lean:(-load+(turn+load)*u)*direction*(1-v),stride:12,crouch:3+5*Math.sin(lift*Math.PI)*(1-v)};
+ }
  if(pose==='lift')return {x:27,y:-96,lean:-4,stride:9,crouch:2};
  if(pose==='air')return {x:27,y:-66,lean:-5,stride:8,crouch:0};
  return {x:27,y:-49,lean:heavy?-3:-1,stride:7,crouch:2};

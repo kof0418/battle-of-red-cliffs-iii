@@ -63,7 +63,7 @@ export interface Attack {
   face: number; x: number; y: number;
 }
 export interface Fighter {
-  escapeY?:number;escapeUntil?:number;escapeReady?:number;hurtUntil?:number;jumpBufferedUntil?:number;dodgeBufferedUntil?:number;bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
+  escapeY?:number;escapeUntil?:number;escapeReady?:number;hurtUntil?:number;jumpBufferedUntil?:number;dodgeBufferedUntil?:number;bladeAway?:boolean;courier?:{until:number;loot:LootId};escaped?:boolean;targetId?:number;targetUntil?:number;mountApproach?:boolean;airStrikes?:number;airFollowQueued?:boolean;grappleSpin?:boolean;comboHit?:boolean; comboAttack?:Attack; rideSpeed?:number;rideTurn?:number;rideFacing?:number;rideDash?:number;rideDashCooldown?:number;guard?:number;guardCooldown?:number;airAttackUsed?:boolean; grappleProgress?:number;grappleRelease?:number; throwRecovery?:number; mounted?:boolean; steed?:Horse; mountCooldown?:number; equipped?:{id:WeaponId;uses:number;hits?:number}; id: number; kind: Kind; heroId?: HeroId; x: number; y: number; hp: number; max: number; face: number;
   z: number; vz: number; inv: number; stun: number; cooldown: number;
   step: number; last: number; attack: Attack | null; moving: boolean;
   grappleBack?:boolean;grapplePose?:'lift'|'hold'|'held'|'air'|'air-held'|'thrown'|'throw'; throwSpin?:number; knockdown?:number; grappleCooldown?:number; rescueCooldown?: number; specialCooldown?: number; dodge: number; dodgeCooldown: number; dashX: number; dashY: number; attacks: number;
@@ -650,7 +650,7 @@ export class Campaign {
   releaseGrapple(escape:boolean){
     const state=this.grapple;if(!state)return;const e=this.enemies.find(e=>e.id===state.target),h=this.hero;
     this.stoppedInputs.get(h.id)?.clear();
-    h.grapplePose=undefined;delete h.grappleBack;delete h.grappleSpin;h.grappleProgress=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
+    h.grapplePose=undefined;delete h.grappleBack;delete h.grappleSpin;h.grappleProgress=undefined;h.grappleRelease=undefined;h.throwSpin=undefined;h.grappleCooldown=.65;h.attack=null;this.queuedUntil=0;this.specialQueued=false;
     if(e){if((state.mounted||state.phase==='special')&&e.z>0){e.z=0;e.stun=Math.max(e.stun,.5);e.knockdown=.5;}e.grapplePose=undefined;e.throwSpin=undefined;e.vz=0;e.grappleCooldown=isBoss(e.kind)?1.8:1.2;
       if(escape){e.inv=.4;e.cooldown=.55;e.x=clamp(e.x+h.face*38,this.enemyLeft,this.enemyRight);}}
     this.grapple=null;
@@ -720,14 +720,19 @@ export class Campaign {
       }
       // First pull the enemy to the shoulder, then release into an accelerating fall.
       const baseWeight=state.mounted?MOUNT_THROW:groundThrowWeight(h.heroId!,e.kind),weight=!state.mounted&&h.heroId==='zhangfei'?{...baseWeight,height:baseWeight.height+22}:baseWeight,lift=Math.min(1,state.elapsed/weight.lift),flight=Math.max(0,Math.min(1,(state.elapsed-weight.lift)/weight.flight));
+      h.grappleRelease=weight.lift/(weight.lift+weight.flight);
+      h.grappleProgress=Math.min(1,state.elapsed/(weight.lift+weight.flight));
+      // Lift at the waist, close to the shoulder. The high arc starts only after release.
+      const carrierScale=h.heroId==='zhangfei'?1.24:1.12,captiveScale=isBoss(e.kind)?1.5:e.kind==='brute'?1.28:e.kind==='mauler'?1.24:1.12;
+      const carryHeight=state.mounted?weight.height:Math.min(weight.height,carrierScale*79-captiveScale*35);
       const shoulder=h.x+state.direction*12,previous={x:e.x,y:e.y,z:e.z},easedLift=lift*lift*(3-2*lift),travel=flight*flight*(3-2*flight);
       e.y=h.y;h.throwSpin=state.mounted?0:state.direction*(flight>0?24*(1-flight):-12*lift);
       if(state.elapsed<weight.lift){
         e.x=state.startX+(shoulder-state.startX)*easedLift;
-        e.z=state.startZ+(weight.height-state.startZ)*easedLift;e.throwSpin=(state.back?1:-1)*state.direction*65*lift;
+        e.z=state.startZ+(carryHeight-state.startZ)*easedLift;e.throwSpin=(state.back?1:-1)*state.direction*65*lift;
       }else{
         e.x=clamp(shoulder+state.direction*spec.distance*travel,this.enemyLeft,limit);
-        e.z=weight.height*(1-flight)+Math.sin(flight*Math.PI)*(state.back?42:24);
+        e.z=carryHeight*(1-flight)+Math.sin(flight*Math.PI)*((state.back?34:22)+Math.max(0,weight.height-carryHeight)*.6);
         e.throwSpin=state.direction*(state.back?65-245*flight:-65+155*flight);
       }
       h.z=state.air?Math.max(0,state.startZ-24)*(1-flight):0;

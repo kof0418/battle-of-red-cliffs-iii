@@ -40,7 +40,7 @@ test('Zhao Yun special advances through a narrow front lane; Huang Zhong spins i
  assert(specialMotion('zhaoyun',.5).lift>40);assert.equal(specialMotion('huangzhong',.5).lift,0);
 });
 test('Zhao Yun throws low and fast; Huang Zhong rolls the captive over the shoulder',()=>{
- const heights:number[]=[];for(const id of ['zhaoyun','huangzhong'] as const){const m=setup(id),e=enemy(m,428);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});ticks(m,12);heights.push(e.z);ticks(m,36);assert(!m.grapple);assert.equal(e.z,0);assert(e.hp<1000);}assert(heights[1]>heights[0]+15);
+ const heights:number[]=[];for(const id of ['zhaoyun','huangzhong'] as const){const m=setup(id),e=enemy(m,428);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});let peak=0;for(let i=0;i<36;i++){ticks(m,1);peak=Math.max(peak,e.z);}heights.push(peak);ticks(m,36);assert(!m.grapple);assert.equal(e.z,0);assert(e.hp<1000);}assert(heights[1]>heights[0]+15);
 });
 test('co-op retains independent spear/bow shapes and shot ownership',()=>{
  const m=new Campaign('zhaoyun');m.enableCoop('huangzhong');m.start();m.pending=[];m.supplies=[];m.barrels=[];m.hero.x=400;m.hero.y=370;m.partner!.x=400;m.partner!.y=470;const a=enemy(m,450,370),b=enemy(m,600,470);m.tick(1/60,{...idle,attack:true,partner:{...idle,attack:true}});ticks(m,12);assert(a.hp<1000);assert.equal(b.hp,1000);assert(m.projectiles.some(p=>p.owner===m.partner!.id));ticks(m,20);assert(b.hp<1000);

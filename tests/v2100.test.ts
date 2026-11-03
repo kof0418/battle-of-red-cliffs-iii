@@ -18,7 +18,7 @@ for(const id of ['guanyu','zhangfei'] as const)test(`${id}: each special pulse h
  DUEL_SPECIAL_TIMES[id].forEach((t,i)=>{f.attack!.elapsed=t;assert.equal(specialBeat(f).beat,i);assert(specialBeat(f).active);f.attack!.elapsed=t+.13;assert(!specialBeat(f).active);});
 });
 test('feet stay planted only in supported ground poses',()=>{
- const f=new Campaign('guanyu').hero;assert(planted(f));f.z=30;assert(!planted(f));f.z=0;f.grapplePose='throw';assert(!planted(f));f.grapplePose=undefined;f.mounted=true;assert(!planted(f));
+ const f=new Campaign('guanyu').hero;assert(planted(f));f.z=30;assert(!planted(f));f.z=0;f.grapplePose='throw';assert(planted(f));f.grappleSpin=true;assert(!planted(f));f.grappleSpin=false;f.grapplePose=undefined;f.mounted=true;assert(!planted(f));
 });
 test('rear hand stays 22 pixels along the actual shaft at every angle',()=>{
  for(const angle of [-1.8,0,1.5,2.95]){const hand=poleRearHand(32,-42,angle);assert(Math.abs(Math.hypot(hand.x-32,hand.y+42)-22)<1e-9);assert(Math.abs((hand.x-32)*Math.cos(angle)+(hand.y+42)*Math.sin(angle))<1e-9);}

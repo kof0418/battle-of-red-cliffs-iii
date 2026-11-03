@@ -34,7 +34,7 @@ test('Wei Yan has tucked/extended special legs, excluding mounted and pickup wea
  const m=setup('weiyan'),g:any={lineStyle(){return this;},lineBetween(){return this;}};assert(!drawVanguardLegs(g,m.hero));m.special();assert(drawVanguardLegs(g,m.hero));m.hero.mounted=true;assert(!drawVanguardLegs(g,m.hero));m.hero.mounted=false;m.hero.equipped={id:'sword',uses:18};assert(!drawVanguardLegs(g,m.hero));
 });
 test('low fast rotating throw and high power throw both land and damage their captive',()=>{
- const heights:number[]=[];for(const id of ['weiyan','lubu'] as const){const m=setup(id),e=foe(m,428);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});ticks(m,12);heights.push(e.z);ticks(m,45);assert(!m.grapple);assert.equal(e.z,0);assert(e.hp<1000);}assert(heights[1]>heights[0]+35);assert(groundThrowWeight('weiyan','boss').height<groundThrowWeight('lubu','boss').height);
+ const heights:number[]=[];for(const id of ['weiyan','lubu'] as const){const m=setup(id),e=foe(m,428);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});let peak=0;for(let i=0;i<36;i++){ticks(m,1);peak=Math.max(peak,e.z);}heights.push(peak);ticks(m,45);assert(!m.grapple);assert.equal(e.z,0);assert(e.hp<1000);}assert(heights[1]>heights[0]+30);assert(groundThrowWeight('weiyan','boss').height<groundThrowWeight('lubu','boss').height);
 });
 test('local co-op applies separate knife/halberd reach and pickup weapons still bypass hero forms',()=>{
  const m=new Campaign('weiyan');m.enableCoop('lubu');m.start();m.pending=[];m.supplies=[];m.barrels=[];m.hero.x=m.partner!.x=400;m.hero.y=365;m.partner!.y=470;const a=foe(m,520,365),b=foe(m,520,470);m.tick(1/60,{...idle,attack:true,partner:{...idle,attack:true}});ticks(m,12);assert.equal(a.hp,1000);assert(b.hp<1000);

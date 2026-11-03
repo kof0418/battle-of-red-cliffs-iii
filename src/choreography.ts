@@ -16,8 +16,8 @@ export function contactMotion(f:Fighter,phase:number){
  return {x:from.x+(to.x-from.x)*u,y:from.y+(to.y-from.y)*u,angle:from.angle+(to.angle-from.angle)*u,lean:from.lean+(to.lean-from.lean)*u,stride:from.stride+(to.stride-from.stride)*u,crouch:from.crouch+(to.crouch-from.crouch)*u,phase};
 }
 /** Keep the support foot on the lane; only the body above the belt rotates. */
-export function planted(f:Fighter){return articulatedHero(f)&&!f.mounted&&f.z===0&&!f.dodge&&!f.grapplePose&&!(f.knockdown??0)&&f.hp>0&&f.attack?.move!=='special';}
-export function waistLean(f:Fighter,lean:number){return f.stun>0?-12*Math.min(1,f.stun/.12):(f.throwRecovery??0)>0?8:lean;}
+export function planted(f:Fighter){return articulatedHero(f)&&!f.mounted&&f.z===0&&!f.dodge&&(!f.grapplePose||['hold','lift','throw'].includes(f.grapplePose)&&!f.grappleSpin)&&!(f.knockdown??0)&&f.hp>0&&f.attack?.move!=='special';}
+export function waistLean(f:Fighter,lean:number){return (f.throwRecovery??0)>0?0:f.stun>0?-12*Math.min(1,f.stun/.12):lean;}
 export function poleRearHand(x:number,y:number,angle:number){return {x:x-22*Math.sin(angle),y:y+22*Math.cos(angle)};}
 export function specialBeat(f:Fighter){
  const times=DUEL_SPECIAL_TIMES[f.heroId!],t=f.attack!.elapsed;
@@ -57,4 +57,15 @@ export function gripArm(sx:number,sy:number,tx:number,ty:number,bend=1){
  const dx=tx-sx,dy=ty-sy,d=Math.max(.001,Math.hypot(dx,dy)),reach=Math.min(d,43),ux=dx/d,uy=dy/d;
  const x=sx+ux*reach,y=sy+uy*reach,offset=Math.sqrt(22*22-reach*reach/4);
  return {x,y,elbowX:sx+ux*reach/2-uy*offset*bend,elbowY:sy+uy*reach/2+ux*offset*bend};
+}
+
+/** Inverse of waistPoint: grip contacts use the same hip pivot as the drawn torso. */
+export function unwaistPoint(x:number,y:number,lean:number,crouch:number){
+ const a=lean*Math.PI/180,dy=y+32;
+ return {x:x*Math.cos(a)+dy*Math.sin(a),y:-x*Math.sin(a)+dy*Math.cos(a)-32-crouch};
+}
+/** Follow the release direction briefly, then fold both arms back to guard. */
+export function releaseHand(point:{x:number;y:number},flight:number,back=false){
+ const p=Math.max(0,Math.min(1,flight)),ease=(n:number)=>n*n*(3-2*n),u=ease(Math.min(1,p/.22)),v=ease(Math.max(0,(p-.22)/.78));
+ return {x:(point.x+(back?-9:9)*u)*(1-v)+20*v,y:(point.y+10*u)*(1-v)-48*v};
 }

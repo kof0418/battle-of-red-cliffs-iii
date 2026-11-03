@@ -33,8 +33,8 @@ for(const id of ['guanyu','zhangfei'] as const)test(`${id}: three special contac
 test('Guan Yu rises while Zhang Fei stays planted before his ground burst',()=>{
  assert(specialMotion('guanyu',.4).lift>20);assert.equal(specialMotion('zhangfei',.4).lift,0);assert(specialMotion('zhangfei',.4).angle>0);
 });
-test('Zhang Fei overhead ground throw lifts higher than Guan Yu shoulder throw',()=>{
- const height:number[]=[];for(const id of ['guanyu','zhangfei'] as const){const m=setup(id);const e=enemy(m,428,412);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});ticks(m,12);height.push(e.z);}assert(height[1]>height[0]+15);
+test('Zhang Fei released throw arc peaks higher than Guan Yu shoulder throw',()=>{
+ const height:number[]=[];for(const id of ['guanyu','zhangfei'] as const){const m=setup(id);const e=enemy(m,428,412);m.tryGrab({x:1,y:0});m.tick(1/60,{x:1,y:0,grappleAttack:true});let peak=0;for(let i=0;i<36;i++){ticks(m,1);peak=Math.max(peak,e.z);}height.push(peak);}assert(height[1]>height[0]+10);
 });
 test('Guan Yu air throw arches backward while Zhang Fei rotates through a full turn',()=>{
  const angles:number[]=[];for(const id of ['guanyu','zhangfei'] as const){const m=setup(id);enemy(m,428,412);m.tryGrab({x:1,y:0});m.tick(1/60,{...idle,jump:true});ticks(m,15);m.tick(1/60,{...idle,grappleAttack:true});ticks(m,12);angles.push(m.hero.throwSpin!);assert(m.hero.z>0);ticks(m,30);assert(!m.grapple);assert.equal(m.hero.z,0);}

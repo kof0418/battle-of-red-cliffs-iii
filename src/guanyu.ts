@@ -15,12 +15,12 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  const poly=(c:number,p:number[])=>{g.fillStyle(c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.closePath();g.fillPath();};
  const line=(c:number,w:number,p:number[])=>{g.lineStyle(w,c);g.beginPath();g.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)g.lineTo(p[i],p[i+1]);g.strokePath();};
  const action=f.attack?.move==='special'&&(f.heroId==='guanyu'||f.heroId==='zhangfei')?duelSpecialPose(f):f.mounted&&f.attack?mountedMotion(phase,f.attack.face!==f.face,f.attack.move==='ride-charge',f.step,f.heroId==='huangzhong'):f.attack?.move==='aerial'?aerialMotion('guanyu',f.vz<0):f.attack?contactMotion(f,phase):null;
- const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted):null;
+ const grip=f.grapplePose?grappleMotion('guanyu',f.grapplePose,f.grappleProgress,f.grappleBack,f.mounted,f.grappleRelease):null;
  const walk=f.moving&&!f.attack?[-5,0,5,0][frame%4]:0, stride=f.z>0?5:action||grip?0:walk,spread=(grip?.stride??action?.stride??0)/2;
  // Tall, broad-shouldered silhouette; cloth moves independently behind the legs.
  poly(0x142c28,[-11,-64,-22,-58,-29-frame%3,-18,-14,-24,-6,-48]);
  poly(0x295441,[-15,-60,-23,-51,-26-frame%3,-24,-19,-29,-12,-48]);
- for(const [x,d] of drawSupport(g,f,waistLean(f,action?.lean??0),action?.crouch??0,action?.stride??0)?[]:[[-11-spread,stride],[7+spread,-stride]]){
+ for(const [x,d] of drawSupport(g,f,waistLean(f,grip?.lean??action?.lean??0),grip?.crouch??action?.crouch??0,grip?.stride??action?.stride??0)?[]:[[-11-spread,stride],[7+spread,-stride]]){
   poly(0x182522,[x-5,-29,x+6,-27,x+5,-7+d,x-5,-6+d]);
   g.fillStyle(0x3b4840).fillRect(x-3,-22,4,12);
   poly(0x101c1b,[x-6,-10+d,x+5,-11+d,x+7,-4+d,x+12,-2+d,x+12,2+d,x-7,2+d]);
@@ -31,8 +31,9 @@ export function drawGuanyu(g:Phaser.GameObjects.Graphics,f:Fighter,frame:number,
  poly(0x285b3d,[5,-41,12,-39,17,-18,12,-14,7,-19]);
  line(0xb79a59,2,[-19,-20,-9,-15,1,-19,12,-13,19,-18]);
  g.save();
- if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(action?.crouch??0));}
+ if(planted(f)){g.translateCanvas(0,-32);g.rotateCanvas(waistLean(f,grip?.lean??action?.lean??0)*Math.PI/180);g.translateCanvas(0,32+(grip?.crouch??action?.crouch??0));}
  try {
+ if(grip&&!f.mounted)drawGrip(g,f,gripPoint,'back');
  // Chest cuirass with individually lit overlapping plates.
  poly(0x172b29,[-17,-62,-9,-67,10,-66,19,-59,15,-36,-13,-36]);
  poly(0x48645a,[-12,-61,10,-62,14,-54,11,-39,-11,-39,-15,-53]);
