@@ -1,10 +1,22 @@
+# Dependencies and build output
 node_modules/
 dist/
-.DS_Store
 src-tauri/target/
-.openai/*.tar.gz
-release/
-__pycache__/
-.env
-
 src-tauri/gen/
+release/
+
+# Local environment (keep the public example)
+.env
+.env.*
+!.env.example
+
+# Temporary files and reports
+.DS_Store
+__pycache__/
+*.py[cod]
+*.log
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+.openai/*.tar.gz
