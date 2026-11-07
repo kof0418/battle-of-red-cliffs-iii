@@ -89,7 +89,13 @@ Sites 部署設定位於 `.openai/hosting.json`，靜態輸出目錄為 `dist/`�
 
 ## Mac 版與打包
 
-目前 Mac 版為 **v4.0.2**，適用 Apple Silicon（M 系列晶片）、macOS 12 以上，可離線執行。下載包解壓縮後開啟「赤壁之戰三.app」；詳細使用方式見 [MACOS.md](MACOS.md)。
+目前 Mac 版為 **v4.0.2**，適用 Apple Silicon（M 系列晶片）、macOS 12 以上，可離線執行。可從 [GitHub Releases](https://github.com/kof0418/battle-of-red-cliffs-iii/releases/tag/v4.0.2) 下載安裝包。
+
+1. 解壓縮 `Red-Cliffs-III-v4.0.2-macOS-arm64.zip`。
+2. 將「赤壁之戰三.app」拖至「應用程式」，再開啟遊戲。
+3. 確認主選單顯示 v4.0.2，可先進入「新手教學／練習場」熟悉操作。
+
+執行 Mac 版不需要伺服器、Node.js 或 Python。
 
 建置需額外安裝 Rust 與 macOS 開發工具：
 
@@ -134,7 +140,7 @@ python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-dar
 | `legacy/` | 舊版回歸測試依賴，不會編入遊戲 |
 | `docs/history/` | 歷史文件，不作為現行遊玩說明 |
 
-更新摘要見 [CHANGELOG.md](CHANGELOG.md)，Mac 使用說明見 [MACOS.md](MACOS.md)。本 README 以現行版本為準，舊版測試數字與功能敘述保留於歷史資料中。
+主目錄統一以本 README 提供現行版本、操作、開發與打包說明。
 
 ## 上傳 GitHub
 

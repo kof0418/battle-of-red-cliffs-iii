@@ -27,7 +27,7 @@ with zipfile.ZipFile(source, 'w', zipfile.ZIP_DEFLATED) as archive:
         if path.is_file() and not any(part in excluded for part in path.relative_to(root).parts) and path.name not in {'.DS_Store', '.env'}:
             archive.write(path, Path('three-kingdoms-battle') / path.relative_to(root))
 with zipfile.ZipFile(web, 'w', zipfile.ZIP_DEFLATED) as archive:
-    files = list((root / 'dist').rglob('*')) + [root / p for p in ['scripts/play.py', 'play.command', 'play.cmd', 'QUICKSTART.md']]
+    files = list((root / 'dist').rglob('*')) + [root / p for p in ['scripts/play.py', 'play.command', 'play.cmd', 'README.md']]
     for path in files:
         if path.is_file(): archive.write(path, Path('red-banner-web') / path.relative_to(root))
 artifacts = [source, web]
@@ -43,7 +43,7 @@ if args.mac_app:
         folder = Path(temp) / f'Red-Cliffs-III-v{version}-macOS-arm64'
         folder.mkdir()
         subprocess.run(['ditto', str(app), str(folder / app.name)], check=True)
-        shutil.copy2(root / 'MACOS.md', folder / 'MACOS.md')
+        shutil.copy2(root / 'README.md', folder / 'README.md')
         subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(folder), str(mac)], check=True)
     artifacts.append(mac)
 for path in artifacts:
