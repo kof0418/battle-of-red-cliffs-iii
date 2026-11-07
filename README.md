@@ -148,6 +148,21 @@ python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-dar
 
 `tests/`、`legacy/` 與平衡檢查腳本是維護用工具，應保留於儲存庫；它們不會被打包進正式遊戲。`src/main.ts` 的開發預覽只在開發模式啟用，正式建置會移除。Mac 安裝包與網頁成品可另放 GitHub Releases，無須加入原始碼儲存庫。
 
+## 測試與維護工具
+
+以下程式供日後改版驗證，應保留；測試檔名中的版本號代表加入測試的時間，不代表測試已失效。
+
+| 路徑 | 保留原因 |
+| --- | --- |
+| `tests/*.test.ts` | 驗證戰鬥、摔技、騎乘、關卡、設定、教學與通關紀錄，使用 `npm test` 執行 |
+| `legacy/` | 部分回歸測試仍引用舊版資料工具，現行遊戲不匯入 |
+| `scripts/balance.ts` | 比較六將不同攻擊距離、場地應對及必殺策略 |
+| `scripts/benchmark_balance.ts` | 使用固定策略與指定種子比較六將表現，模擬給予 10 次接關 |
+| `scripts/balance-qa.ts` | 比較三種難度、兩種戰役長度及單／雙人模式，模擬使用模型預設的 2 次接關 |
+| `src/main.ts` 的開發預覽 | 檢查摔技關鍵影格、角色姿態、場景與音效；僅開發模式啟用，正式建置會移除 |
+
+平衡工具可用 `node --experimental-strip-types scripts/檔名.ts` 執行；模擬結果不等同真人手感或通關保證。`balance-qa.ts` 會覆寫 `docs/performance/v290-balance.json`，重跑後請檢查報告差異。歷史報告中的接關設定可能與目前介面預設值不同。
+
 ## 驗證範圍
 
 v4.0.2 已通過 882 項自動化測試與正式網頁建置；Mac App 已在 Apple Silicon 本機驗證啟動、移動與練習場攻擊，並驗證壓縮包解壓縮後的版本與簽章。自動化測試不代表已完成人工全關卡通關、實體手把或所有手機裝置驗收。
