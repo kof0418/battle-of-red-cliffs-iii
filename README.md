@@ -1,6 +1,6 @@
 # 赤壁之戰三 · v4.0.2
 
-原創三國題材橫向動作遊戲，以 Phaser 3、TypeScript 與 Vite 製作，遊戲畫面為 960 × 540。提供網頁版與 Tauri 2 封裝的 Mac 離線版。
+原創三國題材橫向動作遊戲，以 Phaser 3、TypeScript 與 Vite 製作，遊戲畫面為 960 × 540。提供網頁版與 Tauri 2 封裝的 Windows x64／Mac Apple Silicon 離線版。
 
 [遊玩網頁版](https://red-banner-three-kingdoms-jl.kof0418.chatgpt.site/)
 
@@ -52,7 +52,7 @@ v4.0.2 已改善六將前摔／背摔的抓握、腰肩轉動及收臂銜接；�
 
 ### 資料保存
 
-只保存操作設定、音量、最高分及通關回顧，**不保存戰鬥中的進度**。重新整理、關閉或重新出征會開始新的戰役。網頁版與 Mac 版的本機資料各自獨立；瀏覽器無法儲存時仍可遊玩，但資料可能只在當次工作階段保留。
+只保存操作設定、音量、最高分及通關回顧，**不保存戰鬥中的進度**。重新整理、關閉或重新出征會開始新的戰役。網頁版、Windows 版與 Mac 版的本機資料各自獨立；瀏覽器無法儲存時仍可遊玩，但資料可能只在當次工作階段保留。
 
 ## 本機開發與網頁建置
 
@@ -87,6 +87,34 @@ docker compose down
 
 Sites 部署設定位於 `.openai/hosting.json`，靜態輸出目錄為 `dist/`。
 
+## Windows 版與打包
+
+目前 Windows 版為 **v4.0.2 x64**，提供安裝程式與免安裝版。執行方式：
+
+1. 安裝版：執行 `Red-Cliffs-III-v4.0.2-Windows-x64-Setup.exe`，依畫面選擇繁體中文或英文並完成安裝。
+2. 免安裝版：解壓縮 `Red-Cliffs-III-v4.0.2-Windows-x64.zip`，雙擊 `Red-Cliffs-III.exe`。
+3. 確認主選單顯示 v4.0.2，再開始遊戲或進入新手教學／練習場。
+
+本機整理後的成品位於 `release/`，不隨 Git 原始碼提交；推送原始碼不會自動上傳 Windows 安裝包至 GitHub Releases。Windows 執行檔尚未加數位簽章。
+
+### 從原始碼建置
+
+Windows x64 建置需安裝 Node.js 22.18 以上、Rust（MSVC 工具鏈），以及 Visual Studio Build Tools 的「使用 C++ 的桌面開發」與 Windows SDK。
+
+```sh
+npm ci
+npm run desktop:build:windows
+```
+
+輸出位置：
+
+- 遊戲執行檔：`src-tauri/target/x86_64-pc-windows-msvc/release/three-kingdoms-battle.exe`
+- NSIS 安裝程式：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/赤壁之戰三_4.0.2_x64-setup.exe`
+
+上述指令產生原始 EXE 與 NSIS 安裝程式，不會自動製作 `release/` 中重新命名的成品或免安裝 ZIP。若設定 `CARGO_TARGET_DIR`，請改至該目錄下的對應輸出路徑尋找成品。
+
+執行需 Microsoft Edge WebView2 Runtime；安裝程式會在缺少時連網下載安裝。安裝好執行環境後即可離線遊玩，遊戲素材已內建，執行時不需要 Node.js、Python 或本機伺服器。Windows 專用設定位於 `src-tauri/tauri.windows.conf.json`，使用獨立的 ICO 圖示與繁體中文／英文 NSIS 安裝介面。
+
 ## Mac 版與打包
 
 目前 Mac 版為 **v4.0.2**，適用 Apple Silicon（M 系列晶片）、macOS 12 以上，可離線執行。可從 [GitHub Releases](https://github.com/kof0418/battle-of-red-cliffs-iii/releases/tag/v4.0.2) 下載安裝包。
@@ -112,7 +140,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/macos/赤壁之戰三.app
 
 若設定 `CARGO_TARGET_DIR`，輸出會改到該目錄下相同的架構與封裝子目錄。更新版本時應同步 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 及 `src-tauri/tauri.conf.json` 的版本資料與視窗標題。
 
-此版採 ad-hoc 簽署，未經 Apple Developer ID 簽署或公證；下載到其他 Mac 時可能出現安全性提示。尚未提供 Intel Mac 與 Windows 發行包。
+此版採 ad-hoc 簽署，未經 Apple Developer ID 簽署或公證；下載到其他 Mac 時可能出現安全性提示。尚未提供 Intel Mac 發行包。
 
 ### 發行壓縮包
 
@@ -120,7 +148,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/macos/赤壁之戰三.app
 npm run release
 ```
 
-此指令執行測試與網頁建置，再於 `release/` 產生原始碼、網頁壓縮包及 SHA-256 校驗檔；不會自動建置 Mac App。已有 Mac App 時可一併封裝：
+此指令執行測試與網頁建置，再於 `release/` 產生原始碼、網頁壓縮包及 SHA-256 校驗檔；不會自動建置或封裝 Windows 桌面版，也不會自動建置 Mac App。已有 Mac App 時可一併封裝：
 
 ```sh
 python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/赤壁之戰三.app"
@@ -134,7 +162,7 @@ python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-dar
 | `src/` | 戰鬥規則、繪圖、輸入、音效、設定與樣式 |
 | `tests/` | 自動化回歸測試 |
 | `dist/` | 正式網頁建置輸出 |
-| `src-tauri/` | Mac 桌面程式與封裝設定 |
+| `src-tauri/` | Windows／Mac 桌面程式與封裝設定 |
 | `scripts/` | 打包、啟動與檢查工具 |
 | `docker/` | Nginx 設定 |
 | `legacy/` | 舊版回歸測試依賴，不會編入遊戲 |
@@ -144,9 +172,9 @@ python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-dar
 
 ## 上傳 GitHub
 
-請以本目錄作為儲存庫根目錄，使用 Git 上傳原始碼。`.gitignore` 已排除依賴套件、建置輸出、Mac 產物、暫存報告與本機環境設定；新環境執行 `npm ci` 後即可重新建置。保留 `package-lock.json` 與 `src-tauri/Cargo.lock`，讓安裝版本可重現。
+請以本目錄作為儲存庫根目錄，使用 Git 上傳原始碼。`.gitignore` 已排除依賴套件、建置輸出、Windows／Mac 產物、暫存報告與本機環境設定；新環境執行 `npm ci` 後即可重新建置。保留 `package-lock.json` 與 `src-tauri/Cargo.lock`，讓安裝版本可重現。
 
-`tests/`、`legacy/` 與平衡檢查腳本是維護用工具，應保留於儲存庫；它們不會被打包進正式遊戲。`src/main.ts` 的開發預覽只在開發模式啟用，正式建置會移除。Mac 安裝包與網頁成品可另放 GitHub Releases，無須加入原始碼儲存庫。
+`tests/`、`legacy/` 與平衡檢查腳本是維護用工具，應保留於儲存庫；它們不會被打包進正式遊戲。`src/main.ts` 的開發預覽只在開發模式啟用，正式建置會移除。Windows／Mac 安裝包與網頁成品可另放 GitHub Releases，無須加入原始碼儲存庫。
 
 ## 測試與維護工具
 
@@ -165,4 +193,9 @@ python3 scripts/package_release.py --mac-app "src-tauri/target/aarch64-apple-dar
 
 ## 驗證範圍
 
-v4.0.2 已通過 882 項自動化測試與正式網頁建置；Mac App 已在 Apple Silicon 本機驗證啟動、移動與練習場攻擊，並驗證壓縮包解壓縮後的版本與簽章。自動化測試不代表已完成人工全關卡通關、實體手把或所有手機裝置驗收。
+v4.0.2 已通過 882 項自動化測試、TypeScript 檢查與正式網頁建置。
+
+- Windows x64：已完成 Release 編譯與 NSIS 安裝程式打包，並實際啟動 EXE，確認主選單、選將及進入第一關戰鬥正常；尚未驗證全新電腦上的安裝流程。
+- Mac Apple Silicon：已在本機驗證啟動、移動與練習場攻擊，並驗證壓縮包解壓縮後的版本與簽章。
+
+上述驗證不代表已完成人工全關卡通關、實體手把或所有手機裝置驗收。

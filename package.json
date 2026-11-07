@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "desktop:build:windows": "tauri build --bundles nsis --target x86_64-pc-windows-msvc",
     "release": "npm test && npm run build && python3 scripts/package_release.py",
     "desktop:build:mac": "tauri build --bundles app --target aarch64-apple-darwin"
   },
